@@ -103,7 +103,7 @@ export function AssistantPanel() {
             <button className="btn btn-primary" onClick={() => useAiSettings.setState({ open: true })}>
               AI 연결 설정
             </button>
-            {status && !configured && <p className="muted small">구독은 터미널에서 `claude` 또는 `codex login`으로 로그인하면 바로 잡힙니다.</p>}
+            {status && !configured && <p className="muted small">AI 연결 설정에서 로그인 버튼을 누르면 브라우저에서 구독 계정으로 로그인합니다.</p>}
           </div>
         ) : !current || current.items.length === 0 ? (
           <div className="assistant-empty">

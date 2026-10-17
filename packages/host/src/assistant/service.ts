@@ -54,6 +54,8 @@ export interface AssistantDeps {
   emitDelta: (conversationId: string, itemId: string, d: { text?: string; thinking?: string }) => void;
   emitState: (conversationId: string, running: boolean) => void;
   rInfo: () => { version?: string };
+  /** Opens a web page in the user's browser (sign-in pages). */
+  openUrl: (url: string) => Promise<void>;
 }
 
 export class AssistantService {
@@ -75,6 +77,7 @@ export class AssistantService {
   dispose() {
     for (const id of this.running.keys()) this.stop(id);
     this.bridge.dispose();
+    for (const p of this.providers) if (isAgent(p)) p.dispose?.();
   }
 
   private get options() {
@@ -86,6 +89,8 @@ export class AssistantService {
   async status(refresh = false): Promise<AssistantStatus> {
     const providers: AssistantStatus["providers"] = [];
     const models: AssistantModel[] = [];
+    // Ask both agent CLIs at once; each takes a moment.
+    const subs = new Map(await Promise.all(this.providers.filter(isAgent).map(async (p) => [p, await p.connection(refresh)] as const)));
     for (const p of this.providers) {
       // Both fake providers share one status row.
       if (providers.some((x) => x.id === p.id)) {
@@ -93,27 +98,48 @@ export class AssistantService {
         continue;
       }
       let st: AssistantStatus["providers"][number];
-      if (isAgent(p)) {
-        const a = p.available();
-        st = { id: p.id, label: p.label, configured: a.ok, source: a.ok ? "login" : undefined, subscription: true, hint: a.hint };
+      const sub = isAgent(p) ? subs.get(p) : undefined;
+      if (sub) {
+        st = { id: p.id, label: p.label, configured: sub.state === "connected", source: sub.state === "connected" ? "login" : undefined, subscription: sub };
       } else {
         const key = p.id === "fake" ? { source: "env" as const } : getKey(p.id);
-        st = { id: p.id, label: p.label, configured: !!key, source: key?.source };
+        st = { id: p.id, label: p.label, configured: !!key, source: key?.source, error: this.errors.get(p.id) };
       }
-      st.error = this.errors.get(p.id);
       providers.push(st);
       if (!st.configured) continue;
       if (refresh) (p as any).resetModels?.();
       for (const m of await p.models()) models.push({ ...m, provider: p.id });
     }
     const def = this.options.defaultModel;
-    const prefer = ["cc:claude-opus-5-5", "claude-opus-5-5", "codex:default"];
+    const prefer = ["cc:opus", "cc:default", "claude-opus-5-5", "codex:default"];
     return {
       providers,
       models,
       defaultModel: models.find((m) => m.id === def)?.id ?? prefer.map((id) => models.find((m) => m.id === id)?.id).find(Boolean) ?? models[0]?.id,
       autoRunR: !!this.options.autoRunR,
     };
+  }
+
+  private agent(provider: AssistantProviderId) {
+    const p = this.providers.find((x) => x.id === provider && isAgent(x));
+    if (!p) throw new Error("구독으로 연결할 수 없는 서비스입니다.");
+    return p as AgentProvider;
+  }
+
+  /** Starts the subscription sign-in; the browser opens on the provider's page. */
+  async login(provider: AssistantProviderId) {
+    await this.agent(provider).login((url) => void this.deps.openUrl(url));
+    return this.status();
+  }
+
+  async cancelLogin(provider: AssistantProviderId) {
+    await this.agent(provider).cancelLogin();
+    return this.status(true);
+  }
+
+  async logout(provider: AssistantProviderId) {
+    await this.agent(provider).logout();
+    return this.status(true);
   }
 
   async setKey(provider: AssistantProviderId, key: string | null) {

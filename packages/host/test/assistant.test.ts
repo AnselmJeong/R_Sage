@@ -85,7 +85,7 @@ maybe("assistant with the scripted provider", () => {
     items.clear();
     const status = await call("assistant.status");
     const cc = status.providers.find((p: any) => p.id === "claude-code");
-    expect(cc.subscription).toBe(true);
+    expect(cc.subscription.state).toBeString();
     const conv = await call("assistant.new");
     // Earlier turns from another model reach the agent as a transcript.
     await call("assistant.send", { conversationId: conv.id, model: "fake-echo", text: "hello" });

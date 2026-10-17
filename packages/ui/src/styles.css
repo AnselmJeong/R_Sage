@@ -1252,6 +1252,26 @@ label.check {
   gap: 6px;
   flex-direction: row;
 }
+.ai-sub-state {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.ai-sub-state.ok {
+  color: var(--ok, var(--accent));
+}
+.ai-sub-state.error {
+  color: var(--err);
+}
+.ai-sub-actions {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.ai-quota {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .ai-section {
   margin: 12px 0 2px;
   font-size: 13px;
