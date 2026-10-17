@@ -192,6 +192,7 @@ export class AssistantService {
 
   private dir() {
     const p = this.deps.project();
+    p?.ensureMeta();
     const d = p ? p.meta("assistant") : join(appDir(), "assistant");
     mkdirSync(d, { recursive: true });
     return d;

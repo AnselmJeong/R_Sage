@@ -47,10 +47,18 @@ export class Project {
     return join(this.root, META, ...parts);
   }
 
-  private ensureMeta() {
-    if (existsSync(this.meta(".gitignore"))) return;
-    // Settings are worth committing; per-machine state is not.
-    writeFileAtomic(this.meta(".gitignore"), "state.json\nhistory.jsonl\nconsole-history.json\nbackups/\n");
+  private metaReady = false;
+
+  /** Settings are worth committing; per-machine state and assistant conversations (which can hold pasted images and data) are not. */
+  ensureMeta() {
+    if (this.metaReady) return;
+    this.metaReady = true;
+    const file = this.meta(".gitignore");
+    const want = ["state.json", "history.jsonl", "console-history.json", "backups/", "assistant/"];
+    const have = existsSync(file) ? readFileSync(file, "utf8") : "";
+    const lines = new Set(have.split("\n").map((l) => l.trim()));
+    const missing = want.filter((w) => !lines.has(w));
+    if (missing.length) writeFileAtomic(file, (have && !have.endsWith("\n") ? have + "\n" : have) + missing.join("\n") + "\n");
   }
 
   updateSettings(settings: ProjectSettings): ProjectInfo {

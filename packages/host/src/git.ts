@@ -3,7 +3,7 @@
 // anywhere inside the repository.
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { GitBranch, GitChange, GitCommit, GitStatus } from "@rsage/shared";
 
 export class GitError extends Error {}
@@ -42,9 +42,16 @@ export class GitService {
     return { code, stdout, stderr };
   }
 
+  /**
+   * The repository root as seen from the project folder. --show-toplevel gives
+   * the real path (/private/var/…, a resolved Google Drive link), which would not
+   * match the paths the editor uses, so walk up from the project path instead.
+   */
   async root(): Promise<string | null> {
-    const r = await this.run(["rev-parse", "--show-toplevel"], { allowFail: true });
-    return r.code === 0 ? r.stdout.trim() : null;
+    const r = await this.run(["rev-parse", "--show-cdup"], { allowFail: true });
+    if (r.code !== 0) return null;
+    const cwd = this.cwd()!;
+    return resolve(cwd, r.stdout.trim() || ".");
   }
 
   async status(): Promise<GitStatus> {
