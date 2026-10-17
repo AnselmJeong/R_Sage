@@ -2,7 +2,7 @@
 // its streamed items.
 
 import { create } from "zustand";
-import type { AssistantItem, AssistantStatus, Conversation, ConversationSummary } from "@rsage/shared";
+import type { AssistantContext, AssistantItem, AssistantStatus, Conversation, ConversationSummary } from "@rsage/shared";
 import { host } from "./host/client";
 import { useStore } from "./store";
 
@@ -80,11 +80,22 @@ export async function deleteConversation(id: string) {
   await loadConversations();
 }
 
-export async function send(text: string, context?: { file?: string; selection?: { text: string; startLine: number; endLine: number } }) {
+/** Deletes every conversation of this project. */
+export async function clearConversations() {
+  for (const c of useAssistant.getState().conversations) await host.call("assistant.delete", { id: c.id });
+  useAssistant.setState({ current: undefined });
+  await loadConversations();
+}
+
+/** Sends a message. The editor file and selection go along only while that chip is on; @ references and images always do. */
+export async function send(text: string, context: AssistantContext = {}) {
   const s = useAssistant.getState();
   if (!s.model) throw new Error("모델을 고르세요.");
   const conv = s.current ?? (await newConversation());
-  await host.call("assistant.send", { conversationId: conv.id, text, model: s.model, context: s.includeContext ? context : undefined });
+  const { file, selection, ...rest } = context;
+  const ctx: AssistantContext = { ...(s.includeContext ? { file, selection } : {}), ...rest };
+  const empty = !ctx.file && !ctx.refs?.length && !ctx.images?.length;
+  await host.call("assistant.send", { conversationId: conv.id, text, model: s.model, context: empty ? undefined : ctx });
 }
 
 export function initAssistant() {
@@ -101,7 +112,13 @@ export function initAssistant() {
   host.on("assistant.state", ({ conversationId, running }) => {
     useAssistant.setState((s) => ({ running: { ...s.running, [conversationId]: running } }));
     if (!running) {
-      void host.call("assistant.list").then((conversations) => useAssistant.setState({ conversations }));
+      void host.call("assistant.list").then((conversations) =>
+        useAssistant.setState((s) => {
+          // The first message names a new conversation.
+          const title = conversations.find((c) => c.id === s.current?.id)?.title;
+          return { conversations, current: s.current && title ? { ...s.current, title } : s.current };
+        }),
+      );
       // A provider error (bad key) shows up in the status.
       void refreshStatus();
     }

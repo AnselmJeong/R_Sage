@@ -113,7 +113,16 @@ export class AnthropicProvider implements Provider {
 function toMessages(history: Turn[]): Anthropic.Beta.BetaMessageParam[] {
   const out: Anthropic.Beta.BetaMessageParam[] = [];
   for (const t of history) {
-    if (t.role === "user") out.push({ role: "user", content: t.text });
+    if (t.role === "user")
+      out.push({
+        role: "user",
+        content: t.images?.length
+          ? [
+              ...t.images.map((img) => ({ type: "image" as const, source: { type: "base64" as const, media_type: img.mime as any, data: img.data } })),
+              { type: "text" as const, text: t.text },
+            ]
+          : t.text,
+      });
     else if (t.role === "assistant") {
       if (t.provider === "anthropic" && t.raw) out.push({ role: "assistant", content: t.raw as Anthropic.Beta.BetaContentBlockParam[] });
       else {

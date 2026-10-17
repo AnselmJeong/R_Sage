@@ -1,0 +1,194 @@
+/* Assistant panel: conversation history, @ references, image attachments. */
+.conv-toolbar {
+  position: relative;
+}
+.conv-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg);
+  padding: 0 4px;
+}
+.conv-history {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 6px;
+  right: 6px;
+  z-index: 40;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.conv-history-search {
+  margin: 6px;
+  padding: 4px 8px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+}
+.conv-history-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.conv-history-list {
+  overflow-y: auto;
+  flex: 1;
+  padding-bottom: 4px;
+}
+.conv-history-empty {
+  padding: 8px 10px;
+}
+.conv-history-group {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding: 6px 10px 2px;
+}
+.conv-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.conv-history-item:hover {
+  background: var(--bg-hover);
+}
+.conv-history-item.sel {
+  color: var(--accent);
+}
+.conv-history-item .ellipsis {
+  flex: 1;
+  min-width: 0;
+}
+.conv-history-del {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  visibility: hidden;
+  font-size: 13px;
+}
+.conv-history-item:hover .conv-history-del {
+  visibility: visible;
+}
+.conv-history-del:hover {
+  color: var(--err);
+}
+.conv-history-clear {
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--err);
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.conv-history-clear:hover {
+  background: var(--bg-hover);
+}
+
+.composer {
+  position: relative;
+}
+.composer.dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 200px;
+  cursor: default;
+}
+.attach-chip button,
+.attach-image button {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+}
+.attach-image {
+  position: relative;
+  display: inline-block;
+}
+.attach-image img {
+  height: 44px;
+  max-width: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.attach-image button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  line-height: 12px;
+  padding: 0;
+}
+.mention-menu {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 40;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.3);
+  padding: 3px 0;
+}
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mention-item.sel {
+  background: var(--bg-hover);
+}
+.mention-item .ellipsis {
+  min-width: 0;
+}
+.mention-hint {
+  margin-left: auto;
+  max-width: 50%;
+}
+.msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.msg-images img {
+  max-height: 120px;
+  max-width: 100%;
+  border-radius: 4px;
+}

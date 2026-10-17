@@ -34,7 +34,7 @@ export class FakeProvider implements Provider {
       return { text, calls: [], raw: null, stop: "end" };
     }
     // The editor context the service appends is not part of the script.
-    const msg = last?.role === "user" ? last.text.replace(/\n*<editor_context>[\s\S]*$/, "") : "";
+    const msg = last?.role === "user" ? last.text.replace(/\n*<(editor_context|references)>[\s\S]*$/, "") : "";
     req.onThinking("요청을 살펴보는 중…");
     const id = `fake_${++this.n}`;
     const code = /```r?\n([\s\S]*?)```/.exec(msg)?.[1];

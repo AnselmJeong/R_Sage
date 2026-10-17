@@ -210,12 +210,22 @@ export class ClaudeCodeProvider implements AgentProvider {
     ];
     if (model && model !== "default") args.push("--model", model);
     if (req.sessionId) args.push("--resume", req.sessionId);
+    // With images the message goes in as a stream-json user message with image blocks.
+    let input = req.prompt;
+    if (req.images?.length) {
+      args.push("--input-format", "stream-json");
+      const content = [
+        ...req.images.map((img) => ({ type: "image", source: { type: "base64", media_type: img.mime, data: img.data } })),
+        { type: "text", text: req.prompt },
+      ];
+      input = JSON.stringify({ type: "user", message: { role: "user", content } }) + "\n";
+    }
     let sessionId = req.sessionId;
     let text = "";
     let current = "";
     this.runs++;
     try {
-      for await (const m of runJsonLines(cmd!, args, { input: req.prompt, env: this.env(), cwd: req.cwd, signal: req.signal })) {
+      for await (const m of runJsonLines(cmd!, args, { input, env: this.env(), cwd: req.cwd, signal: req.signal })) {
         if (m.session_id) sessionId = m.session_id;
         if (m.type === "rate_limit_event") {
           this.noteLimit(m.rate_limit_info);
