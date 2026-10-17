@@ -7,7 +7,7 @@ import { confirmDialog } from "./Dialogs";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-function groupOf(updatedAt: string, now: Date): string {
+export function groupOf(updatedAt: string, now: Date): string {
   const t = new Date(updatedAt);
   if (t.toDateString() === now.toDateString()) return "오늘";
   if (now.getTime() - t.getTime() < 30 * DAY) return "최근 30일";

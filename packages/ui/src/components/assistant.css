@@ -171,6 +171,11 @@
   font-size: 12px;
   cursor: pointer;
 }
+.mention-group {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding: 5px 10px 1px;
+}
 .mention-item.sel {
   background: var(--bg-hover);
 }

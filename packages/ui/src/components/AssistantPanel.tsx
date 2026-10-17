@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { diffLines } from "diff";
@@ -7,7 +7,7 @@ import { host } from "../host/client";
 import { activeEditor, openFile } from "../editor/files";
 import { useStore } from "../store";
 import { newConversation, send, setModel, useAssistant } from "../assistant";
-import { HistoryMenu } from "./AssistantHistory";
+import { HistoryMenu, groupOf } from "./AssistantHistory";
 import "./assistant.css";
 import { useAiSettings } from "./AiSettingsDialog";
 
@@ -102,7 +102,7 @@ export function AssistantPanel() {
   );
 }
 
-type Candidate = { key: string; label: string; hint: string; ref: AssistantRef };
+type Candidate = { key: string; label: string; hint: string; group?: string; ref: AssistantRef };
 
 const MAX_SIDE = 2000;
 
@@ -134,11 +134,15 @@ async function readImage(file: File): Promise<AssistantImage> {
   return { mime: head!.slice(5, head!.indexOf(";")), data: data!, name: file.name || undefined };
 }
 
-/** The "@query" being typed just before the caret, if any. */
-function mentionAt(text: string, caret: number): { start: number; query: string } | null {
+/** "@" references files and folders, "!" earlier conversations. */
+type Trigger = "@" | "!";
+type Mention = { trigger: Trigger; start: number; query: string };
+
+/** The "@query" or "!query" being typed just before the caret, if any. */
+function mentionAt(text: string, caret: number): Mention | null {
   const before = text.slice(0, caret);
-  const m = /(^|\s)@([^\s@]*)$/.exec(before);
-  return m ? { start: caret - m[2]!.length - 1, query: m[2]! } : null;
+  const m = /(^|\s)([@!])([^\s@!]*)$/.exec(before);
+  return m ? { trigger: m[2] as Trigger, start: caret - m[3]!.length - 1, query: m[3]! } : null;
 }
 
 function refLabel(r: AssistantRef) {
@@ -158,7 +162,7 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
   const [text, setText] = useState("");
   const [refs, setRefs] = useState<AssistantRef[]>([]);
   const [images, setImages] = useState<AssistantImage[]>([]);
-  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mention, setMention] = useState<Mention | null>(null);
   const [sel, setSel] = useState(0);
   const [files, setFiles] = useState<string[] | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -171,7 +175,7 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
   // The project's files are listed when the user first types @, and again after a project change.
   useEffect(() => setFiles(null), [project?.path]);
   useEffect(() => {
-    if (mention && files === null && project)
+    if (mention?.trigger === "@" && files === null && project)
       void host.call("fs.walk").then((r) => setFiles(r.files)).catch(() => setFiles([]));
   }, [mention, files, project]);
 
@@ -180,8 +184,14 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
     const q = mention.query.toLowerCase();
     const hit = (s: string) => !q || s.toLowerCase().includes(q);
     const out: Candidate[] = [];
-    for (const c of conversations)
-      if (c.id !== current?.id && hit(c.title)) out.push({ key: `c:${c.id}`, label: c.title, hint: "지난 대화", ref: { kind: "conversation", id: c.id, title: c.title } });
+    if (mention.trigger === "!") {
+      // Earlier conversations, newest first, under 오늘 / 최근 30일 / 이전 like the history list.
+      const now = new Date();
+      for (const c of conversations)
+        if (c.id !== current?.id && hit(c.title))
+          out.push({ key: `c:${c.id}`, label: c.title, hint: "", group: groupOf(c.updatedAt, now), ref: { kind: "conversation", id: c.id, title: c.title } });
+      return out.slice(0, 40);
+    }
     const folders = new Set<string>();
     for (const f of files ?? []) {
       const parts = f.split("/");
@@ -190,7 +200,7 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
     const abs = (rel: string) => `${project.path}/${rel}`;
     for (const d of [...folders].sort()) if (hit(d)) out.push({ key: `d:${d}`, label: `${d.split("/").pop()}/`, hint: d, ref: { kind: "folder", path: abs(d) } });
     for (const f of files ?? []) if (hit(f)) out.push({ key: `f:${f}`, label: f.split("/").pop()!, hint: f, ref: { kind: "file", path: abs(f) } });
-    // Exact name matches first, then conversations, folders, files in that order.
+    // Exact name matches first, then folders, then files.
     const exact = (c: Candidate) => (q && c.label.toLowerCase().startsWith(q) ? 0 : 1);
     return out.map((c, i) => ({ c, i })).sort((a, b) => exact(a.c) - exact(b.c) || a.i - b.i).map((x) => x.c).slice(0, 30);
   }, [mention, files, conversations, current?.id, project]);
@@ -198,8 +208,8 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
   const pick = (c: Candidate) => {
     if (!mention) return;
     const caret = mention.start + 1 + mention.query.length;
-    const name = c.ref.kind === "conversation" ? `대화:${refLabel(c.ref).slice(0, 16).trim()}` : refLabel(c.ref);
-    const token = `@${name.replace(/\s+/g, "_")} `;
+    const name = c.ref.kind === "conversation" ? refLabel(c.ref).slice(0, 20).trim() : refLabel(c.ref);
+    const token = `${mention.trigger}${name.replace(/\s+/g, "_")} `;
     const next = text.slice(0, mention.start) + token + text.slice(caret);
     setText(next);
     setRefs((rs) => (rs.some((r) => JSON.stringify(r) === JSON.stringify(c.ref)) ? rs : [...rs, c.ref]));
@@ -304,26 +314,28 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
       {mention && candidates.length > 0 && (
         <div className="mention-menu">
           {candidates.map((c, i) => (
-            <div
-              key={c.key}
-              className={`mention-item ${i === sel ? "sel" : ""}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(c);
-              }}
-              onMouseEnter={() => setSel(i)}
-            >
-              <span>{REF_ICON[c.ref.kind]}</span>
-              <span className="ellipsis">{c.label}</span>
-              <span className="muted small ellipsis mention-hint">{c.hint}</span>
-            </div>
+            <Fragment key={c.key}>
+              {c.group && c.group !== candidates[i - 1]?.group && <div className="mention-group">{c.group}</div>}
+              <div
+                className={`mention-item ${i === sel ? "sel" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(c);
+                }}
+                onMouseEnter={() => setSel(i)}
+              >
+                <span>{REF_ICON[c.ref.kind]}</span>
+                <span className="ellipsis">{c.label}</span>
+                <span className="muted small ellipsis mention-hint">{c.hint}</span>
+              </div>
+            </Fragment>
           ))}
         </div>
       )}
       <textarea
         ref={taRef}
         className="composer-input"
-        placeholder={disabled ? "AI 연결 후 사용할 수 있습니다" : "무엇을 분석할까요? @로 파일·폴더·지난 대화 참조, 그림은 붙여넣기·끌어놓기 (Enter 보내기)"}
+        placeholder={disabled ? "AI 연결 후 사용할 수 있습니다" : "무엇을 분석할까요? @ 파일·폴더, ! 지난 대화, 그림은 붙여넣기·끌어놓기 (Enter 보내기)"}
         value={text}
         disabled={disabled}
         rows={3}
