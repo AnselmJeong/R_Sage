@@ -27,6 +27,8 @@ import {
 } from "../editor/files";
 import { ConsolePanel } from "./ConsolePanel";
 import { EditorPanel } from "./EditorPanel";
+import { PreviewPanel } from "./PreviewPanel";
+import { renderDocument, showPreview } from "../quarto/render";
 import { FileTree } from "./FileTree";
 import { HistoryPanel } from "./HistoryPanel";
 import { EnvironmentPanel } from "./EnvironmentPanel";
@@ -100,6 +102,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   plots: () => <PlotsPanel />,
   help: () => <HelpPanel />,
   dataViewer: DataViewerPanel,
+  preview: () => <PreviewPanel />,
 };
 
 function TerminalPanelHost(props: IDockviewPanelProps) {
@@ -304,6 +307,18 @@ function registerAppCommands() {
         setTimeout(() => (window as any).__rsageAssistantFocus?.(), 0);
       },
     }),
+    registerCommand({
+      id: "quarto.render",
+      title: "Quarto 문서 렌더링",
+      category: "Quarto",
+      key: "Mod+Shift+K",
+      run: () => {
+        const f = useStore.getState().activeFile;
+        if (f && /\.(qmd|md|ipynb)$/i.test(f)) void renderDocument(f);
+        else useStore.getState().notify("렌더링할 .qmd 파일을 먼저 여세요.", "error");
+      },
+    }),
+    registerCommand({ id: "quarto.preview", title: "미리보기 보기", category: "Quarto", run: () => showPreview() }),
     registerCommand({ id: "ai.settings", title: "AI 연결 설정", category: "AI", run: () => useAiSettings.setState({ open: true }) }),
     registerCommand({ id: "view.history", title: "실행 이력", category: "보기", run: () => showPanel("history", "history", "실행 이력", { id: "environment", dir: "within" }) }),
     registerCommand({ id: "view.environment", title: "환경", category: "보기", run: () => showPanel("environment", "environment", "환경", { id: "history", dir: "within" }) }),

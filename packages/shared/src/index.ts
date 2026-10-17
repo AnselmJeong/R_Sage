@@ -358,6 +358,18 @@ export interface HostMethods {
   "assistant.stop": { params: { conversationId: string }; result: void };
   "assistant.approve": { params: { conversationId: string; itemId: string; approve: boolean; always?: boolean }; result: void };
 
+  /** Run R code from a document chunk; resolves with what it printed and drew. */
+  "console.runCell": {
+    params: { code: string; source?: SourceRef };
+    result: { executionId: string; status: ExecutionRecord["status"]; text: string; isError: boolean; images: { mime: string; data: string }[] };
+  };
+  "quarto.info": { params: {}; result: { path?: string; version?: string } };
+  /** Starts a render; progress comes as quarto.log, the end as quarto.done. */
+  "quarto.render": { params: { path: string; to?: string }; result: { renderId: string } };
+  "quarto.stop": { params: { renderId: string }; result: void };
+  /** A local http URL that shows a project file (rendered pages, images). */
+  "preview.url": { params: { path: string }; result: string };
+
   "dialog.pickFolder": { params: { title?: string }; result: string | null };
   "shell.openExternal": { params: { path: string }; result: void };
 }
@@ -369,6 +381,8 @@ export type Result<M extends MethodName> = HostMethods[M]["result"];
 // ---------- events ----------
 
 export interface HostEvents {
+  "quarto.log": { renderId: string; text: string };
+  "quarto.done": { renderId: string; ok: boolean; output?: string; error?: string };
   "session.state": SessionInfo;
   "console.output": OutputEvent;
   execution: ExecutionRecord;

@@ -32,6 +32,8 @@ import { LspBridge } from "./lsp";
 import { Project } from "./project";
 import { listFiles, replaceInFiles, searchText } from "./search";
 import { TerminalService } from "./terminal";
+import { collectExecution } from "./execute";
+import { PreviewServer, QuartoService } from "./quarto";
 
 export const APP_VERSION = "0.1.0";
 
@@ -61,6 +63,11 @@ export class Host {
   private memTimer?: ReturnType<typeof setInterval>;
   private memoryBytes?: number;
   private terminals: TerminalService;
+  private quarto = new QuartoService({
+    log: (renderId, text) => this.emit("quarto.log", { renderId, text }),
+    done: (renderId, r) => this.emit("quarto.done", { renderId, ...r }),
+  });
+  private preview = new PreviewServer(() => this.project?.root);
   private handlers: { [M in MethodName]: Handler<M> };
 
   constructor(private opts: HostOptions) {
@@ -144,6 +151,8 @@ export class Host {
     clearInterval(this.memTimer);
     this.terminals.killAll();
     this.assistant.dispose();
+    this.quarto.dispose();
+    this.preview.dispose();
     this.lsp.stop();
     this.project?.unwatch();
     await this.session.shutdown();
@@ -285,7 +294,7 @@ export class Host {
       "app.diagnostics": async () => {
         const rs = await this.rInstallations();
         const ark = findArk();
-        const quarto = Bun.which("quarto") ?? (existsSync("/Applications/quarto/bin/quarto") ? "/Applications/quarto/bin/quarto" : null);
+        const quarto = this.quarto.find(this.project?.settings?.quartoPath);
         const git = Bun.which("git");
         return {
           checks: [
@@ -326,6 +335,20 @@ export class Host {
         if ((origin ?? "console") === "console" && code.trim()) this.project?.pushConsoleHistory(code);
         return { executionId: rec.id };
       },
+      "console.runCell": async ({ code, source }) => {
+        const st = this.session.state.state;
+        if (st === "stopped" || st === "exited") await this.startSession();
+        const r = await collectExecution(this.session, this.comms, code, { origin: "editor", source });
+        return { executionId: r.executionId, status: r.status, text: r.text, isError: r.isError, images: r.images };
+      },
+      "quarto.info": () => this.quarto.info(this.project?.settings?.quartoPath),
+      "quarto.render": async ({ path, to }) => {
+        const file = this.file(path);
+        const rHome = this.session.state.rHome ?? this.project?.settings?.rHome ?? this.config.data.defaultRHome;
+        return { renderId: this.quarto.render(file, { to, quarto: this.project?.settings?.quartoPath, rHome }) };
+      },
+      "quarto.stop": ({ renderId }) => this.quarto.stop(renderId),
+      "preview.url": ({ path }) => this.preview.url(this.file(path)),
       "console.isComplete": ({ code }) => this.isComplete(code),
       "console.input": ({ value }) => this.session.inputReply(value),
       "console.history": () => this.project?.consoleHistory() ?? [],
