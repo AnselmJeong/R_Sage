@@ -2,6 +2,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { discoverR, findArk, KernelSession, type OutputEvent } from "@rsage/kernel";
 import { CommManager, type OpenComm } from "../src/comms";
+import { ARK_BASE_DPI, savePlot } from "../src/plots";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const ark = findArk();
 const rs = await discoverR();
@@ -57,6 +61,32 @@ maybe("CommManager with Ark", () => {
     expect(out.mime_type).toBe("image/png");
     expect(Buffer.from(out.data, "base64").subarray(1, 4).toString()).toBe("PNG");
   }, 30000);
+
+  test("plots export at a physical size and DPI in every format", async () => {
+    const plot = opened.find((c) => c.target === "positron.plot")!;
+    const dir = mkdtempSync(join(tmpdir(), "rsage-plot-"));
+    const png = join(dir, "sub", "p.png");
+    expect(await savePlot(cm, { commId: plot.commId, path: png, format: "png", widthIn: 4, heightIn: 3, dpi: 300 })).toEqual({ ok: true, path: png });
+    const b = readFileSync(png);
+    expect([b.readUInt32BE(16), b.readUInt32BE(20)]).toEqual([1200, 900]);
+    // Refuses to overwrite unless asked.
+    expect(await savePlot(cm, { commId: plot.commId, path: png, format: "png", widthIn: 4, heightIn: 3, dpi: 300 })).toEqual({ ok: false, exists: true });
+    const magic: Record<string, (b: Buffer) => boolean> = {
+      jpeg: (b) => b[0] === 0xff && b[1] === 0xd8,
+      tiff: (b) => ["II", "MM"].includes(b.subarray(0, 2).toString()),
+      svg: (b) => b.toString().includes("<svg"),
+      pdf: (b) => b.subarray(0, 4).toString() === "%PDF",
+    };
+    for (const [format, ok] of Object.entries(magic)) {
+      const p = join(dir, `p.${format}`);
+      await savePlot(cm, { commId: plot.commId, path: p, format: format as any, widthIn: 5, heightIn: 4, dpi: 150 });
+      expect(ok(readFileSync(p))).toBe(true);
+    }
+    // A vector plot is the requested size in inches (PDF MediaBox in points).
+    const pdf = readFileSync(join(dir, "p.pdf")).toString("latin1");
+    expect(pdf).toMatch(/MediaBox \[0 0 360 288\]/);
+    expect(ARK_BASE_DPI).toBeGreaterThan(0);
+  }, 60000);
 
   test("help and View() reach the frontend", async () => {
     await run("?lm");

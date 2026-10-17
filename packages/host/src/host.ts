@@ -35,6 +35,7 @@ import { GitService } from "./git";
 import { listFiles, replaceInFiles, searchText } from "./search";
 import { TerminalService } from "./terminal";
 import { collectExecution } from "./execute";
+import { renderParams, savePlot } from "./plots";
 import { PreviewServer, QuartoService } from "./quarto";
 
 export const APP_VERSION = "0.1.0";
@@ -465,6 +466,9 @@ export class Host {
       "fs.writeBase64": async ({ path, data }) => {
         await Bun.write(this.file(path), Buffer.from(data, "base64"));
       },
+      "plot.save": (p) => savePlot(this.comms, p),
+      "plot.render": async ({ commId, format, widthIn, heightIn, dpi }) =>
+        (await this.comms.rpc(commId, "render", renderParams(format, widthIn, heightIn, dpi))) as { data: string; mime_type: string },
       "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
       "dialog.pickFile": ({ title, extensions, startingFolder }) => (this.opts.pickFile ? this.opts.pickFile(title, extensions, startingFolder) : null),
 
