@@ -2,11 +2,23 @@ import { useEffect, useState } from "react";
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { pickFolder } from "./FolderPicker";
-import { runCommand } from "../commands";
 
 export async function openProject(path: string) {
   try {
     const project = await host.call("project.open", { path });
+    useStore.setState({ project });
+  } catch (e) {
+    useStore.getState().notify((e as Error).message, "error");
+  }
+}
+
+// The workbench registers "project.new" only once a project is open, so the
+// welcome screen creates the project itself.
+async function newProject() {
+  const p = await pickFolder("새 프로젝트를 만들 위치", true);
+  if (!p) return;
+  try {
+    const project = await host.call("project.create", { path: p });
     useStore.setState({ project });
   } catch (e) {
     useStore.getState().notify((e as Error).message, "error");
@@ -38,7 +50,7 @@ export function Welcome() {
           >
             폴더 열기
           </button>
-          <button className="btn" onClick={() => runCommand("project.new")}>
+          <button className="btn" onClick={newProject}>
             새 프로젝트
           </button>
         </div>

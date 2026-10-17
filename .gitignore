@@ -3,6 +3,7 @@ dist/
 build/
 artifacts/
 .hutch/
+.cottontail-tmp/
 .rsage-dev/
 *.log
 .DS_Store
