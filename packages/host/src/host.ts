@@ -31,6 +31,7 @@ import { appDir, ConfigStore } from "./config";
 import { LspBridge } from "./lsp";
 import { Project } from "./project";
 import { listPackages, outdatedPackages, searchCran } from "./packages";
+import { GitService } from "./git";
 import { listFiles, replaceInFiles, searchText } from "./search";
 import { TerminalService } from "./terminal";
 import { collectExecution } from "./execute";
@@ -70,6 +71,7 @@ export class Host {
     done: (renderId, r) => this.emit("quarto.done", { renderId, ...r }),
   });
   private preview = new PreviewServer(() => this.project?.root);
+  private git = new GitService(() => this.project?.root);
   private handlers: { [M in MethodName]: Handler<M> };
 
   constructor(private opts: HostOptions) {
@@ -465,6 +467,39 @@ export class Host {
       },
       "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
       "dialog.pickFile": ({ title, extensions, startingFolder }) => (this.opts.pickFile ? this.opts.pickFile(title, extensions, startingFolder) : null),
+
+      "git.status": () => this.git.status(),
+      "git.init": () => this.git.init(),
+      "git.diff": async ({ path, origPath, mode, hash }) => {
+        const { existsSync, readFileSync } = await import("node:fs");
+        const g = this.git;
+        if (mode === "working") return { original: await g.show("", path), modified: existsSync(path) ? readFileSync(path, "utf8") : "" };
+        if (mode === "staged") return { original: await g.show("HEAD", origPath ?? path), modified: await g.show("", path) };
+        return { original: await g.show(`${hash}^`, origPath ?? path), modified: await g.show(hash!, path) };
+      },
+      "git.stage": ({ paths }) => this.git.stage(paths),
+      "git.unstage": async ({ paths }) => this.git.unstage(paths, !!(await this.git.status()).hasCommits),
+      "git.discard": async ({ paths, untracked }) => {
+        if (paths.length) await this.git.discard(paths);
+        for (const p of untracked ?? []) await this.requireProject().trash(p);
+      },
+      "git.commit": async ({ message, amend, all }) => ({ summary: await this.git.commit(message, { amend, all }) }),
+      "git.branches": () => this.git.branches(),
+      "git.checkout": ({ branch, create }) => this.git.checkout(branch, { create }),
+      "git.pull": async () => ({ output: await this.git.pull() }),
+      "git.push": async () => ({ output: await this.git.push() }),
+      "git.fetch": () => this.git.fetch(),
+      "git.log": ({ limit, path }) => this.git.log(limit, path),
+      "git.commitFiles": ({ hash }) => this.git.commitFiles(hash),
+      "git.addRemote": ({ name, url }) => this.git.addRemote(name, url),
+      "git.ignore": async ({ pattern }) => {
+        const { appendFileSync, existsSync, readFileSync } = await import("node:fs");
+        const root = (await this.git.root()) ?? this.requireProject().root;
+        const file = join(root, ".gitignore");
+        const cur = existsSync(file) ? readFileSync(file, "utf8") : "";
+        if (cur.split("\n").some((l) => l.trim() === pattern)) return;
+        appendFileSync(file, `${cur && !cur.endsWith("\n") ? "\n" : ""}${pattern}\n`);
+      },
 
       "packages.list": async () => {
         const list = await listPackages(await this.currentRHome(), this.project?.root);

@@ -132,6 +132,51 @@ export interface PackageList {
   loaded?: string[];
 }
 
+export interface GitChange {
+  /** Absolute path. */
+  path: string;
+  /** For renames: the old path. */
+  origPath?: string;
+  /** M modified, A added, D deleted, R renamed, C copied, T type change, ? untracked, U conflict. */
+  status: string;
+  staged: boolean;
+  conflict?: boolean;
+}
+
+export interface GitStatus {
+  isRepo: boolean;
+  gitMissing?: boolean;
+  root?: string;
+  branch?: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  detached?: boolean;
+  hasCommits?: boolean;
+  remotes?: string[];
+  changes: GitChange[];
+}
+
+export interface GitBranch {
+  name: string;
+  remote: boolean;
+  current: boolean;
+  upstream?: string;
+  date?: number;
+}
+
+export interface GitCommit {
+  hash: string;
+  short: string;
+  author: string;
+  email: string;
+  /** ms since epoch */
+  date: number;
+  refs: string[];
+  subject: string;
+  parents: string[];
+}
+
 export interface CranPackage {
   name: string;
   version: string;
@@ -423,6 +468,25 @@ export interface HostMethods {
   "packages.list": { params: {}; result: PackageList };
   /** Installed packages with a newer CRAN version. */
   "packages.outdated": { params: {}; result: { name: string; installed: string; latest: string }[] };
+  "git.status": { params: {}; result: GitStatus };
+  "git.init": { params: {}; result: void };
+  /** The two sides of a diff: working tree vs index, index vs HEAD, or a commit vs its parent. */
+  "git.diff": { params: { path: string; origPath?: string; mode: "working" | "staged" | "commit"; hash?: string }; result: { original: string; modified: string } };
+  "git.stage": { params: { paths: string[] }; result: void };
+  "git.unstage": { params: { paths: string[] }; result: void };
+  /** Tracked files go back to their committed state; untracked ones go to the Trash. */
+  "git.discard": { params: { paths: string[]; untracked?: string[] }; result: void };
+  "git.commit": { params: { message: string; amend?: boolean; all?: boolean }; result: { summary: string } };
+  "git.branches": { params: {}; result: GitBranch[] };
+  "git.checkout": { params: { branch: string; create?: boolean }; result: void };
+  "git.pull": { params: {}; result: { output: string } };
+  "git.push": { params: {}; result: { output: string } };
+  "git.fetch": { params: {}; result: void };
+  "git.log": { params: { limit?: number; path?: string }; result: GitCommit[] };
+  "git.commitFiles": { params: { hash: string }; result: GitChange[] };
+  "git.addRemote": { params: { name: string; url: string }; result: void };
+  /** Adds a pattern to the .gitignore at the repository root. */
+  "git.ignore": { params: { pattern: string }; result: void };
   "packages.searchCran": { params: { query: string; limit?: number }; result: CranPackage[] };
   "shell.openExternal": { params: { path: string }; result: void };
 }
