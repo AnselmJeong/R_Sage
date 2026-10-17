@@ -40,6 +40,9 @@ export class CodexProvider implements AgentProvider {
       "--config", `mcp_servers.rsage.url=${JSON.stringify(req.mcp.url)}`,
       "--config", "mcp_servers.rsage.tool_timeout_sec=3600",
       "--config", "mcp_servers.rsage.startup_timeout_sec=20",
+      // With approval_policy "never" Codex rejects MCP calls that would need
+      // its own approval; R Sage asks the user itself, so pre-approve them.
+      "--config", 'mcp_servers.rsage.default_tools_approval_mode="approve"',
       "--sandbox", "read-only",
       "--cd", req.cwd,
       "--skip-git-repo-check",
@@ -84,6 +87,8 @@ export class CodexProvider implements AgentProvider {
               output: it.aggregated_output,
               status: it.status === "in_progress" ? "running" : it.status === "completed" && !it.exit_code ? "done" : "error",
             });
+          // Non-fatal notices, e.g. deprecated keys in the user's config.toml.
+          else if (it.type === "error" && /deprecated|under-development|suppress_unstable/i.test(it.message)) continue;
           else if (it.type === "error") req.onOwnTool({ key: it.id, name: "codex", input: {}, output: it.message, status: "error" });
         }
       }
