@@ -179,12 +179,37 @@ export interface AssistantProviderStatus {
   configured: boolean;
   /** Where the key came from; "login" for a subscription login. */
   source?: "keychain" | "file" | "env" | "login";
-  /** Subscription providers: billed to the subscription, not an API key. */
-  subscription?: boolean;
-  /** What to do to connect it, when it is not connected. */
-  hint?: string;
+  /** Subscription providers (Claude Code, Codex): the app's own login and usage. */
+  subscription?: SubscriptionStatus;
   /** Last error talking to the provider (bad key, network). */
   error?: string;
+}
+
+/** One usage window of a subscription (e.g. the 5-hour or weekly limit). */
+export interface SubscriptionQuota {
+  label: string;
+  /** 0-100, when the service reports it. */
+  usedPercent?: number;
+  /** Unix seconds. */
+  resetsAt?: number;
+  /** Claude's own word for the limit ("allowed", "allowed_warning", "rejected"). */
+  status?: string;
+}
+
+/**
+ * A subscription login made inside R Sage. Each agent gets its own config
+ * folder, so this login is separate from the user's terminal login.
+ */
+export interface SubscriptionStatus {
+  state: "unavailable" | "signedOut" | "signingIn" | "connected" | "error";
+  cliPath?: string;
+  cliVersion?: string;
+  email?: string;
+  plan?: string;
+  error?: string;
+  quotas: SubscriptionQuota[];
+  /** When the quotas were last seen (ms). */
+  quotaCheckedAt?: number;
 }
 
 export interface AssistantStatus {
@@ -320,6 +345,10 @@ export interface HostMethods {
   "assistant.status": { params: { refresh?: boolean }; result: AssistantStatus };
   /** Store (or with key null, remove) a provider's API key. */
   "assistant.setKey": { params: { provider: AssistantProviderId; key: string | null }; result: AssistantStatus };
+  /** Start the subscription sign-in in the browser; status turns "signingIn" until it completes. */
+  "assistant.login": { params: { provider: AssistantProviderId }; result: AssistantStatus };
+  "assistant.cancelLogin": { params: { provider: AssistantProviderId }; result: AssistantStatus };
+  "assistant.logout": { params: { provider: AssistantProviderId }; result: AssistantStatus };
   "assistant.setOptions": { params: { autoRunR?: boolean; defaultModel?: string }; result: AssistantStatus };
   "assistant.list": { params: {}; result: ConversationSummary[] };
   "assistant.load": { params: { id: string }; result: Conversation | null };

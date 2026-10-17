@@ -62,9 +62,13 @@ export class FakeAgentProvider implements AgentProvider {
   readonly label = "테스트용 모델";
   private n = 0;
 
-  available() {
-    return { ok: true };
+  async connection() {
+    return { state: "connected" as const, email: "test@example.com", plan: "test", quotas: [] };
   }
+
+  async login() {}
+  async cancelLogin() {}
+  async logout() {}
 
   async models() {
     return [{ id: "fake-agent", label: "테스트 에이전트 (오프라인)" }];
