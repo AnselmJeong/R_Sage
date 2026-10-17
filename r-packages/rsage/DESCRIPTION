@@ -1,0 +1,14 @@
+Package: rsage
+Title: Result Objects for R Sage Analysis Modules
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: The shared runtime of R Sage analysis modules. Modules build
+    their output with rs_table(), rs_plot() and rs_note(); the same result
+    object prints in the console, renders in Quarto documents through
+    knit_print(), and is written as result.json for the R Sage analysis tab.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: jsonlite, ggplot2, knitr, tools, utils, stats, grDevices
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3

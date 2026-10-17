@@ -1,0 +1,16 @@
+Package: rsageMissing
+Title: Missing Data Analysis Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Summarises and visualises missing values in a data frame,
+    tests whether they are missing completely at random, and imputes them.
+    Exploration uses 'naniar'; when 'naniar' is not installed the module
+    falls back to its own summaries and 'mice'. Imputation uses 'mice'.
+    analyse() returns an 'rsage' result that prints in the console and
+    renders in Quarto documents.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), dplyr, tibble, ggplot2, rlang, stats
+Suggests: naniar, mice, UpSetR, testthat (>= 3.0.0)
+Config/testthat/edition: 3

@@ -34,6 +34,8 @@ import { EnvironmentPanel } from "./EnvironmentPanel";
 import { PlotsPanel } from "./PlotsPanel";
 import { HelpPanel } from "./HelpPanel";
 import { DataViewerPanel } from "./DataViewerPanel";
+import { AnalysisPanel } from "./AnalysisPanel";
+import { analysisDefs, newAnalysis, startAnalysisSync, useAnalyses } from "../analysis";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAiSettings } from "./AiSettingsDialog";
 import { commHooks } from "../comms";
@@ -156,6 +158,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   plots: () => <PlotsPanel />,
   help: () => <HelpPanel />,
   dataViewer: DataViewerPanel,
+  analysis: AnalysisPanel,
   preview: () => <PreviewPanel />,
   diff: DiffPanel,
 };
@@ -381,6 +384,15 @@ export function Workbench() {
   const apiRef = useRef<DockviewApi>();
 
   useEffect(() => registerAppCommands(), []);
+  useEffect(() => startAnalysisSync(), []);
+  // One palette command per installed analysis.
+  const modules = useAnalyses((s) => s.modules);
+  useEffect(() => {
+    const offs = analysisDefs().map((d) =>
+      registerCommand({ id: `analysis.new.${d.key}`, title: `새 분석: ${d.title}`, category: "분석", run: () => void newAnalysis(d.key) }),
+    );
+    return () => offs.forEach((o) => o());
+  }, [modules]);
   useEffect(() => host.on("fs.changed", ({ paths }) => void onExternalChange(paths)), []);
   // Git status follows file changes, the project, and commits made elsewhere (terminal, other apps).
   useEffect(() => {

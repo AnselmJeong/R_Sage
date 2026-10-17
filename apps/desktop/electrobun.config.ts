@@ -19,6 +19,9 @@ export default {
       "dist/index.html": "views/mainview/index.html",
       "dist/assets": "views/mainview/assets",
       "../../vendor/ark/ark": "ark/ark",
+      // Analysis modules and the R packages the app installs for them.
+      "../../modules": "modules",
+      "../../r-packages": "r-packages",
     },
     watchIgnore: ["dist/**"],
     mac: {

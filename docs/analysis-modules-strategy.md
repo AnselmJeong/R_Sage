@@ -458,6 +458,25 @@ r-packages/rsageDescriptives/                독립 R 계산 패키지와 수치
 
 기존 shared export, Host, KernelSession 호출 경로, 어시스턴트 MCP 서버, Workbench, commands, 프로젝트 Git 제외 규칙, 빌드 리소스 경로에 연결이 필요하다. 안정화 전에는 별도 범용 SDK 패키지로 과하게 분리하지 않는다. 외부 모듈 계약이 검증되면 타입·검증 도구·템플릿을 SDK로 추출한다.
 
+### 시범 구현: 결측 데이터 모듈 (2026-10-17)
+
+P0 위험 검증을 Descriptives 대신 결측 데이터 모듈로 먼저 했다. 실제 코드 위치는 위 제안과 조금 다르다.
+
+```text
+packages/shared/src/index.ts, schema.ts      분석 계약 타입, analysis.* 메서드·이벤트, JSON Schema 부분 검증·기본값
+packages/host/src/analysis/                  registry.ts(모듈 읽기), runtime.ts(R 패키지 확인·설치), service.ts(저장·실행), rcode.ts(R 코드)
+packages/host/src/assistant/analysis-tools.ts  list_analyses, describe_analysis, run_analysis, get_analysis_result
+packages/ui/src/analysis.ts                  모듈·분석 상태, 탭 열기, 문서에 코드 넣기
+packages/ui/src/components/AnalysisPanel.tsx 왼쪽 옵션 폼, 오른쪽 결과
+modules/missing/                             manifest, options.schema.json, form.json, ai.md
+r-packages/rsage/, r-packages/rsageMissing/  공통 R 런타임과 결측 모듈 R 패키지(naniar 우선, 없으면 mice·기본 계산)
+```
+
+- 실행은 공유 세션의 비공개 요청 한 번이다(`KernelSession.runPrivate`). 콘솔·실행 이력에 남지 않고, 취소는 그 요청이 실행 중일 때만 R을 중단한다.
+- 앱 R 패키지(`rsage`, 모듈 패키지)는 소스 해시를 `DESCRIPTION`의 `RSageHash`로 기록해 바뀌었을 때만 `.libPaths()` 첫 쓰기 가능 경로에 다시 설치한다. CRAN 의존성은 자동 설치하지 않고 탭에서 콘솔 설치를 제안한다.
+- 옵션을 바꾸면 새 revision으로 저장하고 다시 실행한다. 결과는 최신 성공 실행을 보여 주며, 이전 revision의 결과면 흐리게 표시한다.
+- 아직 없는 것: 모듈 설치·제거 UI, `modules.lock.json`, 입력 스냅샷 기반 별도 R 재실행, 데이터 변경 감지, 앱 재시작 후 분석 탭 복원.
+
 ### 단계별 산출물
 
 | 단계 | 수행 내용 | 완료 판단 | 예상 작업량 |

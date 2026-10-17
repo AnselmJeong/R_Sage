@@ -1,0 +1,187 @@
+// Analysis modules: registry, option schema, R code, and a full run of the
+// missing-data module in a live R session. The live part needs Ark (or, with
+// RSAGE_TEST_IRKERNEL=1, IRkernel standing in for it) and an R with the
+// module's CRAN dependencies installed.
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { discoverR, findArk } from "@rsage/kernel";
+import { fillDefaults, validateOptions } from "@rsage/shared";
+import { loadModules, descriptionImports } from "../src/analysis/registry";
+import { analysisCode, toR } from "../src/analysis/rcode";
+import { formatResult, runAnalysisTool } from "../src/assistant/analysis-tools";
+
+const missing = loadModules().find((m) => m.id === "org.rsage.missing")!;
+const def = missing.analyses[0]!;
+
+describe("module registry", () => {
+  test("finds the missing-data module with its schema, form and guide", () => {
+    expect(def.key).toBe("org.rsage.missing/missing");
+    expect(missing.rPackage).toBe("rsageMissing");
+    expect(missing.requires).toEqual(["dplyr", "tibble", "ggplot2", "rlang"]);
+    expect(def.form.sections.length).toBeGreaterThan(0);
+    expect(def.guide).toContain("MCAR");
+    expect(missing.backends.map((b) => b.package)).toContain("naniar");
+  });
+
+  test("every form control binds to an option in the schema", () => {
+    const opts = fillDefaults(def.schema, {});
+    for (const s of def.form.sections)
+      for (const c of s.controls) expect(c.bind.split(".").reduce((o: any, k) => (o && k in o ? o[k] : Symbol.for("missing")), opts)).not.toBe(Symbol.for("missing"));
+  });
+
+  test("R imports come from DESCRIPTION without base packages", () => {
+    expect(descriptionImports(missing.rSource)).toEqual(["rsage", "dplyr", "tibble", "ggplot2", "rlang"]);
+  });
+});
+
+describe("option schema", () => {
+  test("fills nested defaults", () => {
+    const o = fillDefaults(def.schema, { plots: { upset: true } });
+    expect(o.variables).toEqual([]);
+    expect(o.group).toBeNull();
+    expect(o.plots).toEqual({ upset: true, variables: true, matrix: true });
+    expect(o.impute.method).toBe("pmm");
+  });
+
+  test("reports each problem with its path", () => {
+    const o = fillDefaults(def.schema, { maxPatterns: 0, impute: { method: "magic", saveAs: "1x" }, colour: "red" });
+    const issues = validateOptions(def.schema, o).map((i) => i.path);
+    expect(issues).toEqual(["maxPatterns", "impute.method", "impute.saveAs", "colour"]);
+    expect(validateOptions(def.schema, fillDefaults(def.schema, {}))).toEqual([]);
+  });
+});
+
+describe("R code", () => {
+  test("writes JSON options as R literals", () => {
+    expect(toR({ a: ["x", "y"], b: null, c: true, n: 5, f: 0.5, e: [], s: 'say "hi"' })).toBe(
+      'list(\n  a = c("x", "y"),\n  b = NULL,\n  c = TRUE,\n  n = 5L,\n  f = 0.5,\n  e = character(),\n  s = "say \\"hi\\""\n)',
+    );
+    expect(analysisCode("rsageMissing", "analyse", "내 데이터", { m: 1 })).toContain("rsageMissing::analyse(\n  `내 데이터`,");
+  });
+});
+
+const useShim = process.env.RSAGE_TEST_IRKERNEL === "1";
+const arkPath = useShim ? join(import.meta.dir, "fixtures", "irkernel-ark.sh") : findArk();
+const rs = await discoverR();
+const r = rs.find((x) => !x.tooOld) ?? rs[0];
+const live = arkPath && r ? describe : describe.skip;
+
+live("missing-data analysis in a live session", async () => {
+  const home = mkdtempSync(join(tmpdir(), "rsage-home-"));
+  const proj = mkdtempSync(join(tmpdir(), "rsage-proj-"));
+  const prevArk = process.env.RSAGE_ARK_PATH;
+  const prevHome = process.env.RSAGE_HOME;
+  process.env.RSAGE_ARK_PATH = arkPath!;
+  process.env.RSAGE_HOME = home;
+  const { Host } = await import("../src/host");
+  const host = new Host({ shell: "browser" });
+  const events: any[] = [];
+  host.subscribe((type, payload) => type.startsWith("analysis.") && events.push({ type, payload }));
+  const call = (m: string, p: any = {}) => host.dispatch(m, p) as Promise<any>;
+  afterAll(async () => {
+    await host.dispose();
+    if (prevArk === undefined) delete process.env.RSAGE_ARK_PATH;
+    else process.env.RSAGE_ARK_PATH = prevArk;
+    if (prevHome === undefined) delete process.env.RSAGE_HOME;
+    else process.env.RSAGE_HOME = prevHome;
+  });
+
+  test("runs on airquality and stores a result", async () => {
+    await call("project.open", { path: proj });
+    await call("session.start", {});
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.missing" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText("aq <- airquality; aq$Month <- factor(aq$Month); invisible(NULL)");
+    const ds = await call("analysis.datasets");
+    expect(ds.find((d: any) => d.name === "aq")).toMatchObject({ rows: 153 });
+
+    const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq" });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    const vars = done.result.tables.find((t: any) => t.id === "variables");
+    const ozone = vars.rows.find((row: any) => row.variable === "Ozone");
+    expect(ozone.n_miss).toBe(37);
+    expect(done.result.plots.length).toBeGreaterThan(0);
+    expect(done.result.plots[0].src).toStartWith("data:image/png;base64,");
+    expect(done.result.dataInfo.rows).toBe(153);
+    expect(existsSync(join(proj, ".rsage", "analyses", `${inst.id}.json`))).toBe(true);
+    expect(readFileSync(join(proj, ".rsage", ".gitignore"), "utf8")).toContain("analysis-runs/");
+    expect(events.some((e) => e.type === "analysis.changed" && e.payload.lastRun?.status === "ok")).toBe(true);
+    expect(formatResult(done, done.result)).toContain("Ozone");
+
+    // A changed option makes a new revision; the R session's data is untouched.
+    const upd = await call("analysis.update", { id: inst.id, options: { variables: ["Ozone", "Solar.R"], group: "Month", plots: { matrix: false } } });
+    expect(upd.revision).toBe(2);
+    const again = await call("analysis.run", { id: inst.id });
+    expect(again.resultRevision).toBe(2);
+    expect(again.result.tables.find((t: any) => t.id === "variables").rows.length).toBe(10);
+    expect((await host.session.evalText("cat(sum(is.na(aq$Ozone)))")).trim()).toBe("37");
+
+    // Errors come back as a failed run, not a thrown request.
+    await call("analysis.update", { id: inst.id, options: { variables: ["nope"] } });
+    const bad = await call("analysis.run", { id: inst.id });
+    expect(bad.lastRun.status).toBe("error");
+    expect(bad.lastRun.error.message).toContain("nope");
+    expect(bad.resultRevision).toBe(2);
+
+    const code = await call("analysis.code", { id: inst.id });
+    expect(code).toContain("rsageMissing::analyse(");
+  }, 240_000);
+
+  test("the assistant runs it through run_analysis", async () => {
+    if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
+    const opened: string[] = [];
+    const item = { kind: "tool" as const, id: "t1", name: "run_analysis", input: {}, status: "running" as const, at: "" };
+    const env = {
+      analyses: host.analyses,
+      openAnalysis: (id: string) => opened.push(id),
+      autoRunR: () => false,
+      approve: async () => false,
+      update: () => {},
+      signal: new AbortController().signal,
+    };
+    const listed = await runAnalysisTool("list_analyses", {}, item, env);
+    expect(listed.output).toContain("org.rsage.missing/missing");
+    const bad = await runAnalysisTool("run_analysis", { analysis: "org.rsage.missing/missing", dataset: "aq", options: { maxPatterns: "ten" } }, item, env);
+    expect(bad.isError).toBe(true);
+    expect(bad.output).toContain("maxPatterns: expected integer");
+    // Saving an object in the session needs the user's approval (declined here).
+    const declined = await runAnalysisTool("run_analysis", { analysis: "org.rsage.missing/missing", dataset: "aq", options: { impute: { enabled: true, saveAs: "imp" } } }, item, env);
+    expect(declined.output).toContain("declined");
+    const ok = await runAnalysisTool("run_analysis", { analysis: "missing", dataset: "aq", options: { variables: ["Ozone", "Solar.R"] }, title: "AQ 결측" }, item, env);
+    expect(ok.isError).toBe(false);
+    expect(ok.output).toContain("Ozone\t연속형\t116\t37");
+    expect(opened.length).toBe(1);
+    const again = await runAnalysisTool("get_analysis_result", { analysis_id: opened[0] }, item, env);
+    expect(again.output).toContain("Little");
+  }, 120_000);
+
+  test("a missing data set is reported", async () => {
+    if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
+    const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "no_such_df" });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.error.code).toBe("dataset_missing");
+  }, 60_000);
+
+  // IRkernel only takes interrupts as signals, not as Jupyter interrupt requests.
+  test.skipIf(useShim)("cancel interrupts a running analysis", async () => {
+    if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
+    await host.session.evalText("big <- airquality[rep(1:153, 400), ]; invisible(NULL)");
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.missing/missing",
+      dataset: "big",
+      options: { impute: { enabled: true, m: 50, maxit: 50 } },
+    });
+    const p = call("analysis.run", { id: inst.id });
+    await Bun.sleep(2500);
+    await call("analysis.cancel", { id: inst.id });
+    const done = await p;
+    expect(done.lastRun.status).toBe("cancelled");
+    expect((await host.session.evalText("cat(1 + 1)")).trim()).toBe("2");
+  }, 120_000);
+});
