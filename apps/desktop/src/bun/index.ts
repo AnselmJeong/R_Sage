@@ -28,7 +28,9 @@ const host = new Host({
     return paths.find(Boolean) ?? null;
   },
   openExternal: async (path) => {
-    Utils.openPath(path);
+    // Web pages (sign-in, help) go to the browser; files to their default app.
+    if (/^https?:\/\//.test(path)) Utils.openExternal(path);
+    else Utils.openPath(path);
   },
 });
 

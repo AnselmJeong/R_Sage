@@ -3,7 +3,7 @@
 // conversation that stays on one provider replays exactly what it returned
 // (thinking/reasoning blocks included).
 
-import type { AssistantProviderId } from "@rsage/shared";
+import type { AssistantProviderId, SubscriptionStatus } from "@rsage/shared";
 
 export interface ToolCall {
   id: string;
@@ -83,9 +83,15 @@ export interface AgentProvider {
   kind: "agent";
   id: AssistantProviderId;
   label: string;
-  /** Whether the user is logged in; `hint` says how to log in when not. */
-  available(): { ok: boolean; hint?: string };
+  /** The app's own subscription login; `refresh` re-asks the CLI instead of using the last answer. */
+  connection(refresh?: boolean): Promise<SubscriptionStatus>;
+  /** Starts the browser sign-in; `open` shows a URL when the CLI does not open one itself. */
+  login(open: (url: string) => void): Promise<void>;
+  cancelLogin(): Promise<void>;
+  logout(): Promise<void>;
+  /** Models for a connected login. */
   models(): Promise<{ id: string; label: string }[]>;
   /** Runs one user turn to the end. Returns the session id to resume next time and the final text. */
   run(req: AgentRunRequest): Promise<{ sessionId?: string; text: string }>;
+  dispose?(): void;
 }

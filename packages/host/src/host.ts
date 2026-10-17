@@ -96,6 +96,7 @@ export class Host {
       emitDelta: (conversationId, itemId, d) => this.emit("assistant.delta", { conversationId, itemId, ...d }),
       emitState: (conversationId, running) => this.emit("assistant.state", { conversationId, running }),
       rInfo: () => ({ version: this.session.state.rVersion }),
+      openUrl: (url) => this.openExternal(url),
     });
     this.comms.on("open", (c) => this.emit("comm.open", c));
     this.comms.on("close", (c) => this.emit("comm.close", c));
@@ -131,6 +132,12 @@ export class Host {
     const h = (this.handlers as any)[method];
     if (!h) throw new Error(`Unknown method: ${method}`);
     return h(params ?? {});
+  }
+
+  private async openExternal(path: string) {
+    if (this.opts.openExternal) return this.opts.openExternal(path);
+    const opener = process.platform === "darwin" ? "open" : "xdg-open";
+    Bun.spawn([opener, path], { stdout: "ignore", stderr: "ignore" });
   }
 
   async dispose() {
@@ -395,6 +402,9 @@ export class Host {
       "assistant.status": ({ refresh }) => this.assistant.status(refresh),
       "assistant.setKey": ({ provider, key }) => this.assistant.setKey(provider, key),
       "assistant.setOptions": (o) => this.assistant.setOptions(o),
+      "assistant.login": ({ provider }) => this.assistant.login(provider),
+      "assistant.cancelLogin": ({ provider }) => this.assistant.cancelLogin(provider),
+      "assistant.logout": ({ provider }) => this.assistant.logout(provider),
       "assistant.list": () => this.assistant.list(),
       "assistant.load": ({ id }) => this.assistant.load(id),
       "assistant.new": () => this.assistant.create(),
@@ -417,11 +427,7 @@ export class Host {
         await Bun.write(this.file(path), Buffer.from(data, "base64"));
       },
       "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
-      "shell.openExternal": async ({ path }) => {
-        if (this.opts.openExternal) return this.opts.openExternal(path);
-        const opener = process.platform === "darwin" ? "open" : "xdg-open";
-        Bun.spawn([opener, path], { stdout: "ignore", stderr: "ignore" });
-      },
+      "shell.openExternal": ({ path }) => this.openExternal(path),
     };
     return h;
   }
