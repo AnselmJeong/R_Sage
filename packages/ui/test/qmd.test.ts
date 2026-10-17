@@ -90,7 +90,7 @@ test("blocks map to editor nodes; unsupported syntax stays raw", () => {
   expect(types).toContain("mathBlock");
   expect(types).toContain("codeBlock");
   const raws = doc.content!.filter((n) => n.type === "rawBlock").map((n) => n.attrs!.text.split("\n")[0]);
-  expect(raws).toEqual(["::: {.callout-note}", "```{python}", "<div>raw html</div>", "각주가 있는 문장[^1].", "[^1]: 각주 내용."]);
+  expect(raws).toEqual(["::: {.callout-note}", "```{python}", "<div>raw html</div>", "[^1]: 각주 내용."]);
   const cell = doc.content!.find((n) => n.type === "rCell")!;
   expect(cell.attrs!.header).toBe("{r}");
   expect(cell.attrs!.code.startsWith("#| label: fig-bill")).toBe(true);
@@ -131,4 +131,18 @@ test("new blocks serialize as clean markdown", () => {
     ],
   };
   expect(toQmd(doc)).toBe("## 결과\n\n평균은 **5.2** *입니다* (file_name, a\\*b)[**링크**](https://x.org)\n\n```{r}\nsummary(x)\n```\n\n- a\n");
+});
+
+test("inline notes and note references are inline nodes that round-trip", () => {
+  const src = "본문에 각주가 있습니다.^[이것은 각주입니다.] 그리고 참조[^n1]도 있습니다.\n\n[^n1]: 정의된 각주.\n";
+  const { doc, trailing } = parseQmd(src);
+  const para = doc.content![0]!;
+  expect(para.type).toBe("paragraph");
+  expect(para.content!.map((n) => n.type)).toEqual(["text", "footnote", "text", "footnoteRef", "text"]);
+  expect(para.content![1]!.attrs!.text).toBe("이것은 각주입니다.");
+  expect(doc.content![1]!.type).toBe("rawBlock");
+  expect(toQmd(withBaselines(doc), trailing)).toBe(src);
+  // An edited paragraph still writes the notes back.
+  para.content![0] = { type: "text", text: "바뀐 문장." };
+  expect(toQmd(doc, trailing).split("\n")[0]).toBe("바뀐 문장.^[이것은 각주입니다.] 그리고 참조[^n1]도 있습니다.");
 });

@@ -158,8 +158,12 @@ export class KernelSession extends EventEmitter {
     }
   }
 
+  /** Requests sent by evalText: their output is the caller's, not the console's. */
+  private privateIds = new Set<string>();
+
   private onMessage(m: JupyterMessage) {
     const parentId = m.parent_header?.msg_id;
+    if (parentId && this.privateIds.has(parentId) && m.channel === "iopub" && m.header.msg_type !== "status") return;
     const rec = parentId ? this.byMsgId.get(parentId) : undefined;
     const executionId = rec?.id;
     const c = m.content;
@@ -329,6 +333,7 @@ export class KernelSession extends EventEmitter {
       allow_stdin: false,
       stop_on_error: true,
     });
+    this.privateIds.add(header.msg_id);
     return new Promise((resolve, reject) => {
       let out = "";
       let reply: any;
@@ -352,6 +357,8 @@ export class KernelSession extends EventEmitter {
       const cleanup = () => {
         clearTimeout(timer);
         this.client?.off("message", onMsg);
+        // Late messages (after idle) are still not the console's.
+        setTimeout(() => this.privateIds.delete(header.msg_id), 5000);
       };
       this.client!.on("message", onMsg);
     });

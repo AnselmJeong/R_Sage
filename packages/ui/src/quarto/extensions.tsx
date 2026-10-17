@@ -4,13 +4,14 @@
 // round-trip attributes every top-level block carries (see qmd.ts).
 
 import { useEffect, useRef, useState } from "react";
-import { Extension, Node, NodeViewWrapper, ReactNodeViewRenderer, mergeAttributes, type NodeViewProps } from "@tiptap/react";
+import { Extension, Node, NodeViewWrapper, ReactNodeViewRenderer, mergeAttributes, type Editor, type NodeViewProps } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import katex from "katex";
 import { create } from "zustand";
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { monaco } from "../editor/monaco";
+import { formDialog } from "../components/Dialogs";
 
 const TOP_TYPES = [
   "paragraph",
@@ -45,6 +46,8 @@ export const RoundTrip = Extension.create({
 
 export interface CellResult {
   running?: boolean;
+  /** Waiting for earlier chunks of the same run. */
+  queued?: boolean;
   text?: string;
   isError?: boolean;
   images?: { mime: string; data: string }[];
@@ -86,7 +89,7 @@ export const newCellId = () => `c${Date.now().toString(36)}${(cellSeq++).toStrin
 
 export async function runCell(path: string, cellId: string, code: string) {
   const key = `${path}#${cellId}`;
-  useCellResults.setState({ [key]: { ...useCellResults.getState()[key], running: true } });
+  useCellResults.setState({ [key]: { ...useCellResults.getState()[key], running: true, queued: false } });
   try {
     const r = await host.call("console.runCell", { code, source: { file: path, line: 1 } });
     useCellResults.setState({ [key]: { text: r.text, isError: r.isError, images: r.images } });
@@ -95,6 +98,30 @@ export async function runCell(path: string, cellId: string, code: string) {
     useCellResults.setState({ [key]: { text: String(e?.message ?? e), isError: true } });
     return false;
   }
+}
+
+export type CellRange = "this" | "above" | "below" | "all";
+
+/**
+ * Runs chunks in document order: this one, from the top through this one,
+ * from this one to the end, or all. Stops at the first error.
+ */
+export async function runCellRange(editor: Editor, path: string, range: CellRange, cid?: string) {
+  const cells: { cid: string; code: string }[] = [];
+  editor.state.doc.forEach((n) => {
+    if (n.type.name === "rCell") cells.push({ cid: n.attrs.cid, code: n.attrs.code ?? "" });
+  });
+  const at = cid ? cells.findIndex((c) => c.cid === cid) : -1;
+  const pick =
+    range === "all" ? cells : range === "this" ? cells.slice(at, at + 1) : range === "above" ? cells.slice(0, at + 1) : cells.slice(Math.max(at, 0));
+  const key = (c: { cid: string }) => `${path}#${c.cid}`;
+  useCellResults.setState(Object.fromEntries(pick.map((c) => [key(c), { ...useCellResults.getState()[key(c)], queued: true }])));
+  let ok = true;
+  for (const c of pick) {
+    if (ok) ok = await runCell(path, c.cid, c.code);
+    else useCellResults.setState({ [key(c)]: { ...useCellResults.getState()[key(c)], queued: false } });
+  }
+  return ok;
 }
 
 function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) {
@@ -109,6 +136,12 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   const label = /#\|\s*label:\s*(\S+)/.exec(node.attrs.code ?? "")?.[1] ?? /^\{r[ ,]+([^,}=\s]+)/.exec(header)?.[1];
 
   const run = () => void runCell(path, cid, ed.current?.getValue() ?? latest.current);
+  const runRange = (r: CellRange) => {
+    // Make sure the doc has this chunk's latest text before reading the others.
+    const v = ed.current?.getValue();
+    if (v !== undefined && v !== latest.current) updateAttributes({ code: v });
+    setTimeout(() => void runCellRange(editor, path, r, cid), 0);
+  };
 
   // Chunks pasted or dragged in may arrive without an id.
   useEffect(() => {
@@ -153,7 +186,7 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
       setTimeout(() => e.focus(), 0);
     }
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
-    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, run);
+    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => runRange("above"));
     return () => {
       e.dispose();
       model.dispose();
@@ -178,10 +211,25 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
           onChange={(e) => updateAttributes({ header: e.target.value })}
         />
         <span className="qv-spacer" />
-        <button className="btn btn-small" onClick={run} disabled={result?.running} title="청크 실행 (⌘↩)">
-          {result?.running ? "실행 중…" : "▶ 실행"}
-        </button>
-        {result && !result.running && (
+        {result?.running || result?.queued ? (
+          <span className="qv-cell-status">{result.running ? "실행 중…" : "대기 중"}</span>
+        ) : (
+          <div className="qv-run-group">
+            <button className="qv-run main" onClick={run} title="이 청크만 실행 (⌘↩)">
+              ▶ 실행
+            </button>
+            <button className="qv-run" onClick={() => runRange("above")} title="처음부터 이 청크까지 실행 (⌘⇧↩)">
+              ⇡ 여기까지
+            </button>
+            <button className="qv-run" onClick={() => runRange("below")} title="이 청크부터 끝까지 실행">
+              ⇣ 끝까지
+            </button>
+            <button className="qv-run" onClick={() => runRange("all")} title="모든 청크 실행">
+              ⇕ 전체
+            </button>
+          </div>
+        )}
+        {result && !result.running && !result.queued && (result.text !== undefined || result.images) && (
           <button className="btn btn-small" title="결과 지우기" onClick={() => useCellResults.setState({ [`${path}#${cid}`]: undefined as any })}>
             ✕
           </button>
@@ -344,16 +392,73 @@ export const InlineMath = Node.create({
       dom.className = "qv-imath";
       dom.innerHTML = renderTex(node.attrs.tex, false);
       dom.title = "더블클릭해서 수식 고치기";
-      dom.addEventListener("dblclick", () => {
-        const tex = window.prompt("수식 (LaTeX)", node.attrs.tex);
+      dom.addEventListener("dblclick", async () => {
+        const v = await formDialog({ title: "수식 고치기", fields: [{ key: "tex", label: "LaTeX", value: node.attrs.tex, multiline: true }], confirm: "고치기" });
         const pos = typeof getPos === "function" ? getPos() : undefined;
-        if (tex === null || pos === undefined) return;
-        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, tex }));
+        if (!v || pos === undefined) return;
+        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, tex: v.tex }));
       });
       return { dom };
     };
   },
 });
+
+/** Pandoc inline note, ^[text]: a numbered marker; hover shows the note, double-click edits it. */
+export const Footnote = Node.create({
+  name: "footnote",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes: () => ({ text: { default: "", rendered: false } }),
+  parseHTML: () => [{ tag: "sup[data-note]" }],
+  renderHTML: ({ HTMLAttributes }) => ["sup", mergeAttributes(HTMLAttributes, { "data-note": "" })],
+  addNodeView() {
+    return ({ node, getPos, editor }) => {
+      const dom = document.createElement("sup");
+      dom.className = "qv-note";
+      dom.title = `각주: ${node.attrs.text}\n(더블클릭해서 고치기)`;
+      dom.addEventListener("dblclick", async () => {
+        const v = await formDialog({ title: "각주 고치기", fields: [{ key: "text", label: "각주 내용", value: node.attrs.text, multiline: true }], confirm: "고치기" });
+        const pos = typeof getPos === "function" ? getPos() : undefined;
+        if (!v || pos === undefined) return;
+        const text = v.text!.replace(/\s*\n\s*/g, " ").trim();
+        if (text) editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { text }));
+        else editor.view.dispatch(editor.state.tr.delete(pos, pos + 1));
+      });
+      return { dom };
+    };
+  },
+});
+
+/** A reference to a footnote defined elsewhere in the file ([^label]). */
+export const FootnoteRef = Node.create({
+  name: "footnoteRef",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes: () => ({ label: { default: "", rendered: false } }),
+  parseHTML: () => [{ tag: "sup[data-noteref]" }],
+  renderHTML: ({ HTMLAttributes }) => ["sup", mergeAttributes(HTMLAttributes, { "data-noteref": "" })],
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement("sup");
+      dom.className = "qv-noteref";
+      dom.textContent = `[^${node.attrs.label}]`;
+      dom.title = "각주 참조 (내용은 문서의 각주 정의 블록에 있습니다)";
+      return { dom };
+    };
+  },
+});
+
+/** Inserts an inline note at the cursor, asking for its text. */
+export async function insertFootnote(editor: Editor) {
+  const v = await formDialog({ title: "각주 넣기", fields: [{ key: "text", label: "각주 내용", multiline: true, required: true }], confirm: "넣기" });
+  if (!v) return editor.commands.focus();
+  const text = v.text!.replace(/\s*\n\s*/g, " ").replace(/[[\]]/g, (c) => (c === "[" ? "(" : ")")).trim();
+  editor.chain().focus().insertContent({ type: "footnote", attrs: { text } }).run();
+}
 
 // ---------------------------------------------------------------- images
 

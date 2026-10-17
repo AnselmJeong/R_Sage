@@ -4,8 +4,9 @@ import { host } from "../host/client";
 import { useStore } from "../store";
 import { basename, disposeFile, openFile } from "../editor/files";
 import { confirmDialog, promptDialog } from "./Dialogs";
+import { newDocument, newProjectDialog, openFolderDialog, openProject } from "../project";
 
-function iconFor(e: FileEntry, open: boolean): { glyph: string; cls: string } {
+export function iconFor(e: FileEntry, open: boolean): { glyph: string; cls: string } {
   if (e.kind === "dir") return { glyph: open ? "▾" : "▸", cls: "ic-dir" };
   const ext = e.name.split(".").pop()?.toLowerCase() ?? "";
   if (ext === "r") return { glyph: "R", cls: "ic-r" };
@@ -69,7 +70,7 @@ export function FileTree() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  if (!root) return null;
+  if (!root) return <NoProject />;
 
   const toggle = (dir: string) => {
     setExpanded((s) => {
@@ -212,8 +213,8 @@ export function FileTree() {
         if (parentOf(src.path) !== root) void move(src, `${root}/${src.name}`);
       }}
     >
-      <div className="panel-toolbar">
-        <strong className="ellipsis">{project?.name}</strong>
+      <div className="side-header">
+        <span className="ellipsis" title={root}>{project?.name}</span>
         <span className="spacer" />
         <button className="btn btn-icon" title="새 파일" onClick={() => newItem("file", root)}>
           ＋
@@ -266,6 +267,40 @@ export function FileTree() {
           })()}
         </div>
       )}
+    </div>
+  );
+}
+
+function NoProject() {
+  const recent = useStore((s) => s.recent);
+  return (
+    <div className="file-tree no-project">
+      <div className="side-header">
+        <span>탐색기</span>
+      </div>
+      <div className="no-project-body">
+        <p className="muted">열린 폴더가 없습니다.</p>
+        <button className="btn btn-primary" onClick={openFolderDialog}>
+          폴더 열기
+        </button>
+        <button className="btn" onClick={() => void newDocument("qmd")}>
+          새 Quarto 문서
+        </button>
+        <button className="btn" onClick={newProjectDialog}>
+          새 프로젝트
+        </button>
+        {recent.length > 0 && (
+          <>
+            <div className="muted small recent-title">최근 프로젝트</div>
+            {recent.slice(0, 8).map((r) => (
+              <div key={r.path} className="recent-item" title={r.path} onClick={() => void openProject(r.path)}>
+                <strong>{r.name}</strong>
+                <span className="muted small ellipsis">{r.path}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

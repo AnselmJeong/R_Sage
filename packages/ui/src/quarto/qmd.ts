@@ -5,7 +5,8 @@
 // serialization is unchanged is written back as its original text, so
 // switching to the visual editor and back never rewrites what the user did
 // not touch. Anything the editor does not model (fenced divs, raw HTML,
-// footnotes, non-R chunks, ...) becomes a raw block that keeps its source.
+// footnote definitions, non-R chunks, ...) becomes a raw block that keeps its
+// source. Inline notes (^[...]) and note references ([^1]) are inline nodes.
 
 import type { Root, RootContent, PhrasingContent, List, Table, Code } from "mdast";
 import { unified } from "unified";
@@ -189,7 +190,30 @@ function table(n: Table): PMNode {
   return { type: "table", attrs: { align: JSON.stringify(n.align ?? []) }, content: rows };
 }
 
+/** Pandoc inline notes, ^[text], arrive as plain text: split them out. */
+function inlineNotes(nodes: PMNode[]): PMNode[] {
+  const out: PMNode[] = [];
+  for (const n of nodes) {
+    if (n.type !== "text" || n.marks?.length || !n.text?.includes("^[")) {
+      out.push(n);
+      continue;
+    }
+    let last = 0;
+    for (const m of n.text.matchAll(/\^\[([^\[\]]*)\]/g)) {
+      if (m.index! > last) out.push({ type: "text", text: n.text.slice(last, m.index) });
+      out.push({ type: "footnote", attrs: { text: m[1] } });
+      last = m.index! + m[0].length;
+    }
+    if (last < n.text.length) out.push({ type: "text", text: n.text.slice(last) });
+  }
+  return out;
+}
+
 function inline(children: PhrasingContent[], marks: PMMark[] = []): PMNode[] {
+  return inlineNotes(inlineRaw(children, marks));
+}
+
+function inlineRaw(children: PhrasingContent[], marks: PMMark[] = []): PMNode[] {
   const out: PMNode[] = [];
   const add = (node: PMNode) => {
     if (node.type === "text" && !node.text) return;
@@ -223,6 +247,9 @@ function inline(children: PhrasingContent[], marks: PMMark[] = []): PMNode[] {
         break;
       case "inlineMath":
         add({ type: "inlineMath", attrs: { tex: c.value } });
+        break;
+      case "footnoteReference":
+        add({ type: "footnoteRef", attrs: { label: c.label ?? c.identifier } });
         break;
       default:
         throw new Unsupported(c.type);
@@ -362,6 +389,8 @@ export function serializeInline(nodes: PMNode[]): string {
     } else if (n.type === "hardBreak") text = "\\\n";
     else if (n.type === "image") text = `![${n.attrs?.alt ?? ""}](${n.attrs?.src ?? ""}${n.attrs?.title ? ` "${n.attrs.title}"` : ""})`;
     else if (n.type === "inlineMath") text = `$${n.attrs?.tex ?? ""}$`;
+    else if (n.type === "footnote") text = `^[${n.attrs?.text ?? ""}]`;
+    else if (n.type === "footnoteRef") text = `[^${n.attrs?.label ?? ""}]`;
     // Spaces cannot sit just inside emphasis markers; move them outside.
     const lead = keep < marks.length ? /^\s*/.exec(text)![0] : "";
     if (keep < open.length) {

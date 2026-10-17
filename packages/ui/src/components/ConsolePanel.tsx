@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { host } from "../host/client";
+import { installPackages } from "../packages";
 import { useStore, type ConsoleItem } from "../store";
 import { monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
@@ -100,6 +101,8 @@ const Item = memo(function Item({ item }: { item: ConsoleItem }) {
     case "error": {
       const text = stripAnsi(item.evalue || item.ename);
       const refs = [...text.matchAll(FILE_REF), ...item.traceback.join("\n").matchAll(FILE_REF)];
+      // "there is no package called 'x'" (R prints curly quotes in UTF-8 locales)
+      const missing = /no package called [‘'"]([A-Za-z][\w.]*)[’'"]/.exec(text)?.[1];
       return (
         <div className="c-error">
           <pre>
@@ -114,6 +117,11 @@ const Item = memo(function Item({ item }: { item: ConsoleItem }) {
             </details>
           )}
           <div className="c-error-links">
+            {missing && (
+              <button className="c-srclink" onClick={() => void installPackages([missing])}>
+                {missing} 패키지 설치
+              </button>
+            )}
             {exec?.source && (
               <button className="c-srclink" onClick={() => openFile(exec.source!.file, { line: exec.source!.line })}>
                 오류가 난 코드로 이동 ({exec.source.file.split("/").pop()}:{exec.source.line})
