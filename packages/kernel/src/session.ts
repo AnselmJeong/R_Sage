@@ -369,6 +369,13 @@ export class KernelSession extends EventEmitter {
     } catch {}
   }
 
+  /** Last-resort cleanup when the app process exits: never leave R running. */
+  killNow() {
+    try {
+      this.kernel?.proc.kill("SIGKILL");
+    } catch {}
+  }
+
   async restart(opts?: Partial<StartOptions>): Promise<SessionInfo> {
     if (!this.lastStart) throw new Error("session was never started");
     const next = { ...this.lastStart, ...opts };

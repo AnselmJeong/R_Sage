@@ -1,0 +1,11 @@
+{
+  "name": "@rsage/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rsage/host": "workspace:*",
+    "@rsage/shared": "workspace:*",
+    "electrobun": "2.0.2"
+  }
+}

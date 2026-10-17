@@ -224,6 +224,8 @@ export interface HostEvents {
   "terminal.exit": { id: string; code: number | null };
   "lsp.notification": { method: string; params: any };
   "lsp.state": { running: boolean };
+  /** Native menu → UI command registry (desktop shell). */
+  "ui.command": { id: string };
 }
 
 export type EventName = keyof HostEvents;

@@ -78,6 +78,10 @@ export class Host {
     this.lsp.on("notification", (method, params) => this.emit("lsp.notification", { method, params }));
     this.lsp.on("state", (running: boolean) => this.emit("lsp.state", { running }));
     this.handlers = this.buildHandlers();
+    process.on("exit", () => {
+      this.session.killNow();
+      this.terminals.killAll();
+    });
   }
 
   subscribe(fn: Emit): () => void {

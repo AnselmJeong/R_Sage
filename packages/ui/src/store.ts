@@ -150,6 +150,7 @@ export async function initStore() {
   host.on("execution", (rec) => useStore.setState((s) => ({ executions: { ...s.executions, [rec.id]: rec } })));
   host.on("project.changed", (project) => useStore.setState({ project }));
   host.on("lsp.state", ({ running }) => useStore.setState({ lspRunning: running }));
+  host.on("ui.command", ({ id }) => void import("./commands").then((c) => c.runCommand(id)));
 
   const [app, project, recent, session, lsp] = await Promise.all([
     host.call("app.info"),
