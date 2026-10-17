@@ -472,7 +472,7 @@ export interface HostMethods {
   /** A local http URL that shows a project file (rendered pages, images). */
   "preview.url": { params: { path: string }; result: string };
 
-  "dialog.pickFolder": { params: { title?: string }; result: string | null };
+  "dialog.pickFolder": { params: { title?: string; startingFolder?: string }; result: string | null };
   /** Native file dialog; null when cancelled or when the shell has none. */
   "dialog.pickFile": { params: { title?: string; extensions?: string[]; startingFolder?: string }; result: string | null };
 

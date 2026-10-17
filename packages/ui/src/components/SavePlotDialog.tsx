@@ -177,7 +177,7 @@ export function SavePlotDialog({ plot, initialSize, onClose }: { plot: PlotEntry
               <button
                 className="btn"
                 onClick={async () => {
-                  const p = await pickFolder("플롯을 저장할 폴더", true);
+                  const p = await pickFolder("플롯을 저장할 폴더", true, dir || undefined);
                   if (p) setDir(p);
                 }}
               >

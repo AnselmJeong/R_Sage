@@ -6,7 +6,7 @@ import type { IDockviewPanelProps } from "dockview";
 import { host } from "../host/client";
 import { languageFor, monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
-import type { DiffParams } from "../git";
+import { useGit, type DiffParams } from "../git";
 
 export function DiffPanel(props: IDockviewPanelProps<DiffParams>) {
   const { path, origPath, mode, hash } = props.params;
@@ -45,9 +45,12 @@ export function DiffPanel(props: IDockviewPanelProps<DiffParams>) {
     void load();
     // A working-tree diff follows the file as it is saved.
     const off = mode === "working" ? host.on("fs.changed", ({ paths }) => paths.includes(path) && void load()) : () => {};
+    // Staging, committing, pulling or switching branch changes the index or HEAD it compares with.
+    const offGit = mode === "commit" ? () => {} : useGit.subscribe((s, prev) => s.status !== prev.status && void load());
     return () => {
       alive = false;
       off();
+      offGit();
       editor.dispose();
       original.dispose();
       modified.dispose();

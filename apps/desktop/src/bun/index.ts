@@ -19,8 +19,9 @@ type BridgeRPC = {
 
 const host = new Host({
   shell: "electrobun",
-  pickFolder: async () => {
+  pickFolder: async (_title, startingFolder) => {
     const paths = await Utils.openFileDialog({
+      ...(startingFolder ? { startingFolder } : {}),
       canChooseFiles: false,
       canChooseDirectory: true,
       allowsMultipleSelection: false,
