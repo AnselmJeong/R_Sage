@@ -3616,3 +3616,115 @@ label.check {
 .an-var .an-type {
   flex: none;
 }
+
+/* Analysis form: data pick reason, variable list and role boxes */
+.an-pick-reason {
+  margin: -2px 0 6px;
+}
+.an-vsearch {
+  width: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.an-source .an-var {
+  user-select: none;
+}
+.an-var.chosen,
+.an-var.chosen:hover {
+  background: var(--accent-bg, rgba(80, 140, 255, 0.25));
+}
+.an-varlist.drop,
+.an-role.drop-ok {
+  outline: 1px dashed var(--accent, #5b8cff);
+  outline-offset: -1px;
+}
+.an-vicon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.an-vicon-numeric { color: #6aa8ff; }
+.an-vicon-factor { color: #e3a857; }
+.an-vicon-ordered { color: #d98bd0; }
+.an-vicon-character { color: #9aa4b2; }
+.an-vicon-logical { color: #6cc28c; }
+.an-vicon-date { color: #5ec4c4; }
+.an-vicon-other { color: var(--fg-muted); }
+.an-role-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.an-role-head > span:nth-child(2) {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.an-role-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.an-role-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.an-role-add svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.an-role {
+  min-height: 52px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+}
+.an-role.single {
+  min-height: 0;
+}
+.an-role-empty {
+  display: block;
+  padding: 2px 4px;
+}
+.an-role .an-var.missing .ellipsis {
+  color: var(--err);
+  text-decoration: line-through;
+}
+.an-var-x {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  visibility: hidden;
+}
+.an-var:hover .an-var-x {
+  visibility: visible;
+}

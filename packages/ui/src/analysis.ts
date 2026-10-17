@@ -7,15 +7,18 @@ import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisModuleInfo
 import { host } from "./host/client";
 import { useStore } from "./store";
 import { getDockApi, getModel, editorsByPath } from "./editor/files";
+import { suggestDataset, type DatasetPick } from "./analysisData";
 
 interface AnalysisState {
   modules: AnalysisModuleInfo[];
   instances: Record<string, AnalysisInstance>;
   datasets: AnalysisDataset[];
   runtime: Record<string, AnalysisRuntimeStatus | "checking">;
+  /** Data sets the app chose for new analyses, with the reason, until the user picks another. */
+  picks: Record<string, DatasetPick>;
 }
 
-export const useAnalyses = create<AnalysisState>(() => ({ modules: [], instances: {}, datasets: [], runtime: {} }));
+export const useAnalyses = create<AnalysisState>(() => ({ modules: [], instances: {}, datasets: [], runtime: {}, picks: {} }));
 
 export function analysisDefs(): AnalysisDef[] {
   return useAnalyses.getState().modules.flatMap((m) => m.analyses);
@@ -86,9 +89,9 @@ export async function newAnalysis(key: string) {
   if (!useStore.getState().project) return useStore.getState().notify("분석은 프로젝트 폴더를 연 뒤에 저장됩니다. 먼저 폴더를 여세요.", "error");
   try {
     await refreshDatasets();
-    const ds = useAnalyses.getState().datasets;
-    const inst = await host.call("analysis.create", { analysis: key, dataset: ds.length === 1 ? ds[0]!.name : "" });
-    useAnalyses.setState((s) => ({ instances: { ...s.instances, [inst.id]: inst } }));
+    const pick = suggestDataset(useAnalyses.getState().datasets);
+    const inst = await host.call("analysis.create", { analysis: key, dataset: pick?.name ?? "" });
+    useAnalyses.setState((s) => ({ instances: { ...s.instances, [inst.id]: inst }, picks: pick ? { ...s.picks, [inst.id]: pick } : s.picks }));
     openAnalysisTab(inst.id);
   } catch (e) {
     notifyError(e);
