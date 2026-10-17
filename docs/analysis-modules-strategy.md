@@ -2,7 +2,7 @@
 
 _2026-10-17 · 기술 검토 및 구현 제안 · 검토한 코드 기준: `1894c4b`, 개정 검토 기준: `f0dacd3` (PR #16까지)_
 
-이 문서는 JASP처럼 필요한 분석 기능을 모듈 단위로 설치·활성화하는 R Sage의 확장 구조를 제안한다. 사용자가 제공한 두 화면은 메뉴 구성과 모듈 관리 경험의 참고 자료로 사용했다. **현재 단계는 설계**이며, 모듈 구현·설정 변경·패키지 설치는 수행하지 않았다. 아래 파일 구조, API, 버전 값은 구현을 위한 제안이며 현재 제공되는 기능이 아니다. 모듈 범주 목록은 [statistical_analyses.md](statistical_analyses.md)에 있다.
+이 문서는 JASP처럼 필요한 분석 기능을 모듈 단위로 설치·활성화하는 R Sage의 확장 구조를 제안한다. 사용자가 제공한 두 화면은 메뉴 구성과 모듈 관리 경험의 참고 자료로 사용했다. **현재 단계는 설계**이며, 모듈 구현·설정 변경·패키지 설치는 수행하지 않았다. 아래 파일 구조, API, 버전 값은 구현을 위한 제안이며 현재 제공되는 기능이 아니다. 모듈 목록과 R 패키지 선정 기준은 [analysis-modules-catalog.md](analysis-modules-catalog.md)에 있다.
 
 > **개정 요약 (2026-10-17, 구현 계획 7단계와 대조 후)**
 >
@@ -12,6 +12,7 @@ _2026-10-17 · 기술 검토 및 구현 제안 · 검토한 코드 기준: `1894
 > 4. **공통 R 런타임 패키지 `rsage` 도입.** 결과 헬퍼·JSON 기록·`knit_print`를 모듈마다 반복하지 않는다.
 > 5. **R 라이브러리 정책 단순화.** 첫 버전은 프로젝트 전용 라이브러리를 새로 만들지 않고 기존 패키지 패널·Quarto와 같은 `.libPaths()`를 쓰며, 버전은 `modules.lock.json`에 기록한다.
 > 6. 일반 플러그인 플랫폼(별도 플러그인 호스트, 임의 UI)은 분석 모듈과 분리해 후속 단계로 둔다. 구현 계획의 7단계도 7a(분석 모듈)·7b(일반 플러그인)로 나눴다.
+> 7. **tidyverse와 easystats를 모든 분석의 공통 중간 단계로 정한다.** 데이터 준비는 dplyr·tidyr, 그림은 ggplot2, 모델 결과·효과크기·진단은 easystats로 정리한다. 이에 따라 Descriptives의 그림도 base graphics 대신 ggplot2로 바꿨다. ([공통 중간 단계](#공통-중간-단계-tidyverse와-easystats))
 
 ---
 
@@ -180,9 +181,25 @@ descriptives.rsagemodule
 
 `assistant`는 이 분석을 AI 어시스턴트 도구로 노출할 때 쓰는 이름과 설명이다. 도구 입력 스키마는 따로 적지 않고 `optionsSchema`에서 만든다. `ai/*.md`는 어시스턴트에게 줄 사용 지침(언제 쓰는지, 측정수준 주의, 결과 해석 범위)이며 사용자 도움말과 분리한다. 생략하면 GUI 전용 분석이 되며, 공식 모듈은 생략하지 않는다.
 
-R 패키지의 전이 의존성은 `DESCRIPTION`을 원천으로 해결한다. 카탈로그에 보여주는 의존성 요약과 패키지 내용이 일치하는지 확인하고, 실제 해결된 버전·출처는 프로젝트 잠금 파일에 기록한다. 초기 Descriptives의 통계·그림은 `base`, `stats`, `graphics`, `grDevices`를 사용한다. JSON 입출력용 `jsonlite`는 런타임의 명시적 의존성으로 준비하며, 추가 설치가 전혀 없다고 표현하지 않는다.
+R 패키지의 전이 의존성은 `DESCRIPTION`을 원천으로 해결한다. 카탈로그에 보여주는 의존성 요약과 패키지 내용이 일치하는지 확인하고, 실제 해결된 버전·출처는 프로젝트 잠금 파일에 기록한다. 초기 Descriptives는 공통 중간 단계(아래)를 따라 `dplyr`·`tidyr`로 데이터를 정리하고, `stats`로 계산하고, `ggplot2`로 그린다. JSON 입출력용 `jsonlite`는 런타임의 명시적 의존성으로 준비하며, 추가 설치가 전혀 없다고 표현하지 않는다.
 
 모든 모듈 R 패키지는 공통 런타임 패키지 `rsage`에 의존한다(`rsageRuntime`이 호환 범위). `rsage`는 JASP의 `jaspBase`에 해당하지만 훨씬 작게 유지한다. 결과 객체 생성 헬퍼(`rs_table()`, `rs_plot()`, `rs_note()`), 결과 규격에 맞는 `result.json` 기록, 그리고 Quarto·knitr에서 같은 결과 객체를 표와 그림으로 출력하는 `knit_print` 메서드를 제공한다. 모듈 패키지는 계산만 담당하고 결과 형식·직렬화는 `rsage`에 맡긴다. 앱은 `rsage`를 번들해 설치하며, 계획서 0단계에 있던 앱 전용 R 패키지 `r/rsage`가 이것이다.
+
+### 공통 중간 단계: tidyverse와 easystats
+
+모든 분석 모듈은 같은 중간 단계를 거친다. 모듈마다 데이터 정리·결과 정리·그림 방식이 달라지면 결과 형식이 흩어지고, AI 어시스턴트와 보고서 청크가 모듈마다 다른 코드를 읽게 된다.
+
+| 단계 | 기본 패키지 | 쓰임 |
+| --- | --- | --- |
+| 입력 정리 | `dplyr`, `tidyr`, `tibble` | 변수 선택, 결측·그룹 처리, 긴 형식 변환. 입력은 tibble로 맞춤 |
+| 계산 | 모듈별 백엔드 | `stats`, `lme4`, `lavaan` 등 ([모듈 목록](analysis-modules-catalog.md)) |
+| 결과 정리 | `parameters`, `effectsize`, `performance`, `datawizard`, `insight` | 계수·신뢰구간·효과크기·적합도·가정 진단을 같은 형식의 표로 |
+| 그림 | `ggplot2` | 모든 결과 그림. 그림 객체를 `rs_plot()`이 파일로 저장 |
+| 결과 객체 | `rsage` | 위 결과를 `rs_table()`·`rs_plot()`으로 묶어 `result.json`과 `knit_print`로 출력 |
+
+모듈 R 패키지는 `tidyverse`·`easystats` 메타 패키지가 아니라 실제로 쓰는 구성 패키지만 `Imports`에 적는다. 메타 패키지는 설치 부담이 크고, 쓰지 않는 패키지까지 버전 잠금에 들어온다. 보고서 청크로 내보낸 코드도 이 구성 패키지만 `library()`로 부른다.
+
+이 단계 덕분에 보고서 삽입 코드가 사람이 읽을 수 있는 tidyverse 코드가 된다. 사용자가 분석 청크를 열었을 때 `df |> dplyr::select(...) |> rsageDescriptives::analyse(...)`처럼 익숙한 형태로 보인다.
 
 ### 분석 요청과 결과 규격
 
@@ -255,7 +272,7 @@ R Sage에서 사용자는 주로 AI 어시스턴트나 분석 GUI로 분석한�
 
 분석 입력을 데이터 뷰어의 표시용 셀 문자열에서 재구성하지 않는다. 계산은 R의 원래 값과 자료형을 사용하고, UI에는 열 정보와 작은 미리보기만 전달한다.
 
-첫 버전은 전역 환경에 이름이 있는 일반 `data.frame`과 지원되는 원자형 열로 범위를 제한한다. 활성 바인딩, 임의 R 표현식, 외부 포인터, list-column, 별도 의미를 가진 날짜·시간·복합 클래스는 명확히 거부하거나 후속 지원으로 둔다. `tibble`/`data.table`은 복사·변환 규칙을 검증한 뒤 지원한다.
+첫 버전은 전역 환경에 이름이 있는 `data.frame`과 `tibble`, 지원되는 원자형 열로 범위를 제한한다. 공통 중간 단계가 tidyverse이므로 tibble은 첫 버전부터 지원하고, 입력은 내부에서 tibble로 맞춘다. 활성 바인딩, 임의 R 표현식, 외부 포인터, list-column, 별도 의미를 가진 날짜·시간·복합 클래스는 명확히 거부하거나 후속 지원으로 둔다. `data.table`은 복사·변환 규칙을 검증한 뒤 지원한다.
 
 - 세션 내 참조는 `datasetId + generation + binding`으로 관리한다. UI가 보낸 문자열을 `eval(parse())`로 실행하지 않는다.
 - 변수는 안정된 열 ID로 선택한다. 이름·원래 위치·자료형·측정수준을 함께 기록한다. 이름 변경·중복 이름·열 삭제가 발생하면 사용자가 다시 연결하도록 표시하며 위치만으로 자동 대체하지 않는다.
@@ -409,7 +426,7 @@ R의 저장 자료형과 통계적 측정수준을 분리한다. 기본 제안�
 
 처리 순서는 그룹 결측 정책 → 명시적 비정상값 정책 → 변수별/완전 사례 정책 → 통계·빈도·그림이다. 각 단계의 제외 수와 최종 분석 N을 저장한다. 변수별 제외와 완전 사례 제외에서 분모가 달라질 수 있다는 점을 결과 주석에 표시한다. 그룹 수준의 완전 사례 제외 수와 변수 원래 결측 수를 합산하여 중복 계산하지 않는다.
 
-히스토그램은 첫 버전에서 `Sturges` 규칙을 기본으로 쓰고, 실제 계산한 breaks를 결과에 기록한다. 그룹 비교에서는 동일 변수의 그룹들이 공통 breaks를 사용하게 한다. 상자그림은 `boxplot.stats(coef = 1.5)`의 hinges·수염 정의를 사용하고, 표의 type 7 분위수와 다를 수 있음을 주석으로 설명한다.[^9] 그림별로 제외 행 수와 사용 N을 기록한다.
+그림은 `ggplot2`로 그린다. 히스토그램은 ggplot2 기본값(30 bins) 대신 `Sturges` 규칙으로 계산한 breaks를 `geom_histogram(breaks = ...)`에 넘기고, 실제 breaks를 결과에 기록한다. 그룹 비교에서는 동일 변수의 그룹들이 공통 breaks를 사용하게 한다. 상자그림은 `geom_boxplot()`의 정의(`stat_boxplot`의 type 7 분위수, 수염 1.5 × IQR)를 쓴다. 이는 표의 Q1·Q3와 같은 분위수 정의이므로, base `boxplot.stats()`의 hinges와는 다를 수 있다는 점만 도움말에 적는다.[^9] 그림별로 제외 행 수와 사용 N을 기록한다.
 
 통계량과 빈도는 전체 유효 데이터를 계산한다. 성능 때문에 표본 추출이 필요해지는 그래프는 그 여부·표본 수·seed를 명시하는 별도 옵션으로 설계한다. 첫 버전에서는 암묵적으로 표본을 줄이지 않는다. 범주·그룹 수가 지나치게 많으면 경고와 표시 제한을 제공하되 실제 계산값을 숨겨 변경하지 않는다.
 
@@ -490,4 +507,4 @@ P0에서 공유 세션 실행 순서·취소 소유권을 안정적으로 보장
 [^6]: Posit. [Introduction to renv](https://rstudio.github.io/renv/articles/renv.html), [restore documentation](https://github.com/rstudio/renv/blob/main/man/restore.Rd), [System dependencies](https://github.com/rstudio/renv/blob/main/vignettes/docker.Rmd). 프로젝트 환경 복원과 시스템 의존성의 구분. Context7 조회 ID: `/rstudio/renv`.
 [^7]: R Core. [Standard deviation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/sd.html). 표본 SD의 분모와 유효값이 부족한 경우.
 [^8]: R Core. [Sample quantiles](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html). type 7 정의.
-[^9]: R Core. [Box plot statistics](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/boxplot.stats.html). hinges, 수염, 분위수와의 차이.
+[^9]: R Core. [Box plot statistics](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/boxplot.stats.html). hinges, 수염, 분위수와의 차이. ggplot2. [stat_boxplot](https://ggplot2.tidyverse.org/reference/geom_boxplot.html). 상자그림 통계량 계산 방식.
