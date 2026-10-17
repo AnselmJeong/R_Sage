@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:electrobun": "VITE_RSAGE_SHELL=electrobun RSAGE_UI_OUT=../../apps/desktop/dist vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
