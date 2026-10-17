@@ -55,3 +55,37 @@ export interface Provider {
   models(): Promise<{ id: string; label: string }[]>;
   turn(req: TurnRequest): Promise<TurnResult>;
 }
+
+/**
+ * A provider that runs its own agent loop (Claude Code, Codex) and calls the
+ * app's tools over MCP. Used for subscription logins, which only these
+ * agents carry.
+ */
+export interface AgentRunRequest {
+  model: string;
+  system: string;
+  /** This turn's message, with earlier turns the agent has not seen prepended. */
+  prompt: string;
+  /** The agent's own session id from the previous run, to resume. */
+  sessionId?: string;
+  cwd: string;
+  mcp: { url: string; token: string };
+  signal: AbortSignal;
+  onText: (delta: string) => void;
+  onThinking: (delta: string) => void;
+  /** The agent started a new message (after a tool call). */
+  onMessage: () => void;
+  /** A tool the agent ran itself (not one of ours), shown for transparency. */
+  onOwnTool: (t: { key: string; name: string; input: any; output?: string; status: "running" | "done" | "error" }) => void;
+}
+
+export interface AgentProvider {
+  kind: "agent";
+  id: AssistantProviderId;
+  label: string;
+  /** Whether the user is logged in; `hint` says how to log in when not. */
+  available(): { ok: boolean; hint?: string };
+  models(): Promise<{ id: string; label: string }[]>;
+  /** Runs one user turn to the end. Returns the session id to resume next time and the final text. */
+  run(req: AgentRunRequest): Promise<{ sessionId?: string; text: string }>;
+}

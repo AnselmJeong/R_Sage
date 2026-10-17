@@ -99,11 +99,11 @@ export function AssistantPanel() {
         {!hasModels ? (
           <div className="assistant-empty">
             <h4>AI 조수 연결하기</h4>
-            <p>Claude나 GPT의 API 키를 넣으면 조수가 프로젝트의 데이터와 파일을 보고 R 분석을 실행하고, 보고서(.qmd)를 고쳐 줍니다.</p>
+            <p>Claude나 ChatGPT 구독(또는 API 키)을 연결하면 조수가 프로젝트의 데이터와 파일을 보고 R 분석을 실행하고, 보고서(.qmd)를 고쳐 줍니다.</p>
             <button className="btn btn-primary" onClick={() => useAiSettings.setState({ open: true })}>
               AI 연결 설정
             </button>
-            {status && !configured && <p className="muted small">API 키는 macOS 키체인에 저장됩니다.</p>}
+            {status && !configured && <p className="muted small">구독은 터미널에서 `claude` 또는 `codex login`으로 로그인하면 바로 잡힙니다.</p>}
           </div>
         ) : !current || current.items.length === 0 ? (
           <div className="assistant-empty">

@@ -161,7 +161,11 @@ export interface RVariable {
 
 // ---------- AI assistant ----------
 
-export type AssistantProviderId = "anthropic" | "openai" | "fake";
+/**
+ * anthropic / openai: API keys. claude-code / codex: the user's own Claude or
+ * ChatGPT subscription, through the Claude Code and Codex they logged in to.
+ */
+export type AssistantProviderId = "anthropic" | "openai" | "claude-code" | "codex" | "fake";
 
 export interface AssistantModel {
   id: string;
@@ -173,8 +177,12 @@ export interface AssistantProviderStatus {
   id: AssistantProviderId;
   label: string;
   configured: boolean;
-  /** Where the key came from. */
-  source?: "keychain" | "file" | "env";
+  /** Where the key came from; "login" for a subscription login. */
+  source?: "keychain" | "file" | "env" | "login";
+  /** Subscription providers: billed to the subscription, not an API key. */
+  subscription?: boolean;
+  /** What to do to connect it, when it is not connected. */
+  hint?: string;
   /** Last error talking to the provider (bad key, network). */
   error?: string;
 }

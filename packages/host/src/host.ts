@@ -136,6 +136,7 @@ export class Host {
   async dispose() {
     clearInterval(this.memTimer);
     this.terminals.killAll();
+    this.assistant.dispose();
     this.lsp.stop();
     this.project?.unwatch();
     await this.session.shutdown();

@@ -1252,3 +1252,21 @@ label.check {
   gap: 6px;
   flex-direction: row;
 }
+.ai-section {
+  margin: 12px 0 2px;
+  font-size: 13px;
+}
+.ai-command {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  user-select: all;
+}
+.ai-settings {
+  max-height: 90vh;
+  overflow-y: auto;
+}

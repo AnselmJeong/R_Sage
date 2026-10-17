@@ -21,17 +21,26 @@ import type { CommManager } from "../comms";
 import { appDir, type ConfigStore, writeFileAtomic } from "../config";
 import type { Project } from "../project";
 import { AnthropicProvider } from "./anthropic";
-import { FakeProvider } from "./fake";
+import { ClaudeCodeProvider } from "./claude-code";
+import { CodexProvider } from "./codex";
+import { FakeAgentProvider, FakeProvider } from "./fake";
+import { McpBridge } from "./mcp";
 import { OpenAIProvider } from "./openai";
 import { getKey, setKey } from "./secrets";
 import { runTool, TOOL_SPECS } from "./tools";
-import type { Provider, ToolResult, Turn } from "./types";
+import type { AgentProvider, Provider, ToolResult, Turn } from "./types";
 
 const MAX_STEPS = 40;
 
 interface Stored extends Conversation {
   history: Turn[];
+  /** Agent providers keep their own session; `synced` is how much of `history` it has seen. */
+  agentSessions?: Partial<Record<AssistantProviderId, { id?: string; synced: number }>>;
 }
+
+type AnyProvider = Provider | AgentProvider;
+type Run = { abort: AbortController; approvals: Map<string, (ok: boolean) => void> };
+const isAgent = (p: AnyProvider): p is AgentProvider => (p as AgentProvider).kind === "agent";
 
 type ToolItem = Extract<AssistantItem, { kind: "tool" }>;
 
@@ -48,16 +57,24 @@ export interface AssistantDeps {
 }
 
 export class AssistantService {
-  private providers: Provider[];
-  private running = new Map<string, { abort: AbortController; approvals: Map<string, (ok: boolean) => void> }>();
+  private providers: AnyProvider[];
+  private running = new Map<string, Run>();
   private errors = new Map<AssistantProviderId, string>();
+  private bridge = new McpBridge(TOOL_SPECS);
 
   constructor(private deps: AssistantDeps) {
     this.providers = [
+      new ClaudeCodeProvider(),
+      new CodexProvider(),
       new AnthropicProvider(() => getKey("anthropic")?.key),
       new OpenAIProvider(() => getKey("openai")?.key),
     ];
-    if (process.env.RSAGE_FAKE_AI) this.providers.push(new FakeProvider());
+    if (process.env.RSAGE_FAKE_AI) this.providers.push(new FakeProvider(), new FakeAgentProvider());
+  }
+
+  dispose() {
+    for (const id of this.running.keys()) this.stop(id);
+    this.bridge.dispose();
   }
 
   private get options() {
@@ -67,21 +84,34 @@ export class AssistantService {
   // ---------- status & keys ----------
 
   async status(refresh = false): Promise<AssistantStatus> {
-    const providers = this.providers.map((p) => {
-      const key = p.id === "fake" ? { source: "env" as const } : getKey(p.id);
-      return { id: p.id, label: p.label, configured: !!key, source: key?.source, error: this.errors.get(p.id) };
-    });
+    const providers: AssistantStatus["providers"] = [];
     const models: AssistantModel[] = [];
     for (const p of this.providers) {
-      if (!providers.find((x) => x.id === p.id)?.configured) continue;
+      // Both fake providers share one status row.
+      if (providers.some((x) => x.id === p.id)) {
+        for (const m of await p.models()) models.push({ ...m, provider: p.id });
+        continue;
+      }
+      let st: AssistantStatus["providers"][number];
+      if (isAgent(p)) {
+        const a = p.available();
+        st = { id: p.id, label: p.label, configured: a.ok, source: a.ok ? "login" : undefined, subscription: true, hint: a.hint };
+      } else {
+        const key = p.id === "fake" ? { source: "env" as const } : getKey(p.id);
+        st = { id: p.id, label: p.label, configured: !!key, source: key?.source };
+      }
+      st.error = this.errors.get(p.id);
+      providers.push(st);
+      if (!st.configured) continue;
       if (refresh) (p as any).resetModels?.();
       for (const m of await p.models()) models.push({ ...m, provider: p.id });
     }
     const def = this.options.defaultModel;
+    const prefer = ["cc:claude-opus-5-5", "claude-opus-5-5", "codex:default"];
     return {
       providers,
       models,
-      defaultModel: models.find((m) => m.id === def)?.id ?? models.find((m) => m.id === "claude-opus-5-5")?.id ?? models[0]?.id,
+      defaultModel: models.find((m) => m.id === def)?.id ?? prefer.map((id) => models.find((m) => m.id === id)?.id).find(Boolean) ?? models[0]?.id,
       autoRunR: !!this.options.autoRunR,
     };
   }
@@ -200,20 +230,141 @@ export class AssistantService {
     c.history.push({ role: "user", text: withContext(text, context, this.deps.project()) });
     this.save(c);
 
-    const run = { abort: new AbortController(), approvals: new Map<string, (ok: boolean) => void>() };
+    const run: Run = { abort: new AbortController(), approvals: new Map() };
     this.running.set(id, run);
     this.deps.emitState(id, true);
-    return { done: this.loop(c, provider, model, run, push, now) };
+    return { done: isAgent(provider) ? this.agentLoop(c, provider, model, run, push, now) : this.loop(c, provider, model, run, push, now) };
   }
 
-  private async loop(
-    c: Stored,
-    provider: Provider,
-    model: string,
-    run: { abort: AbortController; approvals: Map<string, (ok: boolean) => void> },
-    push: (item: AssistantItem) => void,
-    now: () => string,
-  ) {
+  /** Runs one tool call as a visible, approvable item. */
+  private async execTool(name: string, input: any, run: Run, push: (item: AssistantItem) => void, now: () => string) {
+    const toolItem: ToolItem = { kind: "tool", id: randomUUID(), name, input, status: "running", at: now() };
+    push(toolItem);
+    const update = (patch: Partial<ToolItem>) => {
+      Object.assign(toolItem, patch);
+      push(toolItem);
+    };
+    let res: Omit<ToolResult, "callId" | "name">;
+    if (run.abort.signal.aborted) res = { output: "Stopped by the user.", isError: true };
+    else {
+      try {
+        res = await runTool(name, input, toolItem, {
+          project: this.deps.project(),
+          session: this.deps.session,
+          comms: this.deps.comms,
+          ensureSession: this.deps.ensureSession,
+          autoRunR: () => !!this.options.autoRunR,
+          signal: run.abort.signal,
+          update,
+          approve: (it) =>
+            new Promise<boolean>((resolve) => {
+              update({ ...it, status: "awaiting-approval" });
+              run.approvals.set(toolItem.id, (ok) => {
+                update({ status: ok ? "running" : "denied" });
+                resolve(ok);
+              });
+            }),
+        });
+      } catch (err: any) {
+        res = { output: err?.message ?? String(err), isError: true };
+      }
+    }
+    update({
+      status: toolItem.status === "denied" ? "denied" : res.isError ? "error" : "done",
+      output: res.output.slice(0, 4000),
+      images: res.images?.map((img) => `data:${img.mime};base64,${img.data}`),
+    });
+    return res;
+  }
+
+  /** Claude Code / Codex: the agent runs the loop and calls our tools over MCP. */
+  private async agentLoop(c: Stored, provider: AgentProvider, model: string, run: Run, push: (item: AssistantItem) => void, now: () => string) {
+    const id = c.id;
+    const sessions = (c.agentSessions ??= {});
+    const prev = sessions[provider.id];
+    const userTurn = c.history[c.history.length - 1] as Extract<Turn, { role: "user" }>;
+    // Turns this agent has not seen (other models, or before it joined) go in as a transcript.
+    const unseen = c.history.slice(prev?.id ? prev.synced : 0, -1);
+    const prompt = unseen.length ? `<earlier_conversation>\n${transcript(unseen)}\n</earlier_conversation>\n\n${userTurn.text}` : userTurn.text;
+
+    let item: Extract<AssistantItem, { kind: "assistant" }> | undefined;
+    const said: { text: string }[] = [];
+    const current = () => {
+      if (!item) {
+        item = { kind: "assistant", id: randomUUID(), text: "", model, at: now() };
+        said.push(item);
+        push(item);
+      }
+      return item;
+    };
+    const own = new Map<string, ToolItem>();
+    const mcp = this.bridge.open(async (name, input) => {
+      if (item) push(item);
+      item = undefined;
+      const res = await this.execTool(name, input, run, push, now);
+      this.save(c);
+      return res;
+    });
+    let produced = false;
+    try {
+      const r = await provider.run({
+        model,
+        system: this.systemPrompt(),
+        prompt,
+        sessionId: prev?.id,
+        cwd: this.deps.project()?.root ?? this.dir(),
+        mcp: { url: mcp.url, token: mcp.token },
+        signal: run.abort.signal,
+        onMessage: () => {
+          if (item) push(item);
+          item = undefined;
+        },
+        onText: (d) => {
+          produced = true;
+          const it = current();
+          it.text += d;
+          this.deps.emitDelta(id, it.id, { text: d });
+        },
+        onThinking: (d) => {
+          const it = current();
+          it.thinking = (it.thinking ?? "") + d;
+          this.deps.emitDelta(id, it.id, { thinking: d });
+        },
+        onOwnTool: (t) => {
+          produced = true;
+          let ti = own.get(t.key);
+          if (!ti) {
+            if (item) push(item);
+            item = undefined;
+            ti = { kind: "tool", id: randomUUID(), name: t.name, input: t.input, status: t.status, at: now() };
+            own.set(t.key, ti);
+          }
+          Object.assign(ti, { status: t.status, output: t.output?.slice(0, 4000) });
+          push(ti);
+        },
+      });
+      this.errors.delete(provider.id);
+      if (item) push(item);
+      c.history.push({ role: "assistant", provider: provider.id, model, text: r.text, calls: [] });
+      sessions[provider.id] = { id: r.sessionId, synced: c.history.length };
+    } catch (err: any) {
+      const msg = run.abort.signal.aborted ? "중단했습니다." : (err?.message ?? String(err));
+      if (!run.abort.signal.aborted) this.errors.set(provider.id, msg);
+      // A session that could not be resumed starts over next time, with the transcript.
+      if (!produced && prev?.id) delete sessions[provider.id];
+      if (item) push(item);
+      push({ kind: "error", id: randomUUID(), text: msg, at: now() });
+      const text = said.map((x) => x.text).filter(Boolean).join("\n");
+      if (text) c.history.push({ role: "assistant", provider: provider.id, model, text, calls: [] });
+    } finally {
+      mcp.close();
+      this.running.delete(id);
+      this.save(c);
+      this.deps.emitState(id, false);
+    }
+  }
+
+  private async loop(c: Stored, provider: Provider, model: string, run: Run, push: (item: AssistantItem) => void, now: () => string) {
     const id = c.id;
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
@@ -256,42 +407,7 @@ export class AssistantService {
 
         const results: ToolResult[] = [];
         for (const call of result.calls) {
-          const toolItem: ToolItem = { kind: "tool", id: randomUUID(), name: call.name, input: call.input, status: "running", at: now() };
-          push(toolItem);
-          const update = (patch: Partial<ToolItem>) => {
-            Object.assign(toolItem, patch);
-            push(toolItem);
-          };
-          let res: Omit<ToolResult, "callId" | "name">;
-          if (run.abort.signal.aborted) res = { output: "Stopped by the user.", isError: true };
-          else {
-            try {
-              res = await runTool(call.name, call.input, toolItem, {
-                project: this.deps.project(),
-                session: this.deps.session,
-                comms: this.deps.comms,
-                ensureSession: this.deps.ensureSession,
-                autoRunR: () => !!this.options.autoRunR,
-                signal: run.abort.signal,
-                update,
-                approve: (it) =>
-                  new Promise<boolean>((resolve) => {
-                    update({ ...it, status: "awaiting-approval" });
-                    run.approvals.set(toolItem.id, (ok) => {
-                      update({ status: ok ? "running" : "denied" });
-                      resolve(ok);
-                    });
-                  }),
-              });
-            } catch (err: any) {
-              res = { output: err?.message ?? String(err), isError: true };
-            }
-          }
-          update({
-            status: toolItem.status === "denied" ? "denied" : res.isError ? "error" : "done",
-            output: res.output.slice(0, 4000),
-            images: res.images?.map((img) => `data:${img.mime};base64,${img.data}`),
-          });
+          const res = await this.execTool(call.name, call.input, run, push, now);
           results.push({ callId: call.id, name: call.name, ...res });
         }
         c.history.push({ role: "tool_results", results });
@@ -314,8 +430,18 @@ export class AssistantService {
     }
   }
 
-  private providerFor(model: string): Provider {
-    const id: AssistantProviderId = model.startsWith("claude") ? "anthropic" : model.startsWith("fake") ? "fake" : "openai";
+  private providerFor(model: string): AnyProvider {
+    if (model.startsWith("fake")) {
+      const p = this.providers.find((x) => x.id === "fake" && isAgent(x) === model.startsWith("fake-agent"));
+      if (p) return p;
+    }
+    const id: AssistantProviderId = model.startsWith("cc:")
+      ? "claude-code"
+      : model.startsWith("codex:")
+        ? "codex"
+        : model.startsWith("claude")
+          ? "anthropic"
+          : "openai";
     const p = this.providers.find((x) => x.id === id);
     if (!p) throw new Error(`No provider for ${model}`);
     return p;
@@ -348,4 +474,14 @@ function withContext(text: string, ctx: AssistantContext | undefined, project: P
   let s = `${text}\n\n<editor_context>\nActive file: ${rel}`;
   if (ctx.selection?.text) s += `\nSelected lines ${ctx.selection.startLine}-${ctx.selection.endLine}:\n${ctx.selection.text.slice(0, 8000)}`;
   return s + "\n</editor_context>";
+}
+
+function transcript(turns: Turn[]): string {
+  return turns
+    .map((t) => {
+      if (t.role === "user") return `User: ${t.text}`;
+      if (t.role === "assistant") return `Assistant: ${t.text}${t.calls.length ? `\n[called ${t.calls.map((x) => x.name).join(", ")}]` : ""}`;
+      return t.results.map((r) => `Tool result (${r.name}): ${r.output.slice(0, 1500)}`).join("\n");
+    })
+    .join("\n\n");
 }

@@ -80,4 +80,26 @@ maybe("assistant with the scripted provider", () => {
     expect(tools()[0]!.status).toBe("denied");
     expect(readFileSync(join(proj, "analysis.R"), "utf8")).toBe("x <- 1\n");
   }, 60000);
+
+  test("an agent provider calls the tools over MCP, with approval", async () => {
+    items.clear();
+    const status = await call("assistant.status");
+    const cc = status.providers.find((p: any) => p.id === "claude-code");
+    expect(cc.subscription).toBe(true);
+    const conv = await call("assistant.new");
+    // Earlier turns from another model reach the agent as a transcript.
+    await call("assistant.send", { conversationId: conv.id, model: "fake-echo", text: "hello" });
+    expect(await until(() => !running)).toBe(true);
+    items.clear();
+    await call("assistant.send", { conversationId: conv.id, model: "fake-agent", text: "```r\nmean(1:10)\n```" });
+    expect(await until(() => tools().some((t) => t.status === "awaiting-approval"))).toBe(true);
+    await call("assistant.approve", { conversationId: conv.id, itemId: tools()[0]!.id, approve: true });
+    expect(await until(() => !running, 60000)).toBe(true);
+    expect(tools()[0]!.output).toContain("5.5");
+    const replies = [...items.values()].filter((i) => i.kind === "assistant").map((i: any) => i.text);
+    expect(replies.at(-1)).toContain("run_r 결과");
+    const stored = JSON.parse(readFileSync(join(proj, ".rsage", "assistant", `${conv.id}.json`), "utf8"));
+    expect(stored.agentSessions.fake.id).toMatch(/^fake-session/);
+    expect(stored.history.at(-1).text).toContain("run_r 결과");
+  }, 90000);
 });

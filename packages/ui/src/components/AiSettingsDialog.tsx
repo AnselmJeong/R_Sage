@@ -13,18 +13,23 @@ const PROVIDERS: { id: AssistantProviderId; label: string; placeholder: string; 
     label: "Claude (Anthropic)",
     placeholder: "sk-ant-…",
     keyUrl: "https://console.anthropic.com/settings/keys",
-    note: "Anthropic은 외부 앱에서 Claude 구독(Pro/Max) 로그인을 허용하지 않아 API 키로 연결합니다. 사용량은 API 요금으로 청구됩니다.",
+    note: "구독 대신 API 요금으로 쓰려면 키를 넣으세요.",
   },
   {
     id: "openai",
     label: "GPT (OpenAI)",
     placeholder: "sk-…",
     keyUrl: "https://platform.openai.com/api-keys",
-    note: "ChatGPT 구독으로 로그인(Sign in with ChatGPT)은 OpenAI에 앱 등록 후 제공할 예정입니다. 그때까지는 API 키를 씁니다.",
+    note: "구독 대신 API 요금으로 쓰려면 키를 넣으세요.",
   },
 ];
 
-const SOURCE: Record<string, string> = { keychain: "키체인", file: "설정 파일", env: "환경 변수" };
+const SOURCE: Record<string, string> = { keychain: "키체인", file: "설정 파일", env: "환경 변수", login: "로그인됨" };
+
+const SUBSCRIPTIONS: { id: AssistantProviderId; label: string; command: string }[] = [
+  { id: "claude-code", label: "Claude 구독 (Pro/Max)", command: "claude  →  /login" },
+  { id: "codex", label: "ChatGPT 구독 (Plus/Pro)", command: "codex login" },
+];
 
 /** App-wide AI connection settings: provider keys and how much the assistant may do alone. */
 export function AiSettingsDialog() {
@@ -62,6 +67,34 @@ export function AiSettingsDialog() {
     <div className="dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="dialog settings ai-settings">
         <h3>AI 연결</h3>
+        <h4 className="ai-section">구독으로 연결</h4>
+        <p className="muted small">
+          이 Mac에 로그인된 Claude Code와 Codex를 통해 구독으로 씁니다. 터미널에서 아래 명령으로 한 번 로그인하면 됩니다.
+        </p>
+        {SUBSCRIPTIONS.map((p) => {
+          const st = status?.providers.find((x) => x.id === p.id);
+          return (
+            <div key={p.id} className="ai-provider">
+              <div className="ai-provider-head">
+                <strong>{p.label}</strong>
+                {st?.configured ? (
+                  <span className={`badge ${st.error ? "badge-error" : "badge-done"}`}>{st.error ? "오류" : "로그인됨"}</span>
+                ) : (
+                  <span className="badge">로그인 필요</span>
+                )}
+              </div>
+              {st?.error && <div className="error small">{st.error}</div>}
+              {!st?.configured && st?.hint && <p className="muted small">{st.hint}</p>}
+              <div className="ai-key-row">
+                <code className="ai-command">{p.command}</code>
+                <button className="btn" onClick={() => refreshStatus(true)}>
+                  다시 확인
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <h4 className="ai-section">API 키로 연결</h4>
         <p className="muted small">키는 이 Mac의 키체인에 저장되고, 이 앱에서 해당 서비스로 직접 보낼 때만 쓰입니다.</p>
         {PROVIDERS.map((p) => {
           const st = status?.providers.find((x) => x.id === p.id);
