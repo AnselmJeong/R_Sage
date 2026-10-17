@@ -204,6 +204,8 @@ export interface Diagnostic {
 
 // ---------- comms (Positron extensions to Jupyter) ----------
 
+export type PlotExportFormat = "png" | "jpeg" | "tiff" | "svg" | "pdf";
+
 export interface CommInfo {
   commId: string;
   /** positron.ui, positron.variables, positron.help, positron.plot, positron.dataExplorer */
@@ -431,6 +433,16 @@ export interface HostMethods {
   "frontend.reply": { params: { id: string; result?: unknown; error?: string }; result: void };
   /** Write base64 data to a project file (plot export). */
   "fs.writeBase64": { params: { path: string; data: string }; result: void };
+  /** Re-render a plot in R at a physical size and write it to an absolute path. */
+  "plot.save": {
+    params: { commId?: string; path: string; format: PlotExportFormat; widthIn: number; heightIn: number; dpi?: number; data?: string; overwrite?: boolean };
+    result: { ok: true; path: string } | { ok: false; exists: true };
+  };
+  /** Render a plot at a physical size (for the save dialog's preview). */
+  "plot.render": {
+    params: { commId: string; format: PlotExportFormat; widthIn: number; heightIn: number; dpi?: number };
+    result: { data: string; mime_type: string };
+  };
 
   "assistant.status": { params: { refresh?: boolean }; result: AssistantStatus };
   /** Store (or with key null, remove) a provider's API key. */

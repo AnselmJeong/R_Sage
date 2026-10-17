@@ -15,8 +15,12 @@ export interface PlotEntry {
   image?: string;
   /** Size the image was rendered at, in CSS pixels. */
   size?: { width: number; height: number };
+  /** Pixel ratio of the latest render. */
+  pixelRatio?: number;
   /** Bumped when R redraws the plot (e.g. lines() after plot()). */
   version: number;
+  /** The version the current image shows. */
+  renderedVersion?: number;
 }
 
 export interface DataViewerEntry {
@@ -91,7 +95,9 @@ function onOpen(c: CommInfo) {
         createdAt: c.openedAt,
         image: pre?.data ? `data:${pre.mime_type ?? "image/png"};base64,${pre.data}` : undefined,
         size: pre?.settings?.size,
+        pixelRatio: pre?.settings?.pixel_ratio,
         version: 0,
+        renderedVersion: pre?.data ? 0 : undefined,
       };
       useComms.setState((s) => ({ plots: [...s.plots.filter((p) => p.commId !== c.commId), plot], currentPlot: c.commId }));
       commHooks.showPlots?.();
@@ -187,7 +193,7 @@ export function showHelpUrl(url: string, focus = true) {
   if (focus) commHooks.showHelp?.();
 }
 
-export async function renderPlot(commId: string, size: { width: number; height: number }, format: "png" | "svg" | "pdf" | "jpeg" = "png", pixelRatio = window.devicePixelRatio || 1) {
+export async function renderPlot(commId: string, size: { width: number; height: number }, format: "png" | "svg" | "pdf" | "jpeg" | "tiff" = "png", pixelRatio = window.devicePixelRatio || 1) {
   const r = await rpc<{ data: string; mime_type: string }>(commId, "render", {
     size: { width: Math.max(50, Math.round(size.width)), height: Math.max(50, Math.round(size.height)) },
     pixel_ratio: pixelRatio,
