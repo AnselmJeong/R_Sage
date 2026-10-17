@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Subprocess } from "bun";
 import type { ConnectionInfo } from "./jupyter";
 
@@ -16,11 +16,22 @@ export function findArk(extraDirs: string[] = []): string | undefined {
     process.env.RSAGE_ARK_PATH,
     ...extraDirs.map((d) => join(d, "ark")),
     join(import.meta.dir, "..", "..", "..", "vendor", "ark", "ark"),
+    // A bundled app (e.g. `hutch run dev`) runs from elsewhere: look up from the cwd too.
+    ...ancestors(process.cwd()).map((d) => join(d, "vendor", "ark", "ark")),
     join(homedir(), ".rsage", "ark", "ark"),
   ];
   for (const c of candidates) if (c && existsSync(c)) return c;
   const onPath = Bun.which("ark");
   return onPath ?? undefined;
+}
+
+function ancestors(dir: string): string[] {
+  const out: string[] = [];
+  for (let d = dir; out.length < 6; d = dirname(d)) {
+    out.push(d);
+    if (dirname(d) === d) break;
+  }
+  return out;
 }
 
 export async function freePort(): Promise<number> {
