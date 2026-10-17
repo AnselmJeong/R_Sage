@@ -68,7 +68,7 @@ export interface Frame {
 
 /** Incremental frame decoder: feed bytes, get whole frames out. */
 export class FrameDecoder {
-  private buf = Buffer.alloc(0);
+  private buf: Buffer = Buffer.alloc(0);
 
   push(data: Buffer): Frame[] {
     this.buf = this.buf.length ? Buffer.concat([this.buf, data]) : data;

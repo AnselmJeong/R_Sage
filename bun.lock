@@ -12,6 +12,10 @@
     "packages/host": {
       "name": "@rsage/host",
       "version": "0.0.1",
+      "dependencies": {
+        "@rsage/kernel": "workspace:*",
+        "@rsage/shared": "workspace:*",
+      },
     },
     "packages/kernel": {
       "name": "@rsage/kernel",
