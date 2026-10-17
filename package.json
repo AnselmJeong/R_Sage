@@ -8,6 +8,7 @@
     "dev:ui": "bun run --cwd packages/ui dev",
     "build:ui": "bun run --cwd packages/ui build",
     "test": "bun test",
+    "dist:dmg": "bun scripts/build-dmg.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && bun run --cwd packages/ui typecheck"
   },
   "devDependencies": {

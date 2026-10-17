@@ -1,6 +1,8 @@
 // Tasks for the desktop app. Run from apps/desktop:
 //   hutch run dev     build the UI for Electrobun and launch the app
-//   hutch run build   signed, notarized release build (needs Apple credentials)
+//   hutch run build   release build (Developer ID signing and notarization
+//                     when ELECTROBUN_DEVELOPER_ID etc. are set)
+// For an installer disk image use `bun run dist:dmg` from the repository root.
 export default {
   scripts: {
     // Array scripts run the real Bun from PATH. String scripts run in Hutch's

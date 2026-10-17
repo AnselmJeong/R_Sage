@@ -25,6 +25,8 @@ export default {
     },
     watchIgnore: ["dist/**"],
     mac: {
+      // scripts/build-dmg.ts makes the DMG (with the volume icon and signing).
+      createDmg: false,
       // Developer ID signing and notarization only when the credentials are
       // set (see scripts/build-dmg.ts); otherwise the app is signed ad hoc.
       codesign: !!process.env.ELECTROBUN_DEVELOPER_ID,
