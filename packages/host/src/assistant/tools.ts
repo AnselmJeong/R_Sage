@@ -3,10 +3,11 @@
 // approval (R code can be set to run without asking).
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import type { AssistantItem, OutputEvent, RVariable } from "@rsage/shared";
+import type { AssistantItem, RVariable } from "@rsage/shared";
 import type { KernelSession } from "@rsage/kernel";
 import type { CommManager } from "../comms";
 import { writeFileAtomic } from "../config";
+import { collectExecution, renderPlot } from "../execute";
 import type { Project } from "../project";
 import { listFiles, searchText } from "../search";
 import type { ToolResult, ToolSpec } from "./types";
@@ -245,76 +246,16 @@ function fmtSize(n: number) {
   return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 }
 
-const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 
-async function renderPng(env: ToolEnv, commId: string): Promise<{ mime: string; data: string } | undefined> {
-  try {
-    const r = (await env.comms.rpc(commId, "render", { size: { width: 800, height: 560 }, pixel_ratio: 1, format: "png" })) as {
-      data: string;
-      mime_type: string;
-    };
-    return { mime: r.mime_type || "image/png", data: r.data };
-  } catch {
-    return undefined;
-  }
+async function renderPng(env: ToolEnv, commId: string) {
+  return renderPlot(env.comms, commId);
 }
 
 async function runR(code: string, env: ToolEnv): Promise<Omit<ToolResult, "callId" | "name">> {
-  const { session, comms } = env;
-  const rec = session.execute(code, { origin: "ai" });
-  env.update({ executionId: rec.id });
-  let out = "";
-  let isError = false;
-  const plots = new Set<string>();
-  const onOutput = (o: OutputEvent) => {
-    if (!("executionId" in o) || o.executionId !== rec.id) return;
-    if (o.kind === "stream") out += o.text;
-    else if (o.kind === "result" || o.kind === "display") {
-      const t = o.data["text/plain"];
-      if (typeof t === "string") out += t + "\n";
-    } else if (o.kind === "error") {
-      isError = true;
-      out += `Error: ${stripAnsi(o.evalue)}\n${o.traceback.map(stripAnsi).join("\n")}\n`;
-    }
-  };
-  const onOpen = (c: { target: string; commId: string; executionId?: string }) => {
-    if (c.target === "positron.plot" && c.executionId === rec.id) plots.add(c.commId);
-  };
-  const onEvent = (e: { target: string; method: string; commId: string }) => {
-    if (e.target === "positron.plot" && e.method === "update" && session.runningExecution()?.id === rec.id) plots.add(e.commId);
-  };
-  const onAbort = () => void session.interrupt();
-  session.on("output", onOutput);
-  comms.on("open", onOpen);
-  comms.on("event", onEvent);
-  env.signal.addEventListener("abort", onAbort);
-  try {
-    const status = await new Promise<string>((resolve) => {
-      const f = (o: OutputEvent) => {
-        if (o.kind === "done" && o.executionId === rec.id) {
-          session.off("output", f);
-          resolve(o.status);
-        }
-      };
-      session.on("output", f);
-    });
-    if (status === "aborted") {
-      isError = true;
-      out += "\n(interrupted)";
-    }
-  } finally {
-    session.off("output", onOutput);
-    comms.off("open", onOpen);
-    comms.off("event", onEvent);
-    env.signal.removeEventListener("abort", onAbort);
-  }
-  const images: { mime: string; data: string }[] = [];
-  for (const id of [...plots].slice(-4)) {
-    const img = await renderPng(env, id);
-    if (img) images.push(img);
-  }
+  const r = await collectExecution(env.session, env.comms, code, { origin: "ai", signal: env.signal, onStart: (executionId) => env.update({ executionId }) });
+  let out = r.text;
   if (out.length > MAX_OUTPUT) out = out.slice(0, MAX_OUTPUT / 2) + `\n… (${out.length - MAX_OUTPUT} characters cut) …\n` + out.slice(-MAX_OUTPUT / 2);
-  const summary = out.trim() || (images.length ? "" : "(no output)");
-  return { output: summary + (images.length ? `${summary ? "\n" : ""}${images.length} plot(s) drawn.` : ""), images, isError };
+  const summary = out.trim() || (r.images.length ? "" : "(no output)");
+  return { output: summary + (r.images.length ? `${summary ? "\n" : ""}${r.images.length} plot(s) drawn.` : ""), images: r.images, isError: r.isError };
 }
 
