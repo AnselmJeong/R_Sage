@@ -5,6 +5,7 @@ import { DialogHost } from "./components/Dialogs";
 import { Palette } from "./components/Palette";
 import { FolderPickerHost } from "./components/FolderPicker";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { AiSettingsDialog } from "./components/AiSettingsDialog";
 
 export function App() {
   const connected = useStore((s) => s.connected);
@@ -17,6 +18,7 @@ export function App() {
       {!project && toast && <div className={`toast toast-${toast.level}`}>{toast.text}</div>}
       <Palette />
       <SettingsDialog />
+      <AiSettingsDialog />
       <FolderPickerHost />
       <DialogHost />
     </>

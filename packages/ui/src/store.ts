@@ -162,4 +162,5 @@ export async function initStore() {
   useStore.setState({ connected: true, app, project, recent, session, lspRunning: lsp.running });
   host.call("r.list", {}).then((rList) => useStore.setState({ rList }));
   (await import("./comms")).initComms();
+  (await import("./assistant")).initAssistant();
 }

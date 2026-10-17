@@ -33,6 +33,8 @@ import { EnvironmentPanel } from "./EnvironmentPanel";
 import { PlotsPanel } from "./PlotsPanel";
 import { HelpPanel } from "./HelpPanel";
 import { DataViewerPanel } from "./DataViewerPanel";
+import { AssistantPanel } from "./AssistantPanel";
+import { useAiSettings } from "./AiSettingsDialog";
 import { commHooks } from "../comms";
 import { SearchPanel } from "./SearchPanel";
 import { TerminalPanel } from "./TerminalPanel";
@@ -93,6 +95,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   console: () => <ConsolePanel />,
   terminal: (props) => <TerminalPanelHost {...props} />,
   history: () => <HistoryPanel />,
+  assistant: () => <AssistantPanel />,
   environment: () => <EnvironmentPanel />,
   plots: () => <PlotsPanel />,
   help: () => <HelpPanel />,
@@ -116,14 +119,15 @@ function buildDefaultLayout(api: DockviewApi) {
   api.addPanel({ id: "console", component: "console", title: "Console", position: { referencePanel: "welcome-editor", direction: "below" } });
   api.addPanel({ id: "terminal", component: "terminal", title: "Terminal", position: { referencePanel: "console", direction: "within" }, inactive: true });
   // Right column spans the full height (root-level split), like Positron.
-  api.addPanel({ id: "environment", component: "environment", title: "환경", position: { direction: "right" } });
-  api.addPanel({ id: "history", component: "history", title: "실행 이력", position: { referencePanel: "environment", direction: "within" }, inactive: true });
+  api.addPanel({ id: "assistant", component: "assistant", title: "AI 조수", position: { direction: "right" } });
+  api.addPanel({ id: "environment", component: "environment", title: "환경", position: { referencePanel: "assistant", direction: "within" }, inactive: true });
+  api.addPanel({ id: "history", component: "history", title: "실행 이력", position: { referencePanel: "assistant", direction: "within" }, inactive: true });
   api.addPanel({ id: "plots", component: "plots", title: "플롯", position: { referencePanel: "environment", direction: "below" } });
   api.addPanel({ id: "help", component: "help", title: "도움말", position: { referencePanel: "plots", direction: "within" }, inactive: true });
   try {
     api.getPanel("files")?.group.api.setSize({ width: 240 });
-    api.getPanel("environment")?.group.api.setSize({ width: 420 });
-    api.getPanel("environment")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.38) });
+    api.getPanel("assistant")?.group.api.setSize({ width: 440 });
+    api.getPanel("assistant")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.7) });
     api.getPanel("console")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.38) });
   } catch {}
 }
@@ -290,6 +294,17 @@ function registerAppCommands() {
     registerCommand({ id: "view.files", title: "파일", category: "보기", key: "Mod+Shift+E", run: () => showPanel("files", "files", "파일", { id: "search", dir: "within" }) }),
     registerCommand({ id: "view.search", title: "프로젝트 검색", category: "보기", key: "Mod+Shift+F", run: () => showPanel("search", "search", "검색", { id: "files", dir: "within" }) }),
     registerCommand({ id: "view.terminal", title: "터미널", category: "보기", key: "Ctrl+`", run: () => showPanel("terminal", "terminal", "Terminal", { id: "console", dir: "within" }) }),
+    registerCommand({
+      id: "view.assistant",
+      title: "AI 조수",
+      category: "보기",
+      key: "Mod+Shift+I",
+      run: () => {
+        showPanel("assistant", "assistant", "AI 조수", { id: "environment", dir: "within" });
+        setTimeout(() => (window as any).__rsageAssistantFocus?.(), 0);
+      },
+    }),
+    registerCommand({ id: "ai.settings", title: "AI 연결 설정", category: "AI", run: () => useAiSettings.setState({ open: true }) }),
     registerCommand({ id: "view.history", title: "실행 이력", category: "보기", run: () => showPanel("history", "history", "실행 이력", { id: "environment", dir: "within" }) }),
     registerCommand({ id: "view.environment", title: "환경", category: "보기", run: () => showPanel("environment", "environment", "환경", { id: "history", dir: "within" }) }),
     registerCommand({ id: "view.plots", title: "플롯", category: "보기", run: () => showPanel("plots", "plots", "플롯", { id: "help", dir: "within" }) }),
@@ -372,6 +387,12 @@ export function Workbench() {
         <span className="spacer" />
         <button className="btn btn-small" onClick={() => runCommand("palette.open")}>
           명령 ⌘⇧P
+        </button>
+        <button className="btn btn-small" onClick={() => runCommand("view.assistant")}>
+          AI 조수
+        </button>
+        <button className="btn btn-small" onClick={() => runCommand("ai.settings")}>
+          AI 연결
         </button>
         <button className="btn btn-small" onClick={() => runCommand("project.settings")}>
           설정

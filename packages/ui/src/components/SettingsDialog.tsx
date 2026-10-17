@@ -55,15 +55,6 @@ export function SettingsDialog() {
           출력 폴더
           <input className="text-input" placeholder="_output" value={draft.outputDir ?? ""} onChange={(e) => setDraft({ ...draft, outputDir: e.target.value || undefined })} />
         </label>
-        <label>
-          AI 모델
-          <input
-            className="text-input"
-            placeholder="claude-sonnet-5-5 (6단계에서 사용)"
-            value={draft.ai?.model ?? ""}
-            onChange={(e) => setDraft({ ...draft, ai: { ...draft.ai, model: e.target.value || undefined } })}
-          />
-        </label>
         <div>
           <div className="label">패키지 라이브러리 경로 (.libPaths())</div>
           {libPaths ? (

@@ -1,6 +1,7 @@
 // Put the pinned Ark kernel binary in vendor/ark/ark for bundling.
 //
 //   bun scripts/fetch-ark.ts            download the release for this platform
+//                                       (skipped when vendor/ark/ark exists; --force to redo)
 //   bun scripts/fetch-ark.ts --source   build from a posit-dev/ark checkout
 //                                       (ARK_SRC=/path/to/ark, needs cargo)
 //
@@ -59,6 +60,10 @@ async function fromSource() {
   await sh(["cp", join(src, "target", "release", "ark"), join(dest, "ark")]);
 }
 
+if (existsSync(join(dest, "ark")) && !process.argv.includes("--force") && !process.argv.includes("--source")) {
+  console.log(`Ark already at ${join(dest, "ark")} (use --force to download again)`);
+  process.exit(0);
+}
 if (process.argv.includes("--source")) await fromSource();
 else await fromRelease();
 chmodSync(join(dest, "ark"), 0o755);
