@@ -19,6 +19,7 @@ import {
 import { runCommand } from "../commands";
 import { VisualEditor } from "../quarto/VisualEditor";
 import { FORMATS, renderDocument, useRender, type RenderFormat } from "../quarto/render";
+import { useEditorModes } from "../editor/views";
 
 const MODE_KEY = (path: string) => `rsage.qmdMode:${path}`;
 const FORMAT_KEY = "rsage.renderFormat";
@@ -38,6 +39,18 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
   const isQmd = /\.qmd$/i.test(path);
   const [mode, setMode] = useState<"source" | "visual">(() => (isQmd ? storedMode(path) : "source"));
   const [active, setActive] = useState(props.api.isActive);
+  useEffect(() => {
+    useEditorModes.setState({ [path]: mode });
+  }, [path, mode]);
+  useEffect(
+    () => () =>
+      useEditorModes.setState((s) => {
+        const n = { ...s };
+        delete n[path];
+        return n;
+      }, true),
+    [path],
+  );
   const switchMode = (m: "source" | "visual") => {
     setMode(m);
     try {

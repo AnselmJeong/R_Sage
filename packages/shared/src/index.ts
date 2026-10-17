@@ -109,7 +109,33 @@ export interface SearchMatch {
   path: string;
   line: number;
   column: number;
+  /** Length of the matched text, in UTF-16 units. */
+  length?: number;
   text: string;
+}
+
+export interface RPackage {
+  name: string;
+  version: string;
+  title?: string;
+  libPath: string;
+  /** Newer version on the repository, when an update check has run. */
+  latest?: string;
+}
+
+export interface PackageList {
+  packages: RPackage[];
+  libPaths: string[];
+  /** Packages attached in the running session (search path), when known. */
+  attached?: string[];
+  /** Namespaces loaded in the running session, when known. */
+  loaded?: string[];
+}
+
+export interface CranPackage {
+  name: string;
+  version: string;
+  title?: string;
 }
 
 export interface BackupEntry {
@@ -298,7 +324,7 @@ export interface HostMethods {
   "project.loadState": { params: {}; result: WorkspaceState | null };
 
   "fs.list": { params: { path: string }; result: FileEntry[] };
-  "fs.browse": { params: { path?: string }; result: { path: string; parent: string | null; entries: FileEntry[] } };
+  "fs.browse": { params: { path?: string; files?: boolean }; result: { path: string; parent: string | null; entries: FileEntry[] } };
   /** Every file in the project (relative paths), for quick open. */
   "fs.walk": { params: {}; result: { files: string[]; truncated: boolean } };
   "fs.read": { params: { path: string }; result: { content: string; mtimeMs: number } };
@@ -307,15 +333,17 @@ export interface HostMethods {
     result: { ok: true; mtimeMs: number } | { ok: false; conflict: true; mtimeMs: number };
   };
   "fs.create": { params: { path: string; kind: "file" | "dir" }; result: void };
+  /** Copy a file from anywhere into the project (e.g. an image picked from Finder). */
+  "fs.copyIn": { params: { from: string; to: string }; result: void };
   "fs.rename": { params: { from: string; to: string }; result: void };
   "fs.trash": { params: { path: string }; result: void };
 
   "search.text": {
-    params: { query: string; regex?: boolean; caseSensitive?: boolean; glob?: string };
+    params: { query: string; regex?: boolean; caseSensitive?: boolean; wholeWord?: boolean; glob?: string; exclude?: string };
     result: { matches: SearchMatch[]; truncated: boolean };
   };
   "search.replace": {
-    params: { query: string; replacement: string; regex?: boolean; caseSensitive?: boolean; paths: string[] };
+    params: { query: string; replacement: string; regex?: boolean; caseSensitive?: boolean; wholeWord?: boolean; paths: string[] };
     result: { files: number; replacements: number };
   };
 
@@ -371,6 +399,14 @@ export interface HostMethods {
   "preview.url": { params: { path: string }; result: string };
 
   "dialog.pickFolder": { params: { title?: string }; result: string | null };
+  /** Native file dialog; null when cancelled or when the shell has none. */
+  "dialog.pickFile": { params: { title?: string; extensions?: string[]; startingFolder?: string }; result: string | null };
+
+  /** Installed packages, read by a separate Rscript so a busy session doesn't block it. */
+  "packages.list": { params: {}; result: PackageList };
+  /** Installed packages with a newer CRAN version. */
+  "packages.outdated": { params: {}; result: { name: string; installed: string; latest: string }[] };
+  "packages.searchCran": { params: { query: string; limit?: number }; result: CranPackage[] };
   "shell.openExternal": { params: { path: string }; result: void };
 }
 

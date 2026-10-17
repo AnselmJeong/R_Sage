@@ -30,6 +30,7 @@ import { CommManager } from "./comms";
 import { appDir, ConfigStore } from "./config";
 import { LspBridge } from "./lsp";
 import { Project } from "./project";
+import { listPackages, outdatedPackages, searchCran } from "./packages";
 import { listFiles, replaceInFiles, searchText } from "./search";
 import { TerminalService } from "./terminal";
 import { collectExecution } from "./execute";
@@ -44,6 +45,7 @@ export interface HostOptions {
   shell: AppInfo["shell"];
   /** Native folder picker; the browser shell has none and uses the in-app browser. */
   pickFolder?: (title?: string) => Promise<string | null>;
+  pickFile?: (title?: string, extensions?: string[], startingFolder?: string) => Promise<string | null>;
   openExternal?: (path: string) => Promise<void>;
 }
 
@@ -192,6 +194,11 @@ export class Host {
       all[0];
     if (!pick) throw new Error("No R installation found. Install R from CRAN or Homebrew, or add its path manually.");
     return pick;
+  }
+
+  /** The R the session runs, or the one it would start with. */
+  private async currentRHome(): Promise<string> {
+    return this.session.state.rHome ?? (await this.chooseR()).home;
   }
 
   private async startSession(rHome?: string, restart = false): Promise<SessionInfo> {
@@ -382,15 +389,15 @@ export class Host {
       "project.loadState": () => this.project?.loadState() ?? null,
 
       "fs.list": ({ path }) => this.requireProject().list(path),
-      "fs.browse": async ({ path }) => {
-        // Folder picker for the browser shell: directories only, anywhere.
+      "fs.browse": async ({ path, files }) => {
+        // Folder/file picker for the browser shell: anywhere on disk.
         const { readdirSync } = await import("node:fs");
         const { dirname, resolve } = await import("node:path");
         const dir = resolve(path || homedir());
         const entries = readdirSync(dir, { withFileTypes: true })
-          .filter((d) => d.isDirectory() && !d.name.startsWith("."))
-          .map((d) => ({ name: d.name, path: join(dir, d.name), kind: "dir" as const }))
-          .sort((a, b) => a.name.localeCompare(b.name));
+          .filter((d) => (d.isDirectory() || (files && d.isFile())) && !d.name.startsWith("."))
+          .map((d) => ({ name: d.name, path: join(dir, d.name), kind: d.isDirectory() ? ("dir" as const) : ("file" as const) }))
+          .sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "dir" ? -1 : 1));
         return { path: dir, parent: dir === "/" ? null : dirname(dir), entries };
       },
       "fs.walk": () => listFiles(this.requireProject().root),
@@ -398,6 +405,13 @@ export class Host {
       "fs.write": ({ path, content, expectedMtimeMs, force }) =>
         this.requireProject().write(path, content, expectedMtimeMs, force),
       "fs.create": ({ path, kind }) => this.requireProject().create(path, kind),
+      "fs.copyIn": async ({ from, to }) => {
+        const { copyFileSync, mkdirSync } = await import("node:fs");
+        const { dirname } = await import("node:path");
+        const dest = this.requireProject().resolve(to);
+        mkdirSync(dirname(dest), { recursive: true });
+        copyFileSync(from, dest);
+      },
       "fs.rename": ({ from, to }) => this.requireProject().rename(from, to),
       "fs.trash": ({ path }) => this.requireProject().trash(path),
 
@@ -450,6 +464,22 @@ export class Host {
         await Bun.write(this.file(path), Buffer.from(data, "base64"));
       },
       "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
+      "dialog.pickFile": ({ title, extensions, startingFolder }) => (this.opts.pickFile ? this.opts.pickFile(title, extensions, startingFolder) : null),
+
+      "packages.list": async () => {
+        const list = await listPackages(await this.currentRHome(), this.project?.root);
+        // What the session has loaded, if it is free to answer quickly.
+        if (this.session.state.state === "idle") {
+          try {
+            const out = await this.session.evalText(`cat(sub("^package:", "", grep("^package:", search(), value = TRUE)), sep = "\\n"); cat("\\n--\\n"); cat(loadedNamespaces(), sep = "\\n")`, 3000);
+            const [att = "", ld = ""] = out.split("\n--\n");
+            return { ...list, attached: att.split("\n").filter(Boolean), loaded: ld.split("\n").filter(Boolean) };
+          } catch {}
+        }
+        return list;
+      },
+      "packages.outdated": async () => outdatedPackages(await this.currentRHome(), this.project?.root),
+      "packages.searchCran": async ({ query, limit }) => searchCran(await this.currentRHome(), query, limit),
       "shell.openExternal": ({ path }) => this.openExternal(path),
     };
     return h;
