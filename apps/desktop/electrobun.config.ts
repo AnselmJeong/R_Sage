@@ -33,6 +33,8 @@ export default {
         !process.env.ELECTROBUN_SKIP_NOTARIZATION &&
         !!(process.env.ELECTROBUN_APPLEID || process.env.ELECTROBUN_APPLEAPIKEY),
       bundleCEF: false,
+      // Converted to .icns by iconutil at build time; source in assets/icon.
+      icons: "assets/icon/icon.iconset",
       entitlements: {
         // Ark and R are separate executables that load R's dylibs.
         "com.apple.security.cs.allow-jit": true,
@@ -40,7 +42,7 @@ export default {
         "com.apple.security.cs.disable-library-validation": true,
       },
     },
-    linux: { bundleCEF: false },
+    linux: { bundleCEF: false, icon: "assets/icon/icon.png" },
   },
   runtime: { exitOnLastWindowClosed: true },
 } satisfies ElectrobunConfig;
