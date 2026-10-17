@@ -21,11 +21,16 @@ rs_table <- function(id, title, data, labels = NULL, notes = character()) {
 #' A result plot
 #'
 #' @param plot A ggplot object, or a function that draws on the current device.
-#' @param width,height Size in inches.
+#' @param size Size from rs_figure_size() (preferred), or give width and height.
+#' @param width,height Size in inches; override size.
 #' @param alt Text description of the plot.
-rs_plot <- function(id, title, plot, width = 7, height = 4.5, alt = title) {
+rs_plot <- function(id, title, plot, size = NULL, width = NULL, height = NULL, alt = title) {
   stopifnot(inherits(plot, "ggplot") || is.function(plot))
-  structure(list(id = id, title = title, plot = plot, width = width, height = height, alt = alt),
+  width <- if (!is.null(width)) width else if (!is.null(size)) size$width else 7
+  height <- if (!is.null(height)) height else if (!is.null(size)) size$height else 4.5
+  # The size the module chose, kept so the app can offer "automatic" after a user resize.
+  structure(list(id = id, title = title, plot = plot, width = width, height = height,
+                 auto = c(width = width, height = height), alt = alt),
             class = "rsage_plot")
 }
 
@@ -210,7 +215,11 @@ rs_write <- function(result, dir, run_id = NULL) {
   plots <- lapply(result$plots, function(p) {
     file <- paste0("plot-", p$id, ".png")
     save_plot(p, file.path(dir, file))
-    list(id = p$id, title = p$title, file = file, width = p$width, height = p$height, alt = p$alt)
+    # The plot itself, so the app can redraw it in the Plots pane (fit, aspect, Save Plot).
+    saveRDS(p$plot, file.path(dir, paste0("plot-", p$id, ".rds")))
+    auto <- if (is.null(p$auto)) c(width = p$width, height = p$height) else p$auto
+    list(id = p$id, title = p$title, file = file, width = p$width, height = p$height,
+         autoWidth = unname(auto[["width"]]), autoHeight = unname(auto[["height"]]), alt = p$alt)
   })
   json <- list(
     schemaVersion = 1L,

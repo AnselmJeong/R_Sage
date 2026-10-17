@@ -3552,10 +3552,53 @@ label.check {
 .an-plot {
   margin: 14px 0 18px;
 }
+.an-plot figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.an-plot figcaption > span:first-child {
+  flex-basis: 100%;
+}
+.an-plot figcaption .spacer {
+  display: none;
+}
+.an-plot figcaption .btn,
+.an-plot figcaption .small {
+  white-space: nowrap;
+  font-weight: normal;
+}
+.an-fig-select {
+  width: auto;
+  background: var(--bg-3);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+.an-fig-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+.an-fig-size input {
+  width: 64px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.an-plot-frame.actual {
+  overflow: auto;
+  max-height: 80vh;
+}
 .an-plot img {
   display: block;
-  max-width: min(100%, 760px);
-  width: 100%;
   height: auto;
   background: #fff;
   border-radius: 3px;

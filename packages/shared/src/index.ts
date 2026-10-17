@@ -436,8 +436,12 @@ export interface AnalysisResult {
   runId: string;
   title: string;
   tables: AnalysisTable[];
-  /** Plots with the image inlined as a data: URL. */
-  plots: { id: string; title: string; alt: string; width: number; height: number; src: string }[];
+  /**
+   * Plots with the image inlined as a data: URL. width/height are inches;
+   * autoWidth/autoHeight the size the module chose from the content.
+   * rds is the saved plot, for redrawing it in the Plots pane.
+   */
+  plots: { id: string; title: string; alt: string; width: number; height: number; autoWidth: number; autoHeight: number; src: string; rds?: string }[];
   notes: { level: "info" | "warning"; code?: string; text: string }[];
   dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
   exports: string[];
@@ -453,6 +457,11 @@ export interface AnalysisRun {
   error?: { code: string; message: string };
 }
 
+export interface AnalysisFigureSize {
+  width: number;
+  height: number;
+}
+
 /** A saved analysis instance: <project>/.rsage/analyses/<id>.json */
 export interface AnalysisInstance {
   id: string;
@@ -461,7 +470,9 @@ export interface AnalysisInstance {
   title: string;
   dataset: string;
   options: any;
-  /** Bumped on every options/dataset change. */
+  /** Figure sizes the user chose (inches), by plot id; other plots keep their automatic size. */
+  figures?: Record<string, AnalysisFigureSize>;
+  /** Bumped on every options/dataset/figure change. */
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -639,13 +650,19 @@ export interface HostMethods {
   "analysis.list": { params: {}; result: AnalysisInstance[] };
   "analysis.get": { params: { id: string }; result: AnalysisInstance | null };
   "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string }; result: AnalysisInstance };
-  "analysis.update": { params: { id: string; dataset?: string; options?: any; title?: string }; result: AnalysisInstance };
+  /** figures replaces all user figure sizes; a plot id mapped to null goes back to automatic. */
+  "analysis.update": {
+    params: { id: string; dataset?: string; options?: any; title?: string; figures?: Record<string, AnalysisFigureSize | null> };
+    result: AnalysisInstance;
+  };
   /** Runs the latest revision; resolves when the run ends (the instance carries the outcome). */
   "analysis.run": { params: { id: string }; result: AnalysisInstance };
   "analysis.cancel": { params: { id: string }; result: void };
   "analysis.delete": { params: { id: string }; result: void };
   /** R code that reproduces the analysis (for a Quarto chunk or the console). */
   "analysis.code": { params: { id: string }; result: string };
+  /** Redraws a result plot in the R session so it opens in the Plots pane. */
+  "analysis.showPlot": { params: { id: string; plotId: string }; result: void };
 }
 
 export type MethodName = keyof HostMethods;

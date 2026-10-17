@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { KernelSession } from "@rsage/kernel";
-import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisResult, AnalysisRuntimeStatus } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisDef, AnalysisFigureSize, AnalysisInstance, AnalysisResult, AnalysisRuntimeStatus } from "@rsage/shared";
 import { fillDefaults, validateOptions } from "@rsage/shared";
 import { readJson, writeFileAtomic } from "../config";
 import type { Project } from "../project";
@@ -107,7 +107,18 @@ export class AnalysisService {
     const plots = (raw.plots ?? []).map((p: any) => {
       const f = join(dir, p.file);
       const src = existsSync(f) ? `data:image/png;base64,${readFileSync(f).toString("base64")}` : "";
-      return { id: p.id, title: p.title, alt: p.alt ?? p.title, width: p.width, height: p.height, src };
+      const rds = join(dir, `plot-${p.id}.rds`);
+      return {
+        id: p.id,
+        title: p.title,
+        alt: p.alt ?? p.title,
+        width: p.width,
+        height: p.height,
+        autoWidth: p.autoWidth ?? p.width,
+        autoHeight: p.autoHeight ?? p.height,
+        src,
+        rds: existsSync(rds) ? rds : undefined,
+      };
     });
     return {
       runId,
@@ -171,7 +182,7 @@ export class AnalysisService {
     return this.save(s);
   }
 
-  update(p: { id: string; dataset?: string; options?: any; title?: string }): AnalysisInstance {
+  update(p: { id: string; dataset?: string; options?: any; title?: string; figures?: Record<string, AnalysisFigureSize | null> }): AnalysisInstance {
     const s = this.read(p.id);
     if (!s) throw new AnalysisError(`No analysis ${p.id}`, "not_found");
     const { def } = this.def(s.analysis);
@@ -179,6 +190,14 @@ export class AnalysisService {
     if (p.dataset !== undefined || p.options !== undefined) {
       if (p.dataset !== undefined) s.dataset = p.dataset;
       if (p.options !== undefined) s.options = this.checkOptions(def, p.options);
+      s.revision += 1;
+    }
+    if (p.figures !== undefined) {
+      const figs: Record<string, AnalysisFigureSize> = {};
+      for (const [k, v] of Object.entries(p.figures)) {
+        if (v && v.width > 0 && v.height > 0) figs[k] = { width: Math.min(30, v.width), height: Math.min(30, v.height) };
+      }
+      s.figures = Object.keys(figs).length ? figs : undefined;
       s.revision += 1;
     }
     return this.save(s);
@@ -202,7 +221,20 @@ export class AnalysisService {
     const s = this.read(id);
     if (!s) throw new AnalysisError(`No analysis ${id}`, "not_found");
     const { mod, def } = this.def(s.analysis);
-    return analysisCode(mod.rPackage, mod.entrypoints[def.id]!, s.dataset || "data", s.options);
+    return analysisCode(mod.rPackage, mod.entrypoints[def.id]!, s.dataset || "data", s.options, s.figures);
+  }
+
+  /** Draws a result plot in the session; Ark sends it to the Plots pane. */
+  async showPlot(id: string, plotId: string) {
+    const inst = this.get(id);
+    const plot = inst?.result?.plots.find((p) => p.id === plotId);
+    if (!plot?.rds) throw new AnalysisError("이 그림은 다시 그릴 수 없습니다. 분석을 다시 실행하세요.", "no_plot");
+    await this.deps.ensureSession();
+    const s = this.read(id)!;
+    const { mod } = this.def(s.analysis);
+    const status = await this.prepare(mod.id);
+    const lib = status.libPath ? `.libPaths(unique(c(${rString(status.libPath)}, .libPaths()))); ` : "";
+    this.deps.session.execute(`${lib}rsage::rs_show_plot(${rString(plot.rds)})`, { origin: "app" });
   }
 
   cancel(id: string) {
@@ -292,7 +324,7 @@ export class AnalysisService {
       const req = join(dir, "request.json");
       writeFileAtomic(
         req,
-        JSON.stringify({ runId, package: mod.rPackage, entrypoint: mod.entrypoints[def.id], dataset: s.dataset, options: s.options, outDir: dir, by }),
+        JSON.stringify({ runId, package: mod.rPackage, entrypoint: mod.entrypoints[def.id], dataset: s.dataset, options: s.options, figures: s.figures ?? {}, outDir: dir, by }),
       );
       const code = `local({\n.libPaths(unique(c(${rString(status.libPath!)}, .libPaths())))\n${unload}\nrsage::rs_run(${rString(req)})\n})`;
       const r = await this.deps.session.runPrivate(code, ctl.signal);

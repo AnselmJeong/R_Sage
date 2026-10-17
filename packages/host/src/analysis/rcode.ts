@@ -37,7 +37,22 @@ export function toR(v: unknown, indent = ""): string {
   return scalar(v);
 }
 
-/** Code that reproduces an analysis with the module's own function. */
-export function analysisCode(pkg: string, entrypoint: string, dataset: string, options: unknown, varName = "res"): string {
-  return `${varName} <- ${pkg}::${entrypoint}(\n  ${rName(dataset)},\n  ${toR(options, "  ")}\n)\n${varName}`;
+/**
+ * Code that reproduces an analysis with the module's own function. Figure
+ * sizes the user chose travel with it (rsage::rs_resize), so the console,
+ * Quarto and the analysis tab draw the same figures.
+ */
+export function analysisCode(
+  pkg: string,
+  entrypoint: string,
+  dataset: string,
+  options: unknown,
+  figures?: Record<string, { width: number; height: number }>,
+  varName = "res",
+): string {
+  const call = `${pkg}::${entrypoint}(\n  ${rName(dataset)},\n  ${toR(options, "  ")}\n)`;
+  const sizes = Object.entries(figures ?? {});
+  if (!sizes.length) return `${varName} <- ${call}\n${varName}`;
+  const list = `list(${sizes.map(([id, f]) => `${rName(id)} = c(${f.width}, ${f.height})`).join(", ")})`;
+  return `${varName} <- ${call}\n# Figure sizes in inches (width, height)\n${varName} <- rsage::rs_resize(${varName}, ${list})\n${varName}`;
 }
