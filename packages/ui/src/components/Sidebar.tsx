@@ -1,5 +1,5 @@
 // Left activity bar and side panel, like Positron: Explorer, Search, Outline,
-// Packages. Clicking the active icon hides the panel.
+// Source Control, Packages. Clicking the active icon hides the panel.
 
 import { useRef } from "react";
 import { create } from "zustand";
@@ -7,8 +7,10 @@ import { FileTree } from "./FileTree";
 import { SearchPanel, searchHooks } from "./SearchPanel";
 import { OutlinePanel } from "./OutlinePanel";
 import { PackagesPanel } from "./PackagesPanel";
+import { SourceControlPanel } from "./SourceControlPanel";
+import { changeCount, useGit } from "../git";
 
-export type SideView = "files" | "search" | "outline" | "packages";
+export type SideView = "files" | "search" | "outline" | "scm" | "packages";
 
 const KEY = "rsage.sidebar";
 function load(): { view: SideView; open: boolean; width: number } {
@@ -49,6 +51,14 @@ const ICONS: Record<SideView, JSX.Element> = {
       <path d="M4 5h16M8 10h12M8 15h12M4 20h16" />
     </svg>
   ),
+  scm: (
+    <svg viewBox="0 0 24 24">
+      <circle cx="6" cy="5" r="2.2" />
+      <circle cx="6" cy="19" r="2.2" />
+      <circle cx="18" cy="7" r="2.2" />
+      <path d="M6 7.2v9.6M18 9.2c0 5-12 3-12 7.6" />
+    </svg>
+  ),
   packages: (
     <svg viewBox="0 0 24 24">
       <path d="M21 8 12 3 3 8v8l9 5 9-5z" />
@@ -61,11 +71,13 @@ const VIEWS: { id: SideView; title: string }[] = [
   { id: "files", title: "탐색기 (⌘⇧E)" },
   { id: "search", title: "검색 (⌘⇧F)" },
   { id: "outline", title: "개요 (⌘⇧O)" },
+  { id: "scm", title: "소스 제어 (⌃⇧G)" },
   { id: "packages", title: "패키지" },
 ];
 
 export function ActivityBar() {
   const { view, open } = useSidebar();
+  const changes = changeCount(useGit((s) => s.status));
   return (
     <div className="activitybar">
       {VIEWS.map((v) => (
@@ -81,6 +93,7 @@ export function ActivityBar() {
           }}
         >
           {ICONS[v.id]}
+          {v.id === "scm" && changes > 0 && <span className="activity-badge">{changes > 99 ? "99+" : changes}</span>}
         </button>
       ))}
     </div>
@@ -102,6 +115,9 @@ export function SidePanel() {
       </div>
       <div className="sideview" hidden={view !== "outline"}>
         <OutlinePanel />
+      </div>
+      <div className="sideview" hidden={view !== "scm"}>
+        <SourceControlPanel />
       </div>
       <div className="sideview" hidden={view !== "packages"}>
         {view === "packages" || usedPackages ? ((usedPackages = true), <PackagesPanel />) : null}

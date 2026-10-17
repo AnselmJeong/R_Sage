@@ -42,6 +42,8 @@ import { ActivityBar, SidePanel, showSideView } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { TerminalPanel } from "./TerminalPanel";
 import { StatusBar } from "./StatusBar";
+import { DiffPanel } from "./DiffPanel";
+import { refreshGitSoon } from "../git";
 import { usePalette } from "./Palette";
 import { useSettings } from "./SettingsDialog";
 import { promptDialog } from "./Dialogs";
@@ -155,6 +157,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   help: () => <HelpPanel />,
   dataViewer: DataViewerPanel,
   preview: () => <PreviewPanel />,
+  diff: DiffPanel,
 };
 
 function TerminalPanelHost(props: IDockviewPanelProps) {
@@ -326,6 +329,7 @@ function registerAppCommands() {
       },
     }),
     registerCommand({ id: "view.outline", title: "개요", category: "보기", key: "Mod+Shift+O", run: () => showSideView("outline") }),
+    registerCommand({ id: "view.scm", title: "소스 제어", category: "보기", key: "Ctrl+Shift+G", run: () => showSideView("scm") }),
     registerCommand({ id: "view.packages", title: "패키지", category: "보기", run: () => showSideView("packages") }),
     registerCommand({ id: "view.terminal", title: "터미널", category: "보기", key: "Ctrl+`", run: () => showPanel("terminal", "terminal", "Terminal", { id: "console", dir: "within" }) }),
     registerCommand({
@@ -378,6 +382,17 @@ export function Workbench() {
 
   useEffect(() => registerAppCommands(), []);
   useEffect(() => host.on("fs.changed", ({ paths }) => void onExternalChange(paths)), []);
+  // Git status follows file changes, the project, and commits made elsewhere (terminal, other apps).
+  useEffect(() => {
+    refreshGitSoon(0);
+    const off = host.on("fs.changed", () => refreshGitSoon());
+    const focus = () => refreshGitSoon(100);
+    window.addEventListener("focus", focus);
+    return () => {
+      off();
+      window.removeEventListener("focus", focus);
+    };
+  }, [project?.path]);
   useEffect(() => {
     commHooks.showPlots = () => showPanel("plots", "plots", "플롯", { id: "help", dir: "within" });
     commHooks.showHelp = () => showPanel("help", "help", "도움말", { id: "plots", dir: "within" });

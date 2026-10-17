@@ -117,6 +117,7 @@ ApplicationMenu.setApplicationMenu([
       { type: "divider" },
       { label: "파일", action: "view.files" },
       { label: "검색", action: "view.search" },
+      { label: "소스 제어", action: "view.scm" },
       { label: "터미널", action: "view.terminal" },
       { label: "실행 이력", action: "view.history" },
       { type: "divider" },
