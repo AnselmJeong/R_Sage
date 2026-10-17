@@ -168,11 +168,12 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
       automaticLayout: true,
       tabSize: 2,
       wordWrap: "on",
+      padding: { top: 8, bottom: 8 },
       unicodeHighlight: { ambiguousCharacters: false },
     });
     ed.current = e;
     const fit = () => {
-      if (hostEl.current) hostEl.current.style.height = `${Math.max(22, e.getContentHeight())}px`;
+      if (hostEl.current) hostEl.current.style.height = `${Math.max(38, e.getContentHeight())}px`;
       e.layout();
     };
     e.onDidContentSizeChange(fit);
@@ -215,23 +216,22 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
           <span className="qv-cell-status">{result.running ? "실행 중…" : "대기 중"}</span>
         ) : (
           <div className="qv-run-group">
-            <button className="qv-run main" onClick={run} title="이 청크만 실행 (⌘↩)">
-              ▶ 실행
-            </button>
             <button className="qv-run" onClick={() => runRange("above")} title="처음부터 이 청크까지 실행 (⌘⇧↩)">
-              ⇡<span className="qv-run-label"> 여기까지</span>
+              <RunIcon arrow="up" />
             </button>
-            <button className="qv-run" onClick={() => runRange("below")} title="이 청크부터 끝까지 실행">
-              ⇣<span className="qv-run-label"> 끝까지</span>
+            <button className="qv-run" onClick={() => runRange("below")} title="이 청크부터 아래 모두 실행">
+              <RunIcon arrow="down" />
             </button>
-            <button className="qv-run" onClick={() => runRange("all")} title="모든 청크 실행">
-              ⇕<span className="qv-run-label"> 전체</span>
+            <button className="qv-run main" onClick={run} title="이 청크 실행 (⌘↩)">
+              <RunIcon />
             </button>
           </div>
         )}
         {result && !result.running && !result.queued && (result.text !== undefined || result.images) && (
-          <button className="btn btn-small" title="결과 지우기" onClick={() => useCellResults.setState({ [`${path}#${cid}`]: undefined as any })}>
-            ✕
+          <button className="qv-run" title="결과 지우기" onClick={() => useCellResults.setState({ [`${path}#${cid}`]: undefined as any })}>
+            <svg viewBox="0 0 16 16" className="qv-run-icon">
+              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+            </svg>
           </button>
         )}
       </div>
@@ -479,3 +479,14 @@ export const QImage = Image.extend({
 }).configure({ inline: true });
 
 export const notifyError = (e: unknown) => useStore.getState().notify(String((e as any)?.message ?? e), "error");
+
+/** Positron-style run glyphs: a play triangle, with a small arrow for "above" or "below". */
+function RunIcon({ arrow }: { arrow?: "up" | "down" }) {
+  return (
+    <svg viewBox="0 0 16 16" className="qv-run-icon">
+      <path d={arrow ? "M2.5 3v10l7-5z" : "M4.5 2.5v11l8.5-5.5z"} />
+      {arrow === "up" && <path d="M13 13V6.5M10.8 8.7 13 6.5l2.2 2.2" />}
+      {arrow === "down" && <path d="M13 6.5V13M10.8 10.8 13 13l2.2-2.2" />}
+    </svg>
+  );
+}
