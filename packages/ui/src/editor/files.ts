@@ -233,6 +233,9 @@ export async function onExternalChange(paths: string[]) {
 }
 
 export function setActiveEditor(path: string) {
+  // A background tab (e.g. a delayed focus while tabs are restored) must not take over.
+  const shown = dock?.activePanel?.id;
+  if (shown?.startsWith("editor:") && shown !== `editor:${path}`) return;
   lastEditorPath = path;
   if (useStore.getState().activeFile !== path) useStore.setState({ activeFile: path });
 }
