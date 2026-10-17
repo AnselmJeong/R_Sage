@@ -46,7 +46,7 @@ export type Emit = <E extends EventName>(type: E, payload: HostEvents[E]) => voi
 export interface HostOptions {
   shell: AppInfo["shell"];
   /** Native folder picker; the browser shell has none and uses the in-app browser. */
-  pickFolder?: (title?: string) => Promise<string | null>;
+  pickFolder?: (title?: string, startingFolder?: string) => Promise<string | null>;
   pickFile?: (title?: string, extensions?: string[], startingFolder?: string) => Promise<string | null>;
   openExternal?: (path: string) => Promise<void>;
 }
@@ -469,7 +469,7 @@ export class Host {
       "plot.save": (p) => savePlot(this.comms, p),
       "plot.render": async ({ commId, format, widthIn, heightIn, dpi }) =>
         (await this.comms.rpc(commId, "render", renderParams(format, widthIn, heightIn, dpi))) as { data: string; mime_type: string },
-      "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
+      "dialog.pickFolder": ({ title, startingFolder }) => (this.opts.pickFolder ? this.opts.pickFolder(title, startingFolder) : null),
       "dialog.pickFile": ({ title, extensions, startingFolder }) => (this.opts.pickFile ? this.opts.pickFile(title, extensions, startingFolder) : null),
 
       "git.status": () => this.git.status(),

@@ -15,8 +15,8 @@ interface Req {
 }
 const usePicker = create<{ req?: Req }>(() => ({}));
 
-export function pickFolderInApp(title: string, allowNew = false): Promise<string | null> {
-  return new Promise((resolve) => usePicker.setState({ req: { title, allowNew, resolve } }));
+export function pickFolderInApp(title: string, allowNew = false, start?: string): Promise<string | null> {
+  return new Promise((resolve) => usePicker.setState({ req: { title, allowNew, start, resolve } }));
 }
 
 /** Native file dialog when available, otherwise the in-app browser. */
@@ -27,10 +27,10 @@ export async function pickFile(title: string, extensions?: string[], startingFol
 }
 
 /** Native picker when available, otherwise the in-app browser. */
-export async function pickFolder(title: string, allowNew = false): Promise<string | null> {
-  const native = await host.call("dialog.pickFolder", { title }).catch(() => null);
+export async function pickFolder(title: string, allowNew = false, startingFolder?: string): Promise<string | null> {
+  const native = await host.call("dialog.pickFolder", { title, startingFolder }).catch(() => null);
   if (native) return native;
-  return pickFolderInApp(title, allowNew);
+  return pickFolderInApp(title, allowNew, startingFolder);
 }
 
 export function FolderPickerHost() {

@@ -92,6 +92,16 @@ function ToolMenu({ icon, label, title, items, disabled }: { icon: JSX.Element; 
     if (!m || !pos) return;
     const r = m.getBoundingClientRect();
     if (r.right > window.innerWidth - 4) m.style.left = `${Math.max(4, window.innerWidth - r.width - 4)}px`;
+    // The plot pane usually sits at the bottom: open upward when the menu would run off the window.
+    if (r.bottom > window.innerHeight - 4) {
+      const above = btn.current!.getBoundingClientRect().top - 2;
+      if (above - r.height >= 4) m.style.top = `${above - r.height}px`;
+      else {
+        m.style.top = "4px";
+        m.style.maxHeight = `${window.innerHeight - 8}px`;
+        m.style.overflowY = "auto";
+      }
+    }
   }, [pos]);
   return (
     <>
