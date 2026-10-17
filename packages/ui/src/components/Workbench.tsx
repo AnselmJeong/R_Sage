@@ -29,7 +29,6 @@ import { ConsolePanel } from "./ConsolePanel";
 import { EditorPanel } from "./EditorPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { renderDocument, showPreview } from "../quarto/render";
-import { FileTree } from "./FileTree";
 import { HistoryPanel } from "./HistoryPanel";
 import { EnvironmentPanel } from "./EnvironmentPanel";
 import { PlotsPanel } from "./PlotsPanel";
@@ -38,24 +37,79 @@ import { DataViewerPanel } from "./DataViewerPanel";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAiSettings } from "./AiSettingsDialog";
 import { commHooks } from "../comms";
-import { SearchPanel } from "./SearchPanel";
+import { searchHooks } from "./SearchPanel";
+import { ActivityBar, SidePanel, showSideView } from "./Sidebar";
+import { TopBar } from "./TopBar";
 import { TerminalPanel } from "./TerminalPanel";
 import { StatusBar } from "./StatusBar";
 import { usePalette } from "./Palette";
 import { useSettings } from "./SettingsDialog";
 import { promptDialog } from "./Dialogs";
-import { pickFolder } from "./FolderPicker";
-import { openProject } from "./Welcome";
+import { newDocument, newProjectDialog, openFileDialog, openFolderDialog, openProject } from "../project";
 
 function EditorWelcome() {
+  const recent = useStore((s) => s.recent);
+  const project = useStore((s) => s.project);
+  const rList = useStore((s) => s.rList);
+  const app = useStore((s) => s.app);
+  const [checks, setChecks] = useState<{ name: string; ok: boolean; detail: string }[]>([]);
+  useEffect(() => {
+    void host.call("app.diagnostics").then((d) => setChecks(d.checks)).catch(() => {});
+  }, [rList.length]);
+  const others = recent.filter((r) => r.path !== project?.path).slice(0, 6);
   return (
     <div className="editor-welcome">
-      <p>파일 트리에서 파일을 열거나 새 R 스크립트를 만드세요.</p>
+      <h1>R Sage</h1>
+      <p className="muted">R 분석과 Quarto 보고서를 한 곳에서.</p>
+      <div className="start-grid">
+        <section>
+          <h2>시작</h2>
+          <button className="start-link" onClick={() => void newDocument("qmd")}>
+            새 Quarto 문서 <span className="muted">⌘N</span>
+          </button>
+          <button className="start-link" onClick={() => void newDocument("R")}>
+            새 R 스크립트 <span className="muted">⌥⌘N</span>
+          </button>
+          <button className="start-link" onClick={() => void openFileDialog()}>
+            파일 열기… <span className="muted">⌘O</span>
+          </button>
+          <button className="start-link" onClick={() => void openFolderDialog()}>
+            폴더 열기…
+          </button>
+          <button className="start-link" onClick={() => void newProjectDialog()}>
+            새 프로젝트…
+          </button>
+        </section>
+        {others.length > 0 && (
+          <section>
+            <h2>최근 프로젝트</h2>
+            {others.map((r) => (
+              <button key={r.path} className="start-link" title={r.path} onClick={() => void openProject(r.path)}>
+                {r.name} <span className="muted small ellipsis">{r.path.replace(/^\/Users\/[^/]+/, "~")}</span>
+              </button>
+            ))}
+          </section>
+        )}
+      </div>
+      <h2>단축키</h2>
       <ul className="muted">
         <li>⌘P 파일 빠르게 열기 · ⌘⇧P 명령 팔레트</li>
         <li>⌘↵ 현재 문장/선택 실행 · ⌘⇧S source() · ⌘⌥F 함수 전체 실행</li>
         <li>Esc 콘솔에서 실행 중단 · Ctrl+L 콘솔 지우기 · Ctrl+R 명령 이력 검색</li>
+        <li>⌘F 현재 파일에서 찾기 · ⌘⇧F 프로젝트 검색 · ⌘⇧O 개요</li>
       </ul>
+      {checks.some((c) => !c.ok) && (
+        <>
+          <h2>환경 점검</h2>
+          {checks.map((c) => (
+            <div key={c.name} className="check">
+              <span className={c.ok ? "ok" : "warn"}>{c.ok ? "✓" : "!"}</span> <strong>{c.name}</strong>
+              {!c.ok && <pre className="muted small">{c.detail}</pre>}
+            </div>
+          ))}
+        </>
+      )}
+      {app && <div className="muted small">R Sage {app.version}</div>}
     </div>
   );
 }
@@ -90,8 +144,6 @@ function EditorTab(props: IDockviewPanelHeaderProps<{ path: string }>) {
 }
 
 const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any>>> = {
-  files: () => <FileTree />,
-  search: () => <SearchPanel />,
   editor: EditorPanel,
   editorWelcome: EditorWelcome,
   console: () => <ConsolePanel />,
@@ -116,9 +168,7 @@ function TerminalPanelHost(props: IDockviewPanelProps) {
 
 function buildDefaultLayout(api: DockviewApi) {
   api.clear();
-  api.addPanel({ id: "files", component: "files", title: "파일" });
-  api.addPanel({ id: "search", component: "search", title: "검색", position: { referencePanel: "files", direction: "within" }, inactive: true });
-  api.addPanel({ id: "welcome-editor", component: "editorWelcome", title: "시작", position: { referencePanel: "files", direction: "right" } });
+  api.addPanel({ id: "welcome-editor", component: "editorWelcome", title: "시작" });
   api.addPanel({ id: "console", component: "console", title: "Console", position: { referencePanel: "welcome-editor", direction: "below" } });
   api.addPanel({ id: "terminal", component: "terminal", title: "Terminal", position: { referencePanel: "console", direction: "within" }, inactive: true });
   // Right column spans the full height (root-level split), like Positron.
@@ -128,7 +178,6 @@ function buildDefaultLayout(api: DockviewApi) {
   api.addPanel({ id: "plots", component: "plots", title: "플롯", position: { referencePanel: "environment", direction: "below" } });
   api.addPanel({ id: "help", component: "help", title: "도움말", position: { referencePanel: "plots", direction: "within" }, inactive: true });
   try {
-    api.getPanel("files")?.group.api.setSize({ width: 240 });
     api.getPanel("assistant")?.group.api.setSize({ width: 440 });
     api.getPanel("assistant")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.7) });
     api.getPanel("console")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.38) });
@@ -173,42 +222,11 @@ function registerAppCommands() {
         if (a) return closeFile(a.path);
       },
     }),
-    registerCommand({
-      id: "file.new",
-      title: "새 R 스크립트",
-      category: "파일",
-      key: "Mod+N",
-      run: async () => {
-        const root = useStore.getState().project?.path;
-        if (!root) return;
-        const name = await promptDialog({ title: "새 파일", value: "untitled.R", selectBaseName: true, confirm: "만들기" });
-        if (!name) return;
-        const path = `${root}/${name}`;
-        await host.call("fs.create", { path, kind: "file" });
-        await openFile(path);
-      },
-    }),
-    registerCommand({
-      id: "project.open",
-      title: "폴더 열기",
-      category: "프로젝트",
-      key: "Mod+O",
-      run: async () => {
-        const p = await pickFolder("프로젝트 폴더 열기");
-        if (p) await openProject(p);
-      },
-    }),
-    registerCommand({
-      id: "project.new",
-      title: "새 프로젝트",
-      category: "프로젝트",
-      run: async () => {
-        const p = await pickFolder("새 프로젝트를 만들 위치", true);
-        if (!p) return;
-        const project = await host.call("project.create", { path: p });
-        useStore.setState({ project });
-      },
-    }),
+    registerCommand({ id: "file.newQmd", title: "새 Quarto 문서", category: "파일", key: "Mod+N", run: () => newDocument("qmd") }),
+    registerCommand({ id: "file.new", title: "새 R 스크립트", category: "파일", key: "Mod+Alt+N", run: () => newDocument("R") }),
+    registerCommand({ id: "file.open", title: "파일 열기", category: "파일", key: "Mod+O", run: () => openFileDialog() }),
+    registerCommand({ id: "project.open", title: "폴더 열기", category: "프로젝트", run: () => openFolderDialog() }),
+    registerCommand({ id: "project.new", title: "새 프로젝트", category: "프로젝트", run: () => newProjectDialog() }),
     registerCommand({ id: "project.settings", title: "프로젝트 설정", category: "프로젝트", key: "Mod+,", run: () => useSettings.setState({ open: true }) }),
     registerCommand({
       id: "project.close",
@@ -294,8 +312,21 @@ function registerAppCommands() {
         if (name) await host.call("console.saveHistory", { path: `${root}/${name}` });
       },
     }),
-    registerCommand({ id: "view.files", title: "파일", category: "보기", key: "Mod+Shift+E", run: () => showPanel("files", "files", "파일", { id: "search", dir: "within" }) }),
-    registerCommand({ id: "view.search", title: "프로젝트 검색", category: "보기", key: "Mod+Shift+F", run: () => showPanel("search", "search", "검색", { id: "files", dir: "within" }) }),
+    registerCommand({ id: "view.files", title: "탐색기", category: "보기", key: "Mod+Shift+E", run: () => showSideView("files") }),
+    registerCommand({
+      id: "view.search",
+      title: "검색",
+      category: "보기",
+      key: "Mod+Shift+F",
+      run: () => {
+        const a = activeEditor();
+        const sel = a?.editor.getModel()?.getValueInRange(a.editor.getSelection()!) ?? "";
+        showSideView("search");
+        setTimeout(() => searchHooks.focus?.(sel && !sel.includes("\n") ? sel : undefined), 0);
+      },
+    }),
+    registerCommand({ id: "view.outline", title: "개요", category: "보기", key: "Mod+Shift+O", run: () => showSideView("outline") }),
+    registerCommand({ id: "view.packages", title: "패키지", category: "보기", run: () => showSideView("packages") }),
     registerCommand({ id: "view.terminal", title: "터미널", category: "보기", key: "Ctrl+`", run: () => showPanel("terminal", "terminal", "Terminal", { id: "console", dir: "within" }) }),
     registerCommand({
       id: "view.assistant",
@@ -396,31 +427,19 @@ export function Workbench() {
 
   return (
     <div className="workbench">
-      <div className="titlebar">
-        <span className="title">{project?.name ?? "R Sage"}</span>
-        <span className="muted small ellipsis">{project?.path}</span>
-        <span className="spacer" />
-        <button className="btn btn-small" onClick={() => runCommand("palette.open")}>
-          명령 ⌘⇧P
-        </button>
-        <button className="btn btn-small" onClick={() => runCommand("view.assistant")}>
-          AI 조수
-        </button>
-        <button className="btn btn-small" onClick={() => runCommand("ai.settings")}>
-          AI 연결
-        </button>
-        <button className="btn btn-small" onClick={() => runCommand("project.settings")}>
-          설정
-        </button>
-      </div>
-      <div className="dock">
+      <TopBar />
+      <div className="main-row">
+        <ActivityBar />
+        <SidePanel />
+        <div className="dock">
         <DockviewReact
           components={components}
           tabComponents={{ editorTab: EditorTab }}
           defaultTabComponent={undefined}
           onReady={onReady}
           theme={themeDark}
-        />
+          />
+        </div>
       </div>
       <StatusBar />
       {toast && <Toast key={toast.at} text={toast.text} level={toast.level} />}

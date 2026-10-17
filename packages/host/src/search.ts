@@ -14,7 +14,19 @@ export interface SearchOptions {
   query: string;
   regex?: boolean;
   caseSensitive?: boolean;
+  wholeWord?: boolean;
+  /** Comma-separated globs to include, e.g. "*.R, *.qmd". */
   glob?: string;
+  /** Comma-separated globs to leave out. */
+  exclude?: string;
+}
+
+const globs = (s?: string) => (s ?? "").split(",").map((g) => g.trim()).filter(Boolean);
+
+function globRegex(g: string): RegExp {
+  const body = g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*\/?/g, "\0").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/\0/g, ".*");
+  // A pattern without a slash matches the file name anywhere, as in ripgrep.
+  return new RegExp(g.includes("/") ? `^${body}$` : `(^|/)${body}$`, "i");
 }
 
 function escapeRegex(s: string) {
@@ -22,7 +34,10 @@ function escapeRegex(s: string) {
 }
 
 export function buildRegex(o: SearchOptions): RegExp {
-  return new RegExp(o.regex ? o.query : escapeRegex(o.query), o.caseSensitive ? "g" : "gi");
+  const src = o.regex ? o.query : escapeRegex(o.query);
+  // \b only knows ASCII word characters, so use Unicode-aware lookarounds.
+  const body = o.wholeWord ? `(?<![\\p{L}\\p{N}_])(?:${src})(?![\\p{L}\\p{N}_])` : src;
+  return new RegExp(body, o.caseSensitive ? "gu" : "giu");
 }
 
 export async function searchText(root: string, o: SearchOptions): Promise<{ matches: SearchMatch[]; truncated: boolean }> {
@@ -32,20 +47,26 @@ export async function searchText(root: string, o: SearchOptions): Promise<{ matc
     const args = [rg, "--json", "--max-columns", "400", "--glob", "!.rsage", "--glob", "!.git"];
     if (!o.regex) args.push("--fixed-strings");
     if (!o.caseSensitive) args.push("--ignore-case");
-    if (o.glob) args.push("--glob", o.glob);
+    if (o.wholeWord) args.push("--word-regexp");
+    for (const g of globs(o.glob)) args.push("--glob", g);
+    for (const g of globs(o.exclude)) args.push("--glob", `!${g}`);
     args.push("--", o.query, root);
     const p = Bun.spawn(args, { stdout: "pipe", stderr: "ignore" });
     const text = await new Response(p.stdout).text();
     const matches: SearchMatch[] = [];
-    for (const line of text.split("\n")) {
-      if (!line.startsWith('{"type":"match"')) continue;
-      const d = JSON.parse(line).data;
+    for (const row of text.split("\n")) {
+      if (!row.startsWith('{"type":"match"')) continue;
+      const d = JSON.parse(row).data;
+      const line: string = d.lines.text?.replace(/\n$/, "") ?? "";
+      // ripgrep reports byte offsets; editors want UTF-16 columns.
+      const bytes = Buffer.from(line);
       for (const sm of d.submatches) {
         matches.push({
           path: d.path.text,
           line: d.line_number,
-          column: sm.start + 1,
-          text: d.lines.text?.replace(/\n$/, "") ?? "",
+          column: bytes.subarray(0, sm.start).toString().length + 1,
+          length: bytes.subarray(sm.start, sm.end).toString().length,
+          text: line,
         });
         if (matches.length >= MAX_MATCHES) return { matches, truncated: true };
       }
@@ -54,6 +75,8 @@ export async function searchText(root: string, o: SearchOptions): Promise<{ matc
   }
 
   const re = buildRegex(o);
+  const include = globs(o.glob).map(globRegex);
+  const exclude = globs(o.exclude).map(globRegex);
   const matches: SearchMatch[] = [];
   const walk = (dir: string): boolean => {
     for (const d of readdirSync(dir, { withFileTypes: true })) {
@@ -64,12 +87,15 @@ export async function searchText(root: string, o: SearchOptions): Promise<{ matc
         continue;
       }
       if (!TEXT_EXT.test(d.name) || statSync(p).size > 5_000_000) continue;
+      const rel = p.slice(root.length + 1);
+      if (include.length && !include.some((r) => r.test(rel))) continue;
+      if (exclude.some((r) => r.test(rel))) continue;
       const lines = readFileSync(p, "utf8").split("\n");
       lines.forEach((text, i) => {
         re.lastIndex = 0;
         let m: RegExpExecArray | null;
         while ((m = re.exec(text)) && matches.length < MAX_MATCHES) {
-          matches.push({ path: p, line: i + 1, column: m.index + 1, text });
+          matches.push({ path: p, line: i + 1, column: m.index + 1, length: m[0].length, text });
           if (!m[0]) re.lastIndex++;
         }
       });

@@ -160,6 +160,13 @@ export async function initStore() {
     host.call("lsp.status"),
   ]);
   useStore.setState({ connected: true, app, project, recent, session, lspRunning: lsp.running });
+  // Launching the app goes straight to the main screen with the last project, like Positron.
+  if (!project && recent[0]) {
+    host
+      .call("project.open", { path: recent[0].path })
+      .then((p) => useStore.setState({ project: p }))
+      .catch(() => {});
+  }
   host.call("r.list", {}).then((rList) => useStore.setState({ rList }));
   (await import("./comms")).initComms();
   (await import("./assistant")).initAssistant();

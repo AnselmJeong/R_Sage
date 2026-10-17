@@ -27,6 +27,16 @@ const host = new Host({
     });
     return paths.find(Boolean) ?? null;
   },
+  pickFile: async (_title, extensions, startingFolder) => {
+    const paths = await Utils.openFileDialog({
+      ...(startingFolder ? { startingFolder } : {}),
+      canChooseFiles: true,
+      canChooseDirectory: false,
+      allowsMultipleSelection: false,
+      allowedFileTypes: extensions?.length ? extensions.join(",") : "*",
+    });
+    return paths.find(Boolean) ?? null;
+  },
   openExternal: async (path) => {
     // Web pages (sign-in, help) go to the browser; files to their default app.
     if (/^https?:\/\//.test(path)) Utils.openExternal(path);
