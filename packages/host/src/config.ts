@@ -10,7 +10,7 @@ export interface AppConfig {
   defaultRHome?: string;
   manualR: string[];
   recentProjects: RecentProject[];
-  assistant?: { autoRunR?: boolean; defaultModel?: string };
+  assistant?: { autoRunR?: boolean; defaultModel?: string; autoApproveEditsIn?: string[] };
 }
 
 export function appDir(): string {

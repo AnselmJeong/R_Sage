@@ -152,6 +152,7 @@ function SubscriptionCard({ spec, st }: { spec: (typeof SUBSCRIPTIONS)[number]; 
 export function AiSettingsDialog() {
   const open = useAiSettings((s) => s.open);
   const status = useAssistant((s) => s.status);
+  const project = useStore((s) => s.project);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -250,8 +251,21 @@ export function AiSettingsDialog() {
               await refreshStatus();
             }}
           />
-          R 코드를 묻지 않고 실행 (파일 변경은 항상 확인을 받습니다)
+          R 코드를 묻지 않고 실행
         </label>
+        {project && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={status?.autoApproveEdits ?? false}
+              onChange={async (e) => {
+                await host.call("assistant.setOptions", { autoApproveEdits: e.target.checked });
+                await refreshStatus();
+              }}
+            />
+            이 프로젝트({project.name})의 파일 변경을 묻지 않고 적용
+          </label>
+        )}
         <div className="dialog-actions">
           <button className="btn btn-primary" onClick={close}>
             닫기

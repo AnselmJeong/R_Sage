@@ -212,12 +212,17 @@ export interface SubscriptionStatus {
   quotaCheckedAt?: number;
 }
 
+/** How far an approved file change reaches: this change, this file, or the whole project. */
+export type EditApprovalScope = "once" | "file" | "project";
+
 export interface AssistantStatus {
   providers: AssistantProviderStatus[];
   models: AssistantModel[];
   defaultModel?: string;
   /** Run R code from the assistant without asking each time. */
   autoRunR: boolean;
+  /** File changes in the open project are applied without asking. */
+  autoApproveEdits: boolean;
 }
 
 export interface AssistantContext {
@@ -349,14 +354,14 @@ export interface HostMethods {
   "assistant.login": { params: { provider: AssistantProviderId }; result: AssistantStatus };
   "assistant.cancelLogin": { params: { provider: AssistantProviderId }; result: AssistantStatus };
   "assistant.logout": { params: { provider: AssistantProviderId }; result: AssistantStatus };
-  "assistant.setOptions": { params: { autoRunR?: boolean; defaultModel?: string }; result: AssistantStatus };
+  "assistant.setOptions": { params: { autoRunR?: boolean; defaultModel?: string; autoApproveEdits?: boolean }; result: AssistantStatus };
   "assistant.list": { params: {}; result: ConversationSummary[] };
   "assistant.load": { params: { id: string }; result: Conversation | null };
   "assistant.new": { params: {}; result: Conversation };
   "assistant.delete": { params: { id: string }; result: void };
   "assistant.send": { params: { conversationId: string; text: string; model: string; context?: AssistantContext }; result: void };
   "assistant.stop": { params: { conversationId: string }; result: void };
-  "assistant.approve": { params: { conversationId: string; itemId: string; approve: boolean; always?: boolean }; result: void };
+  "assistant.approve": { params: { conversationId: string; itemId: string; approve: boolean; always?: boolean; scope?: EditApprovalScope }; result: void };
 
   /** Run R code from a document chunk; resolves with what it printed and drew. */
   "console.runCell": {
