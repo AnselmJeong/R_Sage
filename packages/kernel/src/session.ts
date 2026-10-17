@@ -389,7 +389,15 @@ export class KernelSession extends EventEmitter {
       let idle = false;
       let busy = false;
       let aborted = false;
+      let retry: ReturnType<typeof setInterval> | undefined;
+      // R drops an interrupt that arrives inside C code that never checks for
+      // one (saveRDS, some model fits), so keep asking until it is idle.
+      const interrupt = () => {
+        client.send("control", "interrupt_request", {});
+        retry ??= setInterval(() => client.send("control", "interrupt_request", {}), 1000);
+      };
       const finish = (r: { status: "ok" | "error" | "aborted"; error?: string }) => {
+        clearInterval(retry);
         client.off("message", onMsg);
         this.off("state", onState);
         signal?.removeEventListener("abort", onAbort);
@@ -398,7 +406,7 @@ export class KernelSession extends EventEmitter {
       };
       const onAbort = () => {
         aborted = true;
-        if (busy && !idle) client.send("control", "interrupt_request", {});
+        if (busy && !idle) interrupt();
         else finish({ status: "aborted" });
       };
       const onState = (st: SessionInfo) => {
@@ -411,7 +419,7 @@ export class KernelSession extends EventEmitter {
         if (t === "execute_reply") reply = m.content;
         if (t === "status" && m.content.execution_state === "busy") {
           busy = true;
-          if (aborted) client.send("control", "interrupt_request", {});
+          if (aborted) interrupt();
         }
         if (t === "status" && m.content.execution_state === "idle") idle = true;
         if (reply && idle) {

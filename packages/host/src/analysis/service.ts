@@ -294,6 +294,8 @@ export class AnalysisService {
         req,
         JSON.stringify({ runId, package: mod.rPackage, entrypoint: mod.entrypoints[def.id], dataset: s.dataset, options: s.options, outDir: dir, by }),
       );
+      // Cancelled while packages were being checked: don't start R at all.
+      if (ctl.signal.aborted) return end({ status: "cancelled" })!;
       const code = `local({\n.libPaths(unique(c(${rString(status.libPath!)}, .libPaths())))\n${unload}\nrsage::rs_run(${rString(req)})\n})`;
       const r = await this.deps.session.runPrivate(code, ctl.signal);
       if (r.status === "ok" && prep.unload) prep.unload = false;
