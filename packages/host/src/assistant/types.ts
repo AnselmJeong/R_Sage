@@ -3,7 +3,7 @@
 // conversation that stays on one provider replays exactly what it returned
 // (thinking/reasoning blocks included).
 
-import type { AssistantProviderId, SubscriptionStatus } from "@rsage/shared";
+import type { AssistantImage, AssistantProviderId, SubscriptionStatus } from "@rsage/shared";
 
 export interface ToolCall {
   id: string;
@@ -20,7 +20,7 @@ export interface ToolResult {
 }
 
 export type Turn =
-  | { role: "user"; text: string }
+  | { role: "user"; text: string; images?: AssistantImage[] }
   | { role: "assistant"; provider: AssistantProviderId; model: string; text: string; calls: ToolCall[]; raw?: unknown }
   | { role: "tool_results"; results: ToolResult[] };
 
@@ -66,6 +66,8 @@ export interface AgentRunRequest {
   system: string;
   /** This turn's message, with earlier turns the agent has not seen prepended. */
   prompt: string;
+  /** Images attached to this turn's message. */
+  images?: AssistantImage[];
   /** The agent's own session id from the previous run, to resume. */
   sessionId?: string;
   cwd: string;

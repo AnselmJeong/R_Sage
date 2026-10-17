@@ -77,6 +77,12 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "read_conversation",
+    description:
+      "Read the full transcript of an earlier R Sage conversation the user referenced (its id is given in <references>), including the code that was run and tool results.",
+    parameters: { type: "object", properties: { id: { type: "string", description: "Conversation id" } }, required: ["id"] },
+  },
+  {
     name: "write_file",
     description:
       "Create a file or replace its whole content. The user sees a diff and must approve. Prefer edit_file for changes to an existing file.",
@@ -111,6 +117,8 @@ export interface ToolEnv {
   autoRunR(): boolean;
   /** True when changes to this file were already approved (this file or the whole project). */
   autoApply(path: string): boolean;
+  /** Full transcript of a stored conversation in this project, or null. */
+  readConversation(id: string): string | null;
   /** Show the item for approval; resolves true when approved. */
   approve(item: Extract<AssistantItem, { kind: "tool" }>): Promise<boolean>;
   /** Update the tool item shown to the user. */
@@ -197,6 +205,11 @@ export async function runTool(
           .map((v) => `${v.display_name}\t${v.display_type}\t${v.display_value.slice(0, 120)}`)
           .join("\n"),
       };
+    }
+
+    case "read_conversation": {
+      const t = env.readConversation(need("id"));
+      return t ? { output: t } : { output: "No such conversation in this project.", isError: true };
     }
 
     case "get_plot": {

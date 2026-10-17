@@ -286,7 +286,7 @@ export class AssistantService {
     push({ kind: "user", id: randomUUID(), text, context, at: now() });
     if (c.title === "새 대화") c.title = text.replace(/\s+/g, " ").slice(0, 60);
     c.model = model;
-    c.history.push({ role: "user", text: withContext(text, context, this.deps.project()) });
+    c.history.push({ role: "user", text: this.withContext(text, context), images: context?.images?.length ? context.images : undefined });
     this.save(c);
 
     const run: Run = { abort: new AbortController(), approvals: new Map() };
@@ -314,6 +314,7 @@ export class AssistantService {
           ensureSession: this.deps.ensureSession,
           autoRunR: () => !!this.options.autoRunR,
           autoApply: (path) => this.autoApply(path),
+          readConversation: (cid) => this.fullTranscript(cid),
           signal: run.abort.signal,
           update,
           approve: (it) =>
@@ -372,6 +373,7 @@ export class AssistantService {
         model,
         system: this.systemPrompt(),
         prompt,
+        images: userTurn.images,
         sessionId: prev?.id,
         cwd: this.deps.project()?.root ?? this.dir(),
         mcp: { url: mcp.url, token: mcp.token },
@@ -508,6 +510,62 @@ export class AssistantService {
     return p;
   }
 
+  /** The user's message as the model sees it: editor context, @ references and earlier conversations. */
+  private withContext(text: string, ctx: AssistantContext | undefined): string {
+    const project = this.deps.project();
+    const parts = [text];
+    const editor = editorContext(ctx, project);
+    if (editor) parts.push(editor);
+    const refs = ctx?.refs ?? [];
+    if (refs.length) {
+      const lines = ["<references>", "The user attached these with @."];
+      for (const r of refs) {
+        if (r.kind === "conversation") {
+          lines.push(`Earlier conversation "${r.title}" (id ${r.id}). Excerpt below; call read_conversation with this id for the full transcript.`);
+          lines.push(this.excerpt(r.id));
+        } else {
+          const rel = project ? project.relative(r.path) : r.path;
+          lines.push(r.kind === "folder" ? `Folder: ${rel}/ (look inside with list_files)` : `File: ${rel} (read it with read_file)`);
+        }
+      }
+      parts.push(lines.join("\n") + "\n</references>");
+    }
+    return parts.join("\n\n");
+  }
+
+  /** The questions and answers of a stored conversation, short enough to put in a prompt. */
+  private excerpt(id: string): string {
+    const c = this.read(id);
+    if (!c) return "(not found)";
+    const lines: string[] = [];
+    let size = 0;
+    for (const it of c.items) {
+      const line = it.kind === "user" ? `User: ${clip(it.text, 800)}` : it.kind === "assistant" && it.text ? `Assistant: ${clip(it.text, 800)}` : "";
+      if (!line) continue;
+      if (size + line.length > 6000) {
+        lines.push("… (more in the full transcript)");
+        break;
+      }
+      lines.push(line);
+      size += line.length;
+    }
+    return lines.join("\n") || "(empty)";
+  }
+
+  /** A stored conversation in full, for read_conversation. */
+  private fullTranscript(id: string): string | null {
+    const c = this.read(id);
+    if (!c) return null;
+    const out = [`# ${c.title} (${c.createdAt})`];
+    for (const it of c.items) {
+      if (it.kind === "user") out.push(`User: ${it.text}`);
+      else if (it.kind === "assistant" && it.text) out.push(`Assistant: ${it.text}`);
+      else if (it.kind === "tool") out.push(`[${it.name}${it.input?.path ? ` ${it.input.path}` : ""}] ${it.name === "run_r" ? `\n${it.input?.code ?? ""}\n` : ""}${clip(it.output ?? "", 1500)}`);
+      else if (it.kind === "error") out.push(`Error: ${it.text}`);
+    }
+    return clip(out.join("\n\n"), 60000);
+  }
+
   private systemPrompt(): string {
     const p = this.deps.project();
     const r = this.deps.rInfo();
@@ -529,13 +587,15 @@ export class AssistantService {
   }
 }
 
-function withContext(text: string, ctx: AssistantContext | undefined, project: Project | undefined): string {
-  if (!ctx?.file) return text;
+function editorContext(ctx: AssistantContext | undefined, project: Project | undefined): string {
+  if (!ctx?.file) return "";
   const rel = project ? project.relative(ctx.file) : ctx.file;
-  let s = `${text}\n\n<editor_context>\nActive file: ${rel}`;
+  let s = `<editor_context>\nActive file: ${rel}`;
   if (ctx.selection?.text) s += `\nSelected lines ${ctx.selection.startLine}-${ctx.selection.endLine}:\n${ctx.selection.text.slice(0, 8000)}`;
   return s + "\n</editor_context>";
 }
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 function transcript(turns: Turn[]): string {
   return turns

@@ -11,7 +11,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { SubscriptionQuota, SubscriptionStatus } from "@rsage/shared";
-import { agentEnv, agentHome, findCli, runJsonLines } from "./cli";
+import { agentEnv, agentHome, findCli, runJsonLines, tempImages } from "./cli";
 import type { AgentProvider, AgentRunRequest } from "./types";
 
 /** ChatGPT login only; nothing of Codex's own beyond the model and our MCP tools. */
@@ -323,7 +323,10 @@ export class CodexProvider implements AgentProvider {
       "--skip-git-repo-check",
     ];
     if (model && model !== "default") args.push("--model", model);
+    // Attached images go in as files; after "resume" the flag belongs to that subcommand.
+    const images = tempImages(req.images);
     if (req.sessionId) args.push("resume", req.sessionId);
+    for (const p of images.paths) args.push(`--image=${p}`);
     // Codex has no separate system prompt in exec mode; a new thread gets it up front.
     const input = req.sessionId ? req.prompt : `<instructions>\n${req.system}\n</instructions>\n\n${req.prompt}`;
 
@@ -361,7 +364,7 @@ export class CodexProvider implements AgentProvider {
               status: it.status === "in_progress" ? "running" : it.status === "completed" && !it.exit_code ? "done" : "error",
             });
           // Non-fatal notices, e.g. a deprecated config key.
-          else if (it.type === "error" && /deprecated|under-development|suppress_unstable|Code Mode is unavailable/i.test(it.message)) continue;
+          else if (it.type === "error" && /deprecated|under-development|suppress_unstable|Code Mode is unavailable|is resuming with/i.test(it.message)) continue;
           else if (it.type === "error") req.onOwnTool({ key: it.id, name: "codex", input: {}, output: it.message, status: "error" });
         }
       }
@@ -372,6 +375,7 @@ export class CodexProvider implements AgentProvider {
       throw new Error(friendly(err?.message ?? String(err)));
     } finally {
       this.runs--;
+      images.cleanup();
     }
   }
 

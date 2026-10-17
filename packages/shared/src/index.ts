@@ -251,10 +251,22 @@ export interface AssistantStatus {
   autoApproveEdits: boolean;
 }
 
+/** Something the user attached to a message with @: a project file or folder, or an earlier conversation. */
+export type AssistantRef = { kind: "file" | "folder"; path: string } | { kind: "conversation"; id: string; title: string };
+
+/** An image attached to a message (base64, no data: prefix). */
+export interface AssistantImage {
+  mime: string;
+  data: string;
+  name?: string;
+}
+
 export interface AssistantContext {
   /** Active editor file (absolute path). */
   file?: string;
   selection?: { text: string; startLine: number; endLine: number };
+  refs?: AssistantRef[];
+  images?: AssistantImage[];
 }
 
 export type AssistantToolStatus = "awaiting-approval" | "running" | "done" | "error" | "denied";

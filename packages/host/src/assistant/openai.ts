@@ -102,7 +102,16 @@ export class OpenAIProvider implements Provider {
 function toInput(history: Turn[]): InputItem[] {
   const out: InputItem[] = [];
   for (const t of history) {
-    if (t.role === "user") out.push({ role: "user", content: t.text });
+    if (t.role === "user")
+      out.push({
+        role: "user",
+        content: t.images?.length
+          ? [
+              { type: "input_text", text: t.text },
+              ...t.images.map((img) => ({ type: "input_image" as const, image_url: `data:${img.mime};base64,${img.data}`, detail: "auto" as const })),
+            ]
+          : t.text,
+      } as InputItem);
     else if (t.role === "assistant") {
       if (t.provider === "openai" && t.raw) {
         // Output items are valid input items; drop server ids (store: false).

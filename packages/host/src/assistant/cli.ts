@@ -7,8 +7,8 @@
 // hooks and MCP servers can never take over from the subscription login.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -125,4 +125,17 @@ export async function* runJsonLines(cmd: string, args: string[], opts: { input: 
     opts.signal.removeEventListener("abort", kill);
     if (child.exitCode === null) child.kill("SIGTERM");
   }
+}
+
+/** Writes attached images to temp files for CLIs that take image paths; returns the paths and a cleanup. */
+export function tempImages(images: { mime: string; data: string }[] | undefined): { paths: string[]; cleanup: () => void } {
+  if (!images?.length) return { paths: [], cleanup: () => {} };
+  const dir = mkdtempSync(join(tmpdir(), "rsage-img-"));
+  const paths = images.map((img, i) => {
+    const ext = img.mime.split("/")[1]?.replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "") || "png";
+    const p = join(dir, `image-${i + 1}.${ext}`);
+    writeFileSync(p, Buffer.from(img.data, "base64"));
+    return p;
+  });
+  return { paths, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }

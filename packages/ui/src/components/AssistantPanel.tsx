@@ -2,20 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { diffLines } from "diff";
-import type { AssistantItem, EditApprovalScope } from "@rsage/shared";
+import type { AssistantContext, AssistantImage, AssistantItem, AssistantRef, EditApprovalScope } from "@rsage/shared";
 import { host } from "../host/client";
 import { activeEditor, openFile } from "../editor/files";
 import { useStore } from "../store";
-import {
-  deleteConversation,
-  newConversation,
-  openConversation,
-  send,
-  setModel,
-  useAssistant,
-} from "../assistant";
+import { newConversation, send, setModel, useAssistant } from "../assistant";
+import { HistoryMenu } from "./AssistantHistory";
+import "./assistant.css";
 import { useAiSettings } from "./AiSettingsDialog";
-import { confirmDialog } from "./Dialogs";
 
 type ToolItem = Extract<AssistantItem, { kind: "tool" }>;
 
@@ -23,7 +17,7 @@ type ToolItem = Extract<AssistantItem, { kind: "tool" }>;
 export function AssistantPanel() {
   const status = useAssistant((s) => s.status);
   const current = useAssistant((s) => s.current);
-  const conversations = useAssistant((s) => s.conversations);
+  const [history, setHistory] = useState(false);
   const running = useAssistant((s) => (current ? !!s.running[current.id] : false));
   const project = useStore((s) => s.project);
   const listRef = useRef<HTMLDivElement>(null);
@@ -55,37 +49,20 @@ export function AssistantPanel() {
 
   return (
     <div className="assistant">
-      <div className="panel-toolbar">
-        <select
-          className="select-small conv-select"
-          value={current?.id ?? ""}
-          onChange={(e) => e.target.value && openConversation(e.target.value)}
-          title="대화 목록"
-        >
-          {!current && <option value="">새 대화</option>}
-          {conversations.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
+      <div className="panel-toolbar conv-toolbar">
+        <button className="btn btn-small" onClick={() => setHistory((h) => !h)} disabled={!project} title="대화 기록">
+          기록
+        </button>
+        <span className="conv-title ellipsis" title={current?.title}>
+          {current?.title ?? "새 대화"}
+        </span>
         <button className="btn btn-small" onClick={() => newConversation()} disabled={!project} title="새 대화">
           ＋
-        </button>
-        <button
-          className="btn btn-small"
-          disabled={!current}
-          title="이 대화 삭제"
-          onClick={async () => {
-            if (current && (await confirmDialog({ title: "대화 삭제", message: `"${current.title}" 대화를 삭제할까요?`, confirm: "삭제", danger: true })))
-              await deleteConversation(current.id);
-          }}
-        >
-          삭제
         </button>
         <button className="btn btn-small" onClick={() => useAiSettings.setState({ open: true })} title="AI 연결 설정">
           ⚙
         </button>
+        {history && <HistoryMenu onClose={() => setHistory(false)} />}
       </div>
 
       <div
@@ -125,36 +102,151 @@ export function AssistantPanel() {
   );
 }
 
+type Candidate = { key: string; label: string; hint: string; ref: AssistantRef };
+
+const MAX_SIDE = 2000;
+
+/** Reads an image file as base64, scaling it down when it is very large. */
+async function readImage(file: File): Promise<AssistantImage> {
+  const url = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+    img.src = url;
+  });
+  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const keep = scale === 1 && /^image\/(png|jpeg|gif|webp)$/.test(file.type) && file.size < 4_000_000;
+  let dataUrl = url;
+  if (!keep) {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    dataUrl = file.type === "image/png" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
+  }
+  const [head, data] = dataUrl.split(",");
+  return { mime: head!.slice(5, head!.indexOf(";")), data: data!, name: file.name || undefined };
+}
+
+/** The "@query" being typed just before the caret, if any. */
+function mentionAt(text: string, caret: number): { start: number; query: string } | null {
+  const before = text.slice(0, caret);
+  const m = /(^|\s)@([^\s@]*)$/.exec(before);
+  return m ? { start: caret - m[2]!.length - 1, query: m[2]! } : null;
+}
+
+function refLabel(r: AssistantRef) {
+  return r.kind === "conversation" ? r.title : r.path.split("/").pop() || r.path;
+}
+
+const REF_ICON: Record<AssistantRef["kind"], string> = { file: "📄", folder: "📁", conversation: "💬" };
+
 function Composer({ disabled, running }: { disabled: boolean; running: boolean }) {
   const status = useAssistant((s) => s.status);
   const model = useAssistant((s) => s.model);
   const includeContext = useAssistant((s) => s.includeContext);
   const current = useAssistant((s) => s.current);
+  const conversations = useAssistant((s) => s.conversations);
+  const project = useStore((s) => s.project);
   const activeFile = useStore((s) => s.activeFile);
   const [text, setText] = useState("");
+  const [refs, setRefs] = useState<AssistantRef[]>([]);
+  const [images, setImages] = useState<AssistantImage[]>([]);
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [sel, setSel] = useState(0);
+  const [files, setFiles] = useState<string[] | null>(null);
+  const [dragging, setDragging] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     (window as any).__rsageAssistantFocus = () => taRef.current?.focus();
   }, []);
+  // The project's files are listed when the user first types @, and again after a project change.
+  useEffect(() => setFiles(null), [project?.path]);
+  useEffect(() => {
+    if (mention && files === null && project)
+      void host.call("fs.walk").then((r) => setFiles(r.files)).catch(() => setFiles([]));
+  }, [mention, files, project]);
+
+  const candidates = useMemo((): Candidate[] => {
+    if (!mention || !project) return [];
+    const q = mention.query.toLowerCase();
+    const hit = (s: string) => !q || s.toLowerCase().includes(q);
+    const out: Candidate[] = [];
+    for (const c of conversations)
+      if (c.id !== current?.id && hit(c.title)) out.push({ key: `c:${c.id}`, label: c.title, hint: "지난 대화", ref: { kind: "conversation", id: c.id, title: c.title } });
+    const folders = new Set<string>();
+    for (const f of files ?? []) {
+      const parts = f.split("/");
+      for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join("/"));
+    }
+    const abs = (rel: string) => `${project.path}/${rel}`;
+    for (const d of [...folders].sort()) if (hit(d)) out.push({ key: `d:${d}`, label: `${d.split("/").pop()}/`, hint: d, ref: { kind: "folder", path: abs(d) } });
+    for (const f of files ?? []) if (hit(f)) out.push({ key: `f:${f}`, label: f.split("/").pop()!, hint: f, ref: { kind: "file", path: abs(f) } });
+    // Exact name matches first, then conversations, folders, files in that order.
+    const exact = (c: Candidate) => (q && c.label.toLowerCase().startsWith(q) ? 0 : 1);
+    return out.map((c, i) => ({ c, i })).sort((a, b) => exact(a.c) - exact(b.c) || a.i - b.i).map((x) => x.c).slice(0, 30);
+  }, [mention, files, conversations, current?.id, project]);
+
+  const pick = (c: Candidate) => {
+    if (!mention) return;
+    const caret = mention.start + 1 + mention.query.length;
+    const name = c.ref.kind === "conversation" ? `대화:${refLabel(c.ref).slice(0, 16).trim()}` : refLabel(c.ref);
+    const token = `@${name.replace(/\s+/g, "_")} `;
+    const next = text.slice(0, mention.start) + token + text.slice(caret);
+    setText(next);
+    setRefs((rs) => (rs.some((r) => JSON.stringify(r) === JSON.stringify(c.ref)) ? rs : [...rs, c.ref]));
+    setMention(null);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = mention.start + token.length;
+    });
+  };
+
+  const addImages = async (list: File[]) => {
+    const imgs = list.filter((f) => f.type.startsWith("image/"));
+    if (!imgs.length) return false;
+    try {
+      const read = await Promise.all(imgs.map(readImage));
+      setImages((cur) => [...cur, ...read].slice(0, 8));
+    } catch {
+      useStore.getState().notify("그림을 읽지 못했습니다.", "error");
+    }
+    return true;
+  };
 
   const submit = async () => {
     const t = text.trim();
-    if (!t || running || disabled) return;
+    if ((!t && !images.length) || running || disabled) return;
     const a = activeEditor();
-    let context: Parameters<typeof send>[1];
+    const context: AssistantContext = { refs: refs.length ? refs : undefined, images: images.length ? images : undefined };
     if (a) {
       const sel = a.editor.getSelection();
-      const model = a.editor.getModel();
-      const selText = sel && model && !sel.isEmpty() ? model.getValueInRange(sel) : "";
-      context = { file: a.path, selection: selText ? { text: selText, startLine: sel!.startLineNumber, endLine: sel!.endLineNumber } : undefined };
+      const m = a.editor.getModel();
+      const selText = sel && m && !sel.isEmpty() ? m.getValueInRange(sel) : "";
+      context.file = a.path;
+      context.selection = selText ? { text: selText, startLine: sel!.startLineNumber, endLine: sel!.endLineNumber } : undefined;
     }
+    const saved = { text, refs, images };
     setText("");
+    setRefs([]);
+    setImages([]);
     try {
-      await send(t, context);
+      await send(t || "첨부한 그림을 봐 줘.", context);
     } catch (e: any) {
       useStore.getState().notify(e.message, "error");
-      setText(t);
+      setText(saved.text);
+      setRefs(saved.refs);
+      setImages(saved.images);
     }
   };
 
@@ -167,17 +259,109 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
     return [...g.entries()];
   }, [status]);
 
+  const updateMention = (value: string, caret: number) => {
+    const m = mentionAt(value, caret);
+    setMention(m);
+    setSel(0);
+  };
+
   return (
-    <div className="composer">
+    <div
+      className={`composer ${dragging ? "dragging" : ""}`}
+      onDragOver={(e) => {
+        if (disabled || ![...e.dataTransfer.types].includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        setDragging(false);
+        if (disabled || !e.dataTransfer.files.length) return;
+        e.preventDefault();
+        void addImages([...e.dataTransfer.files]);
+      }}
+    >
+      {(refs.length > 0 || images.length > 0) && (
+        <div className="composer-attachments">
+          {refs.map((r, i) => (
+            <span key={i} className="chip on attach-chip" title={r.kind === "conversation" ? "지난 대화" : r.path}>
+              {REF_ICON[r.kind]} {refLabel(r)}
+              <button onClick={() => setRefs((rs) => rs.filter((_, j) => j !== i))} title="빼기">
+                ×
+              </button>
+            </span>
+          ))}
+          {images.map((img, i) => (
+            <span key={`img${i}`} className="attach-image" title={img.name ?? "그림"}>
+              <img src={`data:${img.mime};base64,${img.data}`} alt={img.name ?? "그림"} />
+              <button onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))} title="빼기">
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {mention && candidates.length > 0 && (
+        <div className="mention-menu">
+          {candidates.map((c, i) => (
+            <div
+              key={c.key}
+              className={`mention-item ${i === sel ? "sel" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(c);
+              }}
+              onMouseEnter={() => setSel(i)}
+            >
+              <span>{REF_ICON[c.ref.kind]}</span>
+              <span className="ellipsis">{c.label}</span>
+              <span className="muted small ellipsis mention-hint">{c.hint}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <textarea
         ref={taRef}
         className="composer-input"
-        placeholder={disabled ? "AI 연결 후 사용할 수 있습니다" : "무엇을 분석할까요? (Enter 보내기, Shift+Enter 줄바꿈)"}
+        placeholder={disabled ? "AI 연결 후 사용할 수 있습니다" : "무엇을 분석할까요? @로 파일·폴더·지난 대화 참조, 그림은 붙여넣기·끌어놓기 (Enter 보내기)"}
         value={text}
         disabled={disabled}
         rows={3}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          updateMention(e.target.value, e.target.selectionStart);
+        }}
+        onSelect={(e) => mention && updateMention(e.currentTarget.value, e.currentTarget.selectionStart)}
+        onBlur={() => setMention(null)}
+        onPaste={(e) => {
+          const imgs = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+          if (!imgs.length) return;
+          e.preventDefault();
+          void addImages(imgs);
+        }}
         onKeyDown={(e) => {
+          if (mention && candidates.length) {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setSel((s) => (s + 1) % candidates.length);
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setSel((s) => (s - 1 + candidates.length) % candidates.length);
+              return;
+            }
+            if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              pick(candidates[Math.min(sel, candidates.length - 1)]!);
+              return;
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setMention(null);
+              return;
+            }
+          }
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             void submit();
@@ -196,6 +380,20 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
             </optgroup>
           ))}
         </select>
+        <button className="btn btn-small" disabled={disabled} title="그림 첨부" onClick={() => fileInput.current?.click()}>
+          그림
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            void addImages([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+        />
         {activeFile && (
           <button
             className={`chip ${includeContext ? "on" : ""}`}
@@ -212,7 +410,7 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
             ■ 중단
           </button>
         ) : (
-          <button className="btn btn-small btn-primary" disabled={disabled || !text.trim()} onClick={submit}>
+          <button className="btn btn-small btn-primary" disabled={disabled || (!text.trim() && !images.length)} onClick={submit}>
             보내기
           </button>
         )}
@@ -227,6 +425,16 @@ function ItemView({ item, conversationId, running }: { item: AssistantItem; conv
       return (
         <div className="msg msg-user">
           <div className="msg-body">{item.text}</div>
+          {item.context?.images?.length ? (
+            <div className="msg-images">
+              {item.context.images.map((img, i) => (
+                <img key={i} src={`data:${img.mime};base64,${img.data}`} alt={img.name ?? "그림"} />
+              ))}
+            </div>
+          ) : null}
+          {item.context?.refs?.length ? (
+            <div className="msg-context muted small">{item.context.refs.map((r) => `${REF_ICON[r.kind]} ${refLabel(r)}`).join("  ")}</div>
+          ) : null}
           {item.context?.file && (
             <div className="msg-context muted small">
               {item.context.file.split("/").pop()}
@@ -267,6 +475,7 @@ const TOOL_LABEL: Record<string, string> = {
   run_r: "R 코드 실행",
   get_variables: "변수 보기",
   get_plot: "플롯 보기",
+  read_conversation: "지난 대화 읽기",
   write_file: "파일 쓰기",
   edit_file: "파일 수정",
 };
