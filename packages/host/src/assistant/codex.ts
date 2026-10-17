@@ -1,12 +1,12 @@
-// GPT through the user's ChatGPT subscription: runs Codex (bundled with the
-// Codex SDK) under the login the user made with `codex login`. Codex runs
+// GPT through the user's ChatGPT subscription: runs the user's own Codex
+// (`codex exec --json`) under the login they made with `codex login`. Codex runs
 // the agent loop; our tools reach it over MCP. Its own shell runs in a
 // read-only sandbox, so file changes still go through R Sage's approvals.
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Codex, type ThreadItem } from "@openai/codex-sdk";
+import { findCli, runJsonLines } from "./cli";
 import type { AgentProvider, AgentRunRequest } from "./types";
 
 export class CodexProvider implements AgentProvider {
@@ -15,6 +15,7 @@ export class CodexProvider implements AgentProvider {
   readonly label = "ChatGPT 구독 (Codex)";
 
   available() {
+    if (!findCli("codex")) return { ok: false, hint: "Codex(`codex`)를 찾지 못했습니다. 설치(npm i -g @openai/codex)한 뒤 터미널에서 `codex login`을 실행하세요." };
     const home = process.env.CODEX_HOME ?? join(homedir(), ".codex");
     if (existsSync(join(home, "auth.json"))) return { ok: true };
     return { ok: false, hint: "터미널에서 `codex login`을 실행해 ChatGPT 계정으로 로그인하세요. (Codex가 없으면 먼저 설치: npm i -g @openai/codex)" };
@@ -29,23 +30,25 @@ export class CodexProvider implements AgentProvider {
     // An API key in the environment would take precedence over the ChatGPT login.
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== "OPENAI_API_KEY" && k !== "CODEX_API_KEY") env[k] = v;
-    const codex = new Codex({
-      env,
-      config: {
-        mcp_servers: { rsage: { url: req.mcp.url, tool_timeout_sec: 3600, startup_timeout_sec: 20 } },
-      },
-    });
-    const opts = {
-      workingDirectory: req.cwd,
-      skipGitRepoCheck: true,
-      sandboxMode: "read-only" as const,
-      approvalPolicy: "never" as const,
-      networkAccessEnabled: false,
-      webSearchMode: "disabled" as const,
-    };
+    const cli = findCli("codex");
+    if (!cli) throw new Error("Codex(`codex`)를 찾지 못했습니다. 설치되어 있다면 터미널에서 `which codex` 결과를 알려 주세요.");
     const model = req.model.replace(/^codex:/, "");
-    if (model !== "default") Object.assign(opts, { model });
-    const thread = req.sessionId ? codex.resumeThread(req.sessionId, opts) : codex.startThread(opts);
+    // What the Codex SDK passes to `codex exec`, without the SDK's bundled binary.
+    const args = [
+      "exec",
+      "--json",
+      "--config", `mcp_servers.rsage.url=${JSON.stringify(req.mcp.url)}`,
+      "--config", "mcp_servers.rsage.tool_timeout_sec=3600",
+      "--config", "mcp_servers.rsage.startup_timeout_sec=20",
+      "--sandbox", "read-only",
+      "--cd", req.cwd,
+      "--skip-git-repo-check",
+      "--config", "sandbox_workspace_write.network_access=false",
+      "--config", 'web_search="disabled"',
+      "--config", 'approval_policy="never"',
+    ];
+    if (model !== "default") args.push("--model", model);
+    if (req.sessionId) args.push("resume", req.sessionId);
     // Codex has no separate system prompt in exec mode; a new thread gets it up front.
     const input = req.sessionId ? req.prompt : `<instructions>\n${req.system}\n</instructions>\n\n${req.prompt}`;
 
@@ -60,15 +63,14 @@ export class CodexProvider implements AgentProvider {
       seen.set(item.id, item.text.length);
     };
     try {
-      const { events } = await thread.runStreamed(input, { signal: req.signal });
-      for await (const ev of events) {
+      for await (const ev of runJsonLines(cli, args, { input, env, cwd: req.cwd, signal: req.signal })) {
         if (ev.type === "thread.started") sessionId = ev.thread_id;
         else if (ev.type === "turn.failed") throw new Error(friendly(ev.error.message));
         // Codex reports retries ("Reconnecting... 2/5") as errors too; only the turn's end decides.
         else if (ev.type === "error") lastError = ev.message;
         else if (ev.type === "turn.completed") completed = true;
         else if (ev.type === "item.started" || ev.type === "item.updated" || ev.type === "item.completed") {
-          const it: ThreadItem = ev.item;
+          const it = ev.item;
           if (it.type === "agent_message") {
             if (!seen.has(it.id)) req.onMessage();
             grow(it, req.onText);
@@ -86,7 +88,7 @@ export class CodexProvider implements AgentProvider {
         }
       }
       if (!completed) throw new Error(friendly(lastError || "Codex가 답을 끝내지 못했습니다."));
-      return { sessionId: sessionId ?? thread.id ?? undefined, text };
+      return { sessionId, text };
     } catch (err: any) {
       if (req.signal.aborted) throw new Error("중단했습니다.");
       throw new Error(friendly(err?.message ?? String(err)));

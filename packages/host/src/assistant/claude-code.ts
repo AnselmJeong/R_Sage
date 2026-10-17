@@ -1,5 +1,5 @@
-// Claude through the user's Claude subscription: runs Claude Code (bundled
-// with the Agent SDK) under the login the user made with `claude` → /login.
+// Claude through the user's Claude subscription: runs the user's own Claude
+// Code (`claude -p`, stream-json) under the login they made with /login.
 // Claude Code runs the agent loop; our tools reach it over MCP, and its own
 // built-in tools are turned off so everything goes through R Sage's
 // approvals.
@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { findCli, runJsonLines } from "./cli";
 import type { AgentProvider, AgentRunRequest } from "./types";
 
 const MODELS = [
@@ -33,6 +33,7 @@ export class ClaudeCodeProvider implements AgentProvider {
   readonly label = "Claude 구독 (Claude Code)";
 
   available() {
+    if (!findCli("claude")) return { ok: false, hint: "Claude Code(`claude`)를 찾지 못했습니다. 설치한 뒤 터미널에서 `claude`를 실행하고 /login 으로 로그인하세요." };
     if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return { ok: true };
     const dir = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
     if (existsSync(join(dir, ".credentials.json"))) return { ok: true };
@@ -47,65 +48,60 @@ export class ClaudeCodeProvider implements AgentProvider {
   }
 
   async run(req: AgentRunRequest) {
-    const abort = new AbortController();
-    const onAbort = () => abort.abort();
-    req.signal.addEventListener("abort", onAbort);
-    const env = childEnv();
+    const cli = findCli("claude");
+    if (!cli) throw new Error("Claude Code(`claude`)를 찾지 못했습니다. 설치되어 있다면 터미널에서 `which claude` 결과를 알려 주세요.");
+    const mcpConfig = JSON.stringify({
+      mcpServers: { rsage: { type: "http", url: req.mcp.url, headers: { authorization: `Bearer ${req.mcp.token}` } } },
+    });
+    // Only R Sage's tools: no built-in Bash/Edit, no user MCP servers, hooks
+    // or CLAUDE.md from the user's settings. The prompt goes in on stdin.
+    const args = [
+      "-p",
+      "--output-format", "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--model", req.model.replace(/^cc:/, ""),
+      "--system-prompt", req.system,
+      "--tools", "",
+      "--mcp-config", mcpConfig,
+      "--strict-mcp-config",
+      "--allowed-tools", "mcp__rsage",
+      "--permission-mode", "dontAsk",
+      "--setting-sources", "",
+    ];
+    if (req.sessionId) args.push("--resume", req.sessionId);
     let sessionId = req.sessionId;
     let text = "";
-    let stderr = "";
+    let current = "";
     try {
-      const q = query({
-        prompt: req.prompt,
-        options: {
-          model: req.model.replace(/^cc:/, ""),
-          cwd: req.cwd,
-          systemPrompt: req.system,
-          resume: req.sessionId,
-          abortController: abort,
-          includePartialMessages: true,
-          thinking: { type: "adaptive" },
-          // Only R Sage's tools: no built-in Bash/Edit, no user MCP servers,
-          // hooks or CLAUDE.md from the user's settings.
-          tools: [],
-          mcpServers: { rsage: { type: "http", url: req.mcp.url, headers: { authorization: `Bearer ${req.mcp.token}` }, alwaysLoad: true } },
-          strictMcpConfig: true,
-          settingSources: [],
-          allowedTools: ["mcp__rsage"],
-          permissionMode: "dontAsk",
-          env: { ...env, CLAUDE_AGENT_SDK_CLIENT_APP: "rsage/0.1" },
-          stderr: (d) => (stderr = (stderr + d).slice(-4000)),
-        },
-      });
-      let current = "";
-      for await (const m of q as AsyncIterable<SDKMessage>) {
-        if ("session_id" in m && m.session_id) sessionId = m.session_id;
+      for await (const m of runJsonLines(cli, args, { input: req.prompt, env: childEnv(), cwd: req.cwd, signal: req.signal })) {
+        if (m.session_id) sessionId = m.session_id;
         if (m.type === "stream_event" && !m.parent_tool_use_id) {
           const ev = m.event;
-          if (ev.type === "message_start") {
+          if (ev?.type === "message_start") {
             req.onMessage();
             current = "";
-          } else if (ev.type === "content_block_delta") {
-            if (ev.delta.type === "text_delta") {
+          } else if (ev?.type === "content_block_delta") {
+            if (ev.delta?.type === "text_delta") {
               current += ev.delta.text;
               req.onText(ev.delta.text);
-            } else if (ev.delta.type === "thinking_delta") req.onThinking(ev.delta.thinking);
+            } else if (ev.delta?.type === "thinking_delta") req.onThinking(ev.delta.thinking);
           }
         } else if (m.type === "assistant" && !m.parent_tool_use_id) {
           if (m.error) throw new Error(AUTH_ERRORS[m.error] ?? `Claude Code 오류: ${m.error}`);
           if (current) text = current;
         } else if (m.type === "result") {
-          if (m.subtype !== "success") throw new Error(m.errors?.join("\n") || `Claude Code가 멈췄습니다 (${m.subtype}).`);
+          if (m.subtype !== "success" || m.is_error) throw new Error(m.errors?.join("\n") || m.result || `Claude Code가 멈췄습니다 (${m.subtype}).`);
           text = m.result || text;
         }
       }
+      if (req.signal.aborted) throw new Error("중단했습니다.");
       return { sessionId, text };
     } catch (err: any) {
       if (req.signal.aborted) throw new Error("중단했습니다.");
-      if (/ENOENT|spawn/i.test(String(err?.message))) throw new Error(`Claude Code를 실행하지 못했습니다: ${err.message}`);
-      throw new Error(err?.message + (stderr && !/로그인|한도/.test(err?.message) ? `\n${stderr.trim().split("\n").slice(-3).join("\n")}` : ""));
-    } finally {
-      req.signal.removeEventListener("abort", onAbort);
+      const msg = String(err?.message ?? err);
+      if (/not logged in|login|authenticat/i.test(msg) && !/로그인/.test(msg)) throw new Error(AUTH_ERRORS.authentication_failed);
+      throw new Error(msg);
     }
   }
 }
