@@ -82,6 +82,7 @@ export class KernelSession extends EventEmitter {
    * The shell reply can arrive before the iopub output it caused, so an
    * execution is done only once both the reply and the idle status are in.
    */
+  private interrupted = new Set<ExecutionRecord>();
   private pendingDone = new Map<ExecutionRecord, { reply?: ExecutionRecord["status"]; idle?: boolean }>();
   private stopping = false;
   private lastStart?: StartOptions;
@@ -240,6 +241,8 @@ export class KernelSession extends EventEmitter {
 
   private finish(rec: ExecutionRecord, status: ExecutionRecord["status"]) {
     this.pendingDone.delete(rec);
+    // R reports an interrupted evaluation as "ok"; the record should not.
+    if (this.interrupted.delete(rec) && status === "ok") status = "aborted";
     rec.status = status;
     rec.finishedAt = new Date().toISOString();
     this.emit("execution", { ...rec });
@@ -338,6 +341,7 @@ export class KernelSession extends EventEmitter {
 
   async interrupt() {
     if (!this.client) return;
+    for (const rec of this.byMsgId.values()) if (rec.status === "running") this.interrupted.add(rec);
     this.client.send("control", "interrupt_request", {});
   }
 

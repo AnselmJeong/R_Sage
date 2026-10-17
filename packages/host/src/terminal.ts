@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Subprocess } from "bun";
+import { utf8LocaleEnv } from "@rsage/kernel";
 
 interface Term {
   proc: Subprocess;
@@ -10,11 +11,14 @@ interface Term {
 
 export class TerminalService {
   private terms = new Map<string, Term>();
+  private localeEnv: Record<string, string> = {};
 
   constructor(
     private onData: (id: string, data: string) => void,
     private onExit: (id: string, code: number | null) => void,
-  ) {}
+  ) {
+    void utf8LocaleEnv().then((env) => (this.localeEnv = env));
+  }
 
   create(cwd: string, cols: number, rows: number): string {
     const id = randomUUID();
@@ -22,7 +26,7 @@ export class TerminalService {
     const decoder = new TextDecoder();
     const proc = Bun.spawn([shell, "-l"], {
       cwd,
-      env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", LANG: process.env.LANG || "en_US.UTF-8" },
+      env: { ...process.env, ...this.localeEnv, TERM: "xterm-256color", COLORTERM: "truecolor" },
       terminal: {
         cols,
         rows,

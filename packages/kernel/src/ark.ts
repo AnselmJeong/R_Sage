@@ -55,6 +55,25 @@ export async function makeConnectionInfo(): Promise<ConnectionInfo> {
   };
 }
 
+/**
+ * GUI apps on macOS start without LANG, and R then falls back to the C locale:
+ * Korean text prints as <U+C77C>. Pick a UTF-8 locale like Positron does.
+ */
+export async function utf8LocaleEnv(): Promise<Record<string, string>> {
+  const current = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG;
+  if (current && /utf-?8/i.test(current)) return {};
+  if (process.platform === "darwin") {
+    let locale = "en_US";
+    try {
+      const p = Bun.spawn(["defaults", "read", "-g", "AppleLocale"], { stdout: "pipe", stderr: "ignore" });
+      const out = (await new Response(p.stdout).text()).trim().replace(/@.*$/, "");
+      if (/^[a-z]{2}_[A-Z]{2}$/.test(out)) locale = out;
+    } catch {}
+    return { LANG: `${locale}.UTF-8` };
+  }
+  return { LANG: "C.UTF-8" };
+}
+
 export interface LaunchOptions {
   arkPath: string;
   rHome: string;
@@ -89,6 +108,7 @@ export async function launchArk(opts: LaunchOptions): Promise<LaunchedKernel> {
 
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
+    ...(await utf8LocaleEnv()),
     R_HOME: opts.rHome,
     RUST_LOG: process.env.RUST_LOG ?? "error",
     ...opts.env,

@@ -27,7 +27,7 @@ import type {
 import { appDir, ConfigStore } from "./config";
 import { LspBridge } from "./lsp";
 import { Project } from "./project";
-import { replaceInFiles, searchText } from "./search";
+import { listFiles, replaceInFiles, searchText } from "./search";
 import { TerminalService } from "./terminal";
 
 export const APP_VERSION = "0.1.0";
@@ -294,6 +294,7 @@ export class Host {
           .sort((a, b) => a.name.localeCompare(b.name));
         return { path: dir, parent: dir === "/" ? null : dirname(dir), entries };
       },
+      "fs.walk": () => listFiles(this.requireProject().root),
       "fs.read": ({ path }) => this.requireProject().read(path),
       "fs.write": ({ path, content, expectedMtimeMs, force }) =>
         this.requireProject().write(path, content, expectedMtimeMs, force),

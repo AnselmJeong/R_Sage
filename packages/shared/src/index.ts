@@ -170,6 +170,8 @@ export interface HostMethods {
 
   "fs.list": { params: { path: string }; result: FileEntry[] };
   "fs.browse": { params: { path?: string }; result: { path: string; parent: string | null; entries: FileEntry[] } };
+  /** Every file in the project (relative paths), for quick open. */
+  "fs.walk": { params: {}; result: { files: string[]; truncated: boolean } };
   "fs.read": { params: { path: string }; result: { content: string; mtimeMs: number } };
   "fs.write": {
     params: { path: string; content: string; expectedMtimeMs?: number; force?: boolean };

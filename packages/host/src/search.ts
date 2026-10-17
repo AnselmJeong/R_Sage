@@ -98,3 +98,26 @@ export function replaceInFiles(paths: string[], o: SearchOptions & { replacement
   }
   return { files, replacements };
 }
+
+const MAX_FILES = 20000;
+
+/** All project files as relative paths (ripgrep respects .gitignore). */
+export async function listFiles(root: string): Promise<{ files: string[]; truncated: boolean }> {
+  const rg = Bun.which("rg");
+  if (rg) {
+    const p = Bun.spawn([rg, "--files", "--hidden", "--glob", "!.git", "--glob", "!.rsage"], { cwd: root, stdout: "pipe", stderr: "ignore" });
+    const files = (await new Response(p.stdout).text()).split("\n").filter(Boolean).sort();
+    return { files: files.slice(0, MAX_FILES), truncated: files.length > MAX_FILES };
+  }
+  const files: string[] = [];
+  const walk = (dir: string, rel: string) => {
+    for (const d of readdirSync(dir, { withFileTypes: true })) {
+      if (SKIP.has(d.name) || files.length >= MAX_FILES) continue;
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(join(dir, d.name), r);
+      else files.push(r);
+    }
+  };
+  walk(root, "");
+  return { files: files.sort(), truncated: files.length >= MAX_FILES };
+}
