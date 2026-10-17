@@ -166,6 +166,12 @@ live("missing-data analysis in a live session", async () => {
     const bad = await runAnalysisTool("run_analysis", { analysis: "org.rsage.missing/missing", dataset: "aq", options: { maxPatterns: "ten" } }, item, env);
     expect(bad.isError).toBe(true);
     expect(bad.output).toContain("maxPatterns: expected integer");
+    const datasets = await runAnalysisTool("list_datasets", {}, item, env);
+    expect(datasets.output).toMatch(/^aq: 153 rows × 6 columns; Ozone <integer>/m);
+    const unknown = await runAnalysisTool("run_analysis", { analysis: "missing", dataset: "nope" }, item, env);
+    expect(unknown.isError).toBe(true);
+    expect(unknown.output).toContain("No data frame named nope");
+    expect(unknown.output).toContain("aq");
     // Saving an object in the session needs the user's approval (declined here).
     const declined = await runAnalysisTool("run_analysis", { analysis: "org.rsage.missing/missing", dataset: "aq", options: { impute: { enabled: true, saveAs: "imp" } } }, item, env);
     expect(declined.output).toContain("declined");

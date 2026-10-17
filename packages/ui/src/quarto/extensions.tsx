@@ -12,6 +12,7 @@ import { host } from "../host/client";
 import { useStore } from "../store";
 import { monaco } from "../editor/monaco";
 import { formDialog } from "../components/Dialogs";
+import { focusedCells } from "../editor/views";
 
 const TOP_TYPES = [
   "paragraph",
@@ -128,6 +129,8 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   const hostEl = useRef<HTMLDivElement>(null);
   const ed = useRef<monaco.editor.IStandaloneCodeEditor>();
   const cid = node.attrs.cid as string;
+  const cidRef = useRef(cid);
+  cidRef.current = cid;
   const path = docContext(editor)?.path ?? "";
   const result = useCellResults((s) => s[`${path}#${cid}`]);
   const latest = useRef(node.attrs.code as string);
@@ -135,7 +138,10 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   const header = String(node.attrs.header ?? "{r}");
   const label = /#\|\s*label:\s*(\S+)/.exec(node.attrs.code ?? "")?.[1] ?? /^\{r[ ,]+([^,}=\s]+)/.exec(header)?.[1];
 
-  const run = () => void runCell(path, cid, ed.current?.getValue() ?? latest.current);
+  const run = () => {
+    focusedCells.set(path, cid);
+    void runCell(path, cid, ed.current?.getValue() ?? latest.current);
+  };
   const runRange = (r: CellRange) => {
     // Make sure the doc has this chunk's latest text before reading the others.
     const v = ed.current?.getValue();
@@ -182,6 +188,7 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
       const v = e.getValue();
       if (v !== latest.current) updateAttributes({ code: v });
     });
+    e.onDidFocusEditorText(() => focusedCells.set(docContext(editor)?.path ?? "", cidRef.current));
     if (focusCell && focusCell === node.attrs.cid) {
       focusCell = undefined;
       setTimeout(() => e.focus(), 0);

@@ -10,6 +10,7 @@ import { host } from "../host/client";
 import { useStore } from "../store";
 import { findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
 import { installPackages } from "../packages";
+import { RoleBox, VariableSource, isRole, isVisible, roleNames, useRoleApi, type RoleApi } from "./AnalysisVariables";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
@@ -25,6 +26,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
   const found = inst ? findDef(inst.analysis) : undefined;
   const runtime = useAnalyses((s) => (found ? s.runtime[found.mod.id] : undefined));
   const sessionState = useStore((s) => s.session.state);
+  const pick = useAnalyses((s) => s.picks[id]);
   const [draft, setDraft] = useState<{ dataset: string; options: any } | null>(null);
   const [showCode, setShowCode] = useState<string | null>(null);
   const sent = useRef(0);
@@ -53,6 +55,12 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     void refreshDatasets();
   }, [sessionState === "stopped"]);
 
+  const roles = useMemo(() => (found ? found.def.form.sections.flatMap((sec) => sec.controls).filter(isRole) : []), [found?.def]);
+  const ds = datasets.find((d) => d.name === draft?.dataset);
+  const setOptions = useRef<(o: any) => void>(() => {});
+  const roleApi = useRoleApi(roles, draft?.options, ds?.columns ?? [], (o) => setOptions.current(o));
+  useEffect(() => roleApi.setChosen([]), [draft?.dataset]);
+
   // The first run: an analysis opened with a data set and no result yet.
   useEffect(() => {
     if (inst && inst.dataset && !inst.lastRun && runtime && runtime !== "checking" && runtime.ready) void run();
@@ -75,7 +83,25 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     }, 450);
   };
 
-  const ds = datasets.find((d) => d.name === draft.dataset);
+  setOptions.current = (o) => commit({ ...draft, options: o });
+  const chooseDataset = (name: string) => {
+    useAnalyses.setState((s) => {
+      const { [id]: _, ...rest } = s.picks;
+      return { picks: rest };
+    });
+    // Variables the new data set doesn't have leave their roles.
+    const have = new Set(datasets.find((d) => d.name === name)?.columns.map((c) => c.name) ?? []);
+    let options = draft.options;
+    for (const r of roles) {
+      const cur = roleNames(r, options);
+      if (cur.every((n) => have.has(n))) continue;
+      options = setPath(options, r.bind, r.type === "variables" ? cur.filter((n) => have.has(n)) : null);
+    }
+    commit({ dataset: name, options });
+  };
+  const used = new Set(roles.filter((r) => isVisible(r, draft.options)).flatMap((r) => roleNames(r, draft.options)));
+  const reason =
+    pick && pick.name === draft.dataset ? `자동 선택: ${pick.reason}` : inst.createdBy === "assistant" && draft.dataset === inst.dataset ? "어시스턴트가 지정한 데이터" : null;
   const running = inst.lastRun?.status === "running";
   const stale = inst.result && inst.resultRevision !== inst.revision;
   const rt = runtime === "checking" ? undefined : runtime;
@@ -94,7 +120,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
           <select
             value={draft.dataset}
             onMouseDown={() => void refreshDatasets()}
-            onChange={(e) => commit({ ...draft, dataset: e.target.value })}
+            onChange={(e) => chooseDataset(e.target.value)}
           >
             <option value="">데이터 프레임 선택…</option>
             {datasets.map((d) => (
@@ -105,7 +131,10 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
             {draft.dataset && !ds && <option value={draft.dataset}>{draft.dataset} (세션에 없음)</option>}
           </select>
         </label>
+        {reason && <p className="muted small an-pick-reason">{reason}. 다른 데이터는 위에서 고르세요.</p>}
+        {!draft.dataset && datasets.length > 1 && <p className="muted small">세션에 데이터 프레임이 {datasets.length}개 있습니다. 분석할 것을 고르세요.</p>}
         {!datasets.length && <p className="muted small">R 세션에 데이터 프레임이 없습니다. 데이터를 먼저 불러오세요 (예: <code>df &lt;- read.csv(...)</code>).</p>}
+        {roles.length > 0 && <VariableSource api={roleApi} used={used} />}
         {def.form.sections.map((sec) => (
           <details key={sec.title} className="an-section" open>
             <summary>{sec.title}</summary>
@@ -115,7 +144,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
                 control={c}
                 schema={def.schema}
                 options={draft.options}
-                dataset={ds}
+                roleApi={roleApi}
                 onChange={(v) => commit({ ...draft, options: setPath(draft.options, c.bind, v) })}
               />
             ))}
@@ -210,68 +239,23 @@ function Control({
   control: c,
   schema,
   options,
-  dataset,
+  roleApi,
   onChange,
 }: {
   control: AnalysisFormControl;
   schema: any;
   options: any;
-  dataset?: AnalysisDataset;
+  roleApi: RoleApi;
   onChange: (v: unknown) => void;
 }) {
   const value = getPath(options, c.bind);
   const s = schemaAt(schema, c.bind) ?? {};
-  if ("visibleWhen" in c && c.visibleWhen && getPath(options, c.visibleWhen.bind) !== c.visibleWhen.equals) return null;
+  if (!isVisible(c, options)) return null;
   const hint = c.hint ? <span className="muted small an-hint-line">{c.hint}</span> : null;
-  const cols = dataset?.columns ?? [];
   switch (c.type) {
-    case "variables": {
-      const sel = new Set<string>(value ?? []);
-      return (
-        <div className="an-field">
-          <span>{c.label}</span>
-          {hint}
-          <div className="an-varlist">
-            {!cols.length && <span className="muted small">데이터를 고르면 변수가 나옵니다.</span>}
-            {cols.map((col) => (
-              <label key={col.name} className="an-var">
-                <input
-                  type="checkbox"
-                  checked={sel.has(col.name)}
-                  onChange={(e) => {
-                    const next = cols.map((x) => x.name).filter((n) => (n === col.name ? e.target.checked : sel.has(n)));
-                    onChange(next);
-                  }}
-                />
-                <span className="ellipsis">{col.name}</span>
-                <span className="an-type">{typeLabel(col.type)}</span>
-              </label>
-            ))}
-          </div>
-          {sel.size > 0 && (
-            <button className="btn btn-small an-clear" onClick={() => onChange([])}>
-              모두 해제
-            </button>
-          )}
-        </div>
-      );
-    }
+    case "variables":
     case "variable":
-      return (
-        <label className="an-field">
-          <span>{c.label}</span>
-          <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
-            <option value="">(없음)</option>
-            {cols.map((col) => (
-              <option key={col.name} value={col.name}>
-                {col.name}
-              </option>
-            ))}
-            {value && !cols.some((x) => x.name === value) && <option value={value}>{value}</option>}
-          </select>
-          {hint}
-        </label>
-      );
+      return <RoleBox control={c} api={roleApi} options={options} hint={hint} />;
     case "list":
       return <ListField label={c.label} placeholder={c.placeholder} value={value ?? []} onChange={onChange} hint={hint} />;
     case "text":
@@ -364,12 +348,6 @@ function ListField({ label, placeholder, value, onChange, hint }: { label: strin
       {hint}
     </label>
   );
-}
-
-function typeLabel(t: string) {
-  return (
-    { numeric: "수치", integer: "정수", double: "수치", factor: "범주", ordered: "순서", character: "문자", logical: "논리", Date: "날짜", POSIXct: "시각" } as Record<string, string>
-  )[t] ?? t;
 }
 
 function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: AnalysisResult; dim: boolean }) {

@@ -383,11 +383,18 @@ export interface AnalysisModuleInfo {
 }
 
 export type AnalysisFormControl =
-  | { type: "variables"; bind: string; label: string; hint?: string }
-  | { type: "variable"; bind: string; label: string; optional?: boolean; hint?: string; visibleWhen?: AnalysisVisibleWhen }
+  | { type: "variables"; bind: string; label: string; hint?: string; types?: AnalysisVarType[]; visibleWhen?: AnalysisVisibleWhen }
+  | { type: "variable"; bind: string; label: string; optional?: boolean; hint?: string; types?: AnalysisVarType[]; visibleWhen?: AnalysisVisibleWhen }
   | { type: "list" | "text"; bind: string; label: string; placeholder?: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
   | { type: "checkbox" | "number"; bind: string; label: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
   | { type: "select"; bind: string; label: string; labels?: Record<string, string>; hint?: string; visibleWhen?: AnalysisVisibleWhen };
+
+/**
+ * Variable types a role box accepts (all when left out). numeric covers
+ * integer and double, factor covers ordered factors, date covers Date and
+ * date-times.
+ */
+export type AnalysisVarType = "numeric" | "factor" | "ordered" | "character" | "logical" | "date";
 
 export interface AnalysisVisibleWhen {
   bind: string;

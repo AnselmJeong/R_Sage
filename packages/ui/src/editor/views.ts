@@ -7,6 +7,9 @@ import { editorsByPath, openFile } from "./files";
 
 export const visualEditors = new Map<string, Editor>();
 
+/** The chunk (cell id) the user last typed in or ran in each visual view. */
+export const focusedCells = new Map<string, string>();
+
 export const useEditorModes = create<Record<string, "source" | "visual">>(() => ({}));
 
 export function isVisual(path: string) {
