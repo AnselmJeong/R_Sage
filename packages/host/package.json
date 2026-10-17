@@ -1,0 +1,12 @@
+{
+  "name": "@rsage/host",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@rsage/kernel": "workspace:*",
+    "@rsage/shared": "workspace:*"
+  }
+}
