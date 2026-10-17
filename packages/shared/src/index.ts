@@ -366,6 +366,11 @@ export interface HostMethods {
   "session.interrupt": { params: {}; result: void };
   "session.stop": { params: {}; result: void };
   "session.libPaths": { params: {}; result: string[] };
+  /** Distinct values (or factor levels) of one column of a global data frame, for the data viewer. */
+  "data.columnValues": {
+    params: { object: string; column: string; limit?: number };
+    result: { factor: boolean; ordered: boolean; numeric: boolean; total: number; values: string[] };
+  };
 
   "console.execute": {
     params: { code: string; origin?: ExecutionRecord["origin"]; source?: SourceRef };
