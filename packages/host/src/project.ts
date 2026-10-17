@@ -49,12 +49,12 @@ export class Project {
 
   private metaReady = false;
 
-  /** Settings are worth committing; per-machine state and assistant conversations (which can hold pasted images and data) are not. */
+  /** Settings and saved analyses are worth committing; per-machine state, assistant conversations (which can hold pasted images and data) and analysis run outputs are not. */
   ensureMeta() {
     if (this.metaReady) return;
     this.metaReady = true;
     const file = this.meta(".gitignore");
-    const want = ["state.json", "history.jsonl", "console-history.json", "backups/", "assistant/"];
+    const want = ["state.json", "history.jsonl", "console-history.json", "backups/", "assistant/", "analysis-runs/"];
     const have = existsSync(file) ? readFileSync(file, "utf8") : "";
     const lines = new Set(have.split("\n").map((l) => l.trim()));
     const missing = want.filter((w) => !lines.has(w));

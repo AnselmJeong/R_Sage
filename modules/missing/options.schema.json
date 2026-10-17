@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "variables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Columns to examine. Empty means every column except the group variable."
+    },
+    "group": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Optional column to split the per-variable summary by."
+    },
+    "naValues": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Values that stand for missing in the source data, e.g. \"-99\" or \"\" (empty string). Treated as missing for this analysis only."
+    },
+    "variableSummary": { "type": "boolean", "default": true, "description": "Missing count and percentage per variable." },
+    "caseSummary": { "type": "boolean", "default": true, "description": "Number of rows by how many values they miss." },
+    "patterns": { "type": "boolean", "default": true, "description": "Table of missingness patterns (which variables are missing together)." },
+    "maxPatterns": { "type": "integer", "minimum": 1, "maximum": 100, "default": 15, "description": "Most frequent patterns to show." },
+    "mcarTest": { "type": "boolean", "default": true, "description": "Little's MCAR test (needs naniar)." },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "variables": { "type": "boolean", "default": true, "description": "Bar chart of missing percentage per variable." },
+        "matrix": { "type": "boolean", "default": true, "description": "Where values are missing, row by variable." },
+        "upset": { "type": "boolean", "default": false, "description": "UpSet plot of combinations of missing variables (needs naniar and UpSetR)." }
+      },
+      "default": {}
+    },
+    "impute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false, "description": "Run multiple imputation with mice." },
+        "method": { "type": "string", "enum": ["pmm", "norm", "mean", "cart", "rf"], "default": "pmm", "description": "mice method for numeric variables (factors get mice's defaults)." },
+        "m": { "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Number of imputed data sets." },
+        "maxit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Iterations." },
+        "seed": { "type": "integer", "default": 123, "description": "Random seed, for reproducible imputations." },
+        "saveAs": { "type": "string", "default": "", "pattern": "^([A-Za-z.][A-Za-z0-9._]*)?$", "description": "If set, the mids object is saved in the R session under this name." }
+      },
+      "default": {}
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "formVersion": 1,
+  "sections": [
+    {
+      "title": "변수",
+      "controls": [
+        { "type": "variables", "bind": "variables", "label": "분석할 변수", "hint": "비워 두면 그룹 변수를 뺀 모든 변수를 봅니다." },
+        { "type": "variable", "bind": "group", "label": "그룹 변수 (선택)", "optional": true },
+        { "type": "list", "bind": "naValues", "label": "결측으로 볼 값", "placeholder": "-99, 999, 빈 문자열은 \"\"", "hint": "원자료에서 결측을 뜻하는 코드. 이 분석에서만 결측으로 봅니다." }
+      ]
+    },
+    {
+      "title": "표",
+      "controls": [
+        { "type": "checkbox", "bind": "variableSummary", "label": "변수별 결측" },
+        { "type": "checkbox", "bind": "caseSummary", "label": "행별 결측 개수" },
+        { "type": "checkbox", "bind": "patterns", "label": "결측 패턴" },
+        { "type": "number", "bind": "maxPatterns", "label": "보여 줄 패턴 수", "visibleWhen": { "bind": "patterns", "equals": true } },
+        { "type": "checkbox", "bind": "mcarTest", "label": "Little의 MCAR 검정" }
+      ]
+    },
+    {
+      "title": "그림",
+      "controls": [
+        { "type": "checkbox", "bind": "plots.variables", "label": "변수별 결측 비율" },
+        { "type": "checkbox", "bind": "plots.matrix", "label": "결측 위치 (행 × 변수)" },
+        { "type": "checkbox", "bind": "plots.upset", "label": "결측 조합 (UpSet)" }
+      ]
+    },
+    {
+      "title": "다중대체 (mice)",
+      "controls": [
+        { "type": "checkbox", "bind": "impute.enabled", "label": "다중대체 실행" },
+        { "type": "select", "bind": "impute.method", "label": "수치형 변수 방법", "labels": { "pmm": "예측평균대응 (pmm)", "norm": "베이지안 선형회귀 (norm)", "mean": "평균 (mean)", "cart": "분류·회귀나무 (cart)", "rf": "랜덤 포레스트 (rf)" }, "visibleWhen": { "bind": "impute.enabled", "equals": true } },
+        { "type": "number", "bind": "impute.m", "label": "대체 데이터 수 (m)", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
+        { "type": "number", "bind": "impute.maxit", "label": "반복 횟수", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
+        { "type": "number", "bind": "impute.seed", "label": "seed", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
+        { "type": "text", "bind": "impute.saveAs", "label": "R 세션에 저장할 이름 (선택)", "placeholder": "예: imp", "visibleWhen": { "bind": "impute.enabled", "equals": true } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,460 @@
+// An analysis tab, JASP-style: options on the left, results on the right.
+// Every change to the options is saved as a new revision and re-run; the
+// results always show the latest finished run.
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { IDockviewPanelProps } from "dockview";
+import type { AnalysisDataset, AnalysisFormControl, AnalysisResult, AnalysisTable } from "@rsage/shared";
+import { getPath, setPath } from "@rsage/shared";
+import { host } from "../host/client";
+import { useStore } from "../store";
+import { findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
+import { installPackages } from "../packages";
+
+const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
+
+/** The JSON Schema node for a dotted option path. */
+function schemaAt(schema: any, path: string): any {
+  return path.split(".").reduce((s, k) => s?.properties?.[k], schema);
+}
+
+export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
+  const id = props.params.id;
+  const inst = useAnalyses((s) => s.instances[id]);
+  const datasets = useAnalyses((s) => s.datasets);
+  const found = inst ? findDef(inst.analysis) : undefined;
+  const runtime = useAnalyses((s) => (found ? s.runtime[found.mod.id] : undefined));
+  const sessionState = useStore((s) => s.session.state);
+  const [draft, setDraft] = useState<{ dataset: string; options: any } | null>(null);
+  const [showCode, setShowCode] = useState<string | null>(null);
+  const sent = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const run = async () => {
+    try {
+      await host.call("analysis.run", { id });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+
+  // Take the saved options unless the user is editing (or a newer revision came from elsewhere, e.g. the assistant).
+  useEffect(() => {
+    if (inst && (!draft || inst.revision > sent.current)) {
+      sent.current = inst.revision;
+      setDraft({ dataset: inst.dataset, options: inst.options });
+    }
+  }, [inst?.revision]);
+
+  useEffect(() => {
+    if (found && runtime === undefined) void prepareModule(found.mod.id);
+  }, [found?.mod.id, runtime]);
+
+  useEffect(() => {
+    void refreshDatasets();
+  }, [sessionState === "stopped"]);
+
+  // The first run: an analysis opened with a data set and no result yet.
+  useEffect(() => {
+    if (inst && inst.dataset && !inst.lastRun && runtime && runtime !== "checking" && runtime.ready) void run();
+  }, [inst?.id, runtime]);
+
+  if (!inst || !found || !draft) return <div className="analysis-empty muted">분석을 불러오는 중…</div>;
+  const { def, mod } = found;
+
+  const commit = (next: { dataset: string; options: any }) => {
+    setDraft(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      try {
+        const saved = await host.call("analysis.update", { id, dataset: next.dataset, options: next.options });
+        sent.current = saved.revision;
+        if (saved.dataset) await host.call("analysis.run", { id });
+      } catch (e) {
+        notifyError(e);
+      }
+    }, 450);
+  };
+
+  const ds = datasets.find((d) => d.name === draft.dataset);
+  const running = inst.lastRun?.status === "running";
+  const stale = inst.result && inst.resultRevision !== inst.revision;
+  const rt = runtime === "checking" ? undefined : runtime;
+
+  return (
+    <div className="analysis">
+      <div className="analysis-options">
+        <div className="analysis-head">
+          <strong className="ellipsis" title={def.title}>
+            {def.title}
+          </strong>
+          <span className="muted small">{mod.title} {mod.version}</span>
+        </div>
+        <label className="an-field">
+          <span>데이터</span>
+          <select
+            value={draft.dataset}
+            onMouseDown={() => void refreshDatasets()}
+            onChange={(e) => commit({ ...draft, dataset: e.target.value })}
+          >
+            <option value="">데이터 프레임 선택…</option>
+            {datasets.map((d) => (
+              <option key={d.name} value={d.name}>
+                {d.name} ({d.rows}×{d.columns.length})
+              </option>
+            ))}
+            {draft.dataset && !ds && <option value={draft.dataset}>{draft.dataset} (세션에 없음)</option>}
+          </select>
+        </label>
+        {!datasets.length && <p className="muted small">R 세션에 데이터 프레임이 없습니다. 데이터를 먼저 불러오세요 (예: <code>df &lt;- read.csv(...)</code>).</p>}
+        {def.form.sections.map((sec) => (
+          <details key={sec.title} className="an-section" open>
+            <summary>{sec.title}</summary>
+            {sec.controls.map((c) => (
+              <Control
+                key={c.bind}
+                control={c}
+                schema={def.schema}
+                options={draft.options}
+                dataset={ds}
+                onChange={(v) => commit({ ...draft, options: setPath(draft.options, c.bind, v) })}
+              />
+            ))}
+          </details>
+        ))}
+      </div>
+      <div className="analysis-results">
+        <div className="analysis-toolbar">
+          <span className={`an-status an-${inst.lastRun?.status ?? "none"}`}>
+            {running ? "실행 중…" : inst.lastRun?.status === "error" ? "실패" : inst.lastRun?.status === "cancelled" ? "취소됨" : stale ? "이전 옵션의 결과" : ""}
+          </span>
+          <span className="spacer" />
+          {running ? (
+            <button className="btn btn-small" onClick={() => void host.call("analysis.cancel", { id })}>
+              중단
+            </button>
+          ) : (
+            <button className="btn btn-small btn-primary" disabled={!draft.dataset || !rt?.ready} onClick={() => void run()}>
+              실행
+            </button>
+          )}
+          <button
+            className="btn btn-small"
+            onClick={async () => setShowCode(showCode === null ? await host.call("analysis.code", { id }).catch((e) => (notifyError(e), null)) : null)}
+          >
+            R 코드
+          </button>
+        </div>
+        {showCode !== null && (
+          <div className="an-code">
+            <pre>{showCode}</pre>
+            <div className="an-code-actions">
+              <button className="btn btn-small" onClick={() => void navigator.clipboard.writeText(showCode).then(() => useStore.getState().notify("복사했습니다."))}>
+                복사
+              </button>
+              <button className="btn btn-small" onClick={() => insertIntoDocument(showCode, `${def.id}-${inst.id.slice(2)}`)}>
+                문서에 넣기
+              </button>
+              <span className="muted small">Quarto에서는 같은 표와 그림이 출력됩니다.</span>
+            </div>
+          </div>
+        )}
+        <RuntimeBanner moduleId={mod.id} />
+        {inst.lastRun?.status === "error" && <div className="an-note an-warning">{inst.lastRun.error?.message}</div>}
+        {!draft.dataset && <p className="muted an-hint">왼쪽에서 분석할 데이터 프레임을 고르세요.</p>}
+        {inst.result && <ResultView result={inst.result} dim={running || !!stale} />}
+      </div>
+    </div>
+  );
+}
+
+function RuntimeBanner({ moduleId }: { moduleId: string }) {
+  const rt = useAnalyses((s) => s.runtime[moduleId]);
+  const mod = useAnalyses((s) => s.modules.find((m) => m.id === moduleId));
+  const [busy, setBusy] = useState(false);
+  if (rt === "checking") return <div className="an-note muted">R 패키지 확인 중… (처음에는 분석 패키지를 설치합니다)</div>;
+  if (!rt || !mod) return null;
+  const install = async (pkgs: string[]) => {
+    setBusy(true);
+    try {
+      await installPackages(pkgs);
+      await prepareModule(moduleId);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (rt.error) return <div className="an-note an-warning">{rt.error}</div>;
+  if (rt.missing.length)
+    return (
+      <div className="an-note an-warning">
+        이 분석에 필요한 R 패키지가 없습니다: <strong>{rt.missing.join(", ")}</strong>{" "}
+        <button className="btn btn-small" disabled={busy} onClick={() => void install(rt.missing)}>
+          콘솔에서 설치
+        </button>
+      </div>
+    );
+  if (rt.missingOptional.length) {
+    const roles = mod.backends.filter((b) => rt.missingOptional.includes(b.package));
+    return (
+      <div className="an-note">
+        설치하면 더 쓸 수 있는 패키지: {roles.map((b) => `${b.package} (${b.role})`).join(", ")}{" "}
+        <button className="btn btn-small" disabled={busy} onClick={() => void install(rt.missingOptional)}>
+          설치
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function Control({
+  control: c,
+  schema,
+  options,
+  dataset,
+  onChange,
+}: {
+  control: AnalysisFormControl;
+  schema: any;
+  options: any;
+  dataset?: AnalysisDataset;
+  onChange: (v: unknown) => void;
+}) {
+  const value = getPath(options, c.bind);
+  const s = schemaAt(schema, c.bind) ?? {};
+  if ("visibleWhen" in c && c.visibleWhen && getPath(options, c.visibleWhen.bind) !== c.visibleWhen.equals) return null;
+  const hint = c.hint ? <span className="muted small an-hint-line">{c.hint}</span> : null;
+  const cols = dataset?.columns ?? [];
+  switch (c.type) {
+    case "variables": {
+      const sel = new Set<string>(value ?? []);
+      return (
+        <div className="an-field">
+          <span>{c.label}</span>
+          {hint}
+          <div className="an-varlist">
+            {!cols.length && <span className="muted small">데이터를 고르면 변수가 나옵니다.</span>}
+            {cols.map((col) => (
+              <label key={col.name} className="an-var">
+                <input
+                  type="checkbox"
+                  checked={sel.has(col.name)}
+                  onChange={(e) => {
+                    const next = cols.map((x) => x.name).filter((n) => (n === col.name ? e.target.checked : sel.has(n)));
+                    onChange(next);
+                  }}
+                />
+                <span className="ellipsis">{col.name}</span>
+                <span className="an-type">{typeLabel(col.type)}</span>
+              </label>
+            ))}
+          </div>
+          {sel.size > 0 && (
+            <button className="btn btn-small an-clear" onClick={() => onChange([])}>
+              모두 해제
+            </button>
+          )}
+        </div>
+      );
+    }
+    case "variable":
+      return (
+        <label className="an-field">
+          <span>{c.label}</span>
+          <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+            <option value="">(없음)</option>
+            {cols.map((col) => (
+              <option key={col.name} value={col.name}>
+                {col.name}
+              </option>
+            ))}
+            {value && !cols.some((x) => x.name === value) && <option value={value}>{value}</option>}
+          </select>
+          {hint}
+        </label>
+      );
+    case "list":
+      return <ListField label={c.label} placeholder={c.placeholder} value={value ?? []} onChange={onChange} hint={hint} />;
+    case "text":
+      return (
+        <label className="an-field">
+          <span>{c.label}</span>
+          <TextInput value={value ?? ""} placeholder={c.placeholder} onCommit={(v) => onChange(v)} pattern={s.pattern} />
+          {hint}
+        </label>
+      );
+    case "checkbox":
+      return (
+        <label className="an-check">
+          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+          <span>{c.label}</span>
+          {hint}
+        </label>
+      );
+    case "number":
+      return (
+        <label className="an-field an-inline">
+          <span>{c.label}</span>
+          <input
+            type="number"
+            value={value ?? ""}
+            min={s.minimum}
+            max={s.maximum}
+            step={s.type === "integer" ? 1 : "any"}
+            onChange={(e) => {
+              const n = s.type === "integer" ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+              if (Number.isFinite(n) && (s.minimum === undefined || n >= s.minimum) && (s.maximum === undefined || n <= s.maximum)) onChange(n);
+            }}
+          />
+        </label>
+      );
+    case "select":
+      return (
+        <label className="an-field">
+          <span>{c.label}</span>
+          <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+            {(s.enum ?? []).map((v: string) => (
+              <option key={v} value={v}>
+                {c.labels?.[v] ?? v}
+              </option>
+            ))}
+          </select>
+          {hint}
+        </label>
+      );
+  }
+}
+
+/** Text that is saved when the user stops typing (on blur or Enter), not on every key. */
+function TextInput({ value, placeholder, onCommit, pattern }: { value: string; placeholder?: string; onCommit: (v: string) => void; pattern?: string }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const ok = !pattern || new RegExp(pattern).test(v);
+  const done = () => ok && v !== value && onCommit(v);
+  return (
+    <input
+      className={ok ? "" : "invalid"}
+      value={v}
+      placeholder={placeholder}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={done}
+      onKeyDown={(e) => e.key === "Enter" && done()}
+    />
+  );
+}
+
+/** Comma-separated values; "" stands for the empty string. */
+function ListField({ label, placeholder, value, onChange, hint }: { label: string; placeholder?: string; value: string[]; onChange: (v: string[]) => void; hint: JSX.Element | null }) {
+  const text = value.map((x) => (x === "" ? '""' : x)).join(", ");
+  return (
+    <label className="an-field">
+      <span>{label}</span>
+      <TextInput
+        value={text}
+        placeholder={placeholder}
+        onCommit={(t) =>
+          onChange(
+            t
+              .split(",")
+              .map((x) => x.trim())
+              .filter((x) => x.length)
+              .map((x) => (x === '""' || x === "''" ? "" : x)),
+          )
+        }
+      />
+      {hint}
+    </label>
+  );
+}
+
+function typeLabel(t: string) {
+  return (
+    { numeric: "수치", integer: "정수", double: "수치", factor: "범주", ordered: "순서", character: "문자", logical: "논리", Date: "날짜", POSIXct: "시각" } as Record<string, string>
+  )[t] ?? t;
+}
+
+function ResultView({ result, dim }: { result: AnalysisResult; dim: boolean }) {
+  return (
+    <div className={`an-result ${dim ? "dim" : ""}`}>
+      {result.notes
+        .filter((n) => n.level === "warning")
+        .map((n, i) => (
+          <div key={i} className="an-note an-warning">
+            {n.text}
+          </div>
+        ))}
+      {result.tables.map((t) => (
+        <ResultTable key={t.id} table={t} />
+      ))}
+      {result.plots.map((p) => (
+        <figure key={p.id} className="an-plot">
+          <figcaption>{p.title}</figcaption>
+          <img src={p.src} alt={p.alt} style={{ aspectRatio: `${p.width} / ${p.height}` }} />
+        </figure>
+      ))}
+      {result.notes
+        .filter((n) => n.level !== "warning")
+        .map((n, i) => (
+          <div key={i} className="an-note muted">
+            {n.text}
+          </div>
+        ))}
+      <div className="muted small an-prov">
+        {result.dataInfo.dataset} · {result.dataInfo.rows}행 × {result.dataInfo.columns}열 · {result.provenance.r}
+        {result.provenance.packages &&
+          " · " +
+            Object.entries(result.provenance.packages)
+              .map(([k, v]) => `${k} ${v}`)
+              .join(", ")}
+      </div>
+    </div>
+  );
+}
+
+function fmt(v: unknown, type: string): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") {
+    if (type === "integer" || Number.isInteger(v)) return String(v);
+    if (Math.abs(v) < 0.001 && v !== 0) return v.toExponential(2);
+    return v.toFixed(Math.abs(v) >= 100 ? 1 : 3);
+  }
+  if (typeof v === "boolean") return v ? "예" : "아니오";
+  return String(v);
+}
+
+function ResultTable({ table }: { table: AnalysisTable }) {
+  const numeric = useMemo(() => new Set(table.columns.filter((c) => c.type === "number" || c.type === "integer").map((c) => c.id)), [table]);
+  return (
+    <section className="an-table">
+      <h3>{table.title}</h3>
+      <div className="an-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              {table.columns.map((c) => (
+                <th key={c.id} className={numeric.has(c.id) ? "num" : ""}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((r, i) => (
+              <tr key={i}>
+                {table.columns.map((c) => (
+                  <td key={c.id} className={numeric.has(c.id) ? "num" : ""}>
+                    {fmt(r[c.id], c.type)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {table.notes.map((n, i) => (
+        <p key={i} className="muted small an-table-note">
+          {n}
+        </p>
+      ))}
+    </section>
+  );
+}

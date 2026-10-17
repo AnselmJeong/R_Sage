@@ -11,6 +11,8 @@ import { collectExecution, renderPlot } from "../execute";
 import type { Project } from "../project";
 import { listFiles, searchText } from "../search";
 import type { ToolResult, ToolSpec } from "./types";
+import type { AnalysisService } from "../analysis/service";
+import { ANALYSIS_TOOL_NAMES, ANALYSIS_TOOL_SPECS, runAnalysisTool } from "./analysis-tools";
 
 const MAX_OUTPUT = 20000;
 const MAX_READ = 120000;
@@ -107,6 +109,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       required: ["path", "old_string", "new_string"],
     },
   },
+  ...ANALYSIS_TOOL_SPECS,
 ];
 
 export interface ToolEnv {
@@ -124,6 +127,9 @@ export interface ToolEnv {
   /** Update the tool item shown to the user. */
   update(patch: Partial<Extract<AssistantItem, { kind: "tool" }>>): void;
   signal: AbortSignal;
+  analyses?: AnalysisService;
+  /** Show an analysis tab in the UI. */
+  openAnalysis?(id: string): void;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -135,6 +141,7 @@ export async function runTool(
   env: ToolEnv,
 ): Promise<Omit<ToolResult, "callId" | "name">> {
   if (input?.__invalid_json !== undefined) return { output: "Tool input was not valid JSON.", isError: true };
+  if (ANALYSIS_TOOL_NAMES.has(name)) return runAnalysisTool(name, input, item, env);
   const project = env.project;
   const need = (field: string) => {
     const v = str(input?.[field]);

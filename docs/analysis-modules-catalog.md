@@ -2,7 +2,7 @@
 
 _2026-10-17 · [analysis-modules-strategy.md](analysis-modules-strategy.md)의 모듈 구조를 따르는 모듈 목록_
 
-R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 맡길 R 패키지(백엔드)를 하나 이상 고른다. 백엔드는 모듈을 설계할 때 아래 기준으로 확정하고, 그 전까지는 이 문서의 후보를 출발점으로 쓴다. 지금 확정된 것은 Descriptives뿐이다.
+R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 맡길 R 패키지(백엔드)를 하나 이상 고른다. 백엔드는 모듈을 설계할 때 아래 기준으로 확정하고, 그 전까지는 이 문서의 후보를 출발점으로 쓴다. 지금 확정된 것은 Descriptives와 결측 데이터다. 결측 데이터 모듈은 시범 구현되어 있다(`modules/missing`, `r-packages/rsageMissing`).
 
 ## 원칙: GUI는 통계 개념, 패키지는 백엔드
 
@@ -46,7 +46,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | 3 | `org.rsage.regression` | 상관, 선형·로지스틱 회귀 | stats, car(VIF) | 후보 |
 | 4 | `org.rsage.anova` | 일원·이원·반복측정 분산분석, Kruskal–Wallis, Friedman, 사후검정 | stats, afex, emmeans, car | 후보 |
 | 5 | `org.rsage.frequencies` | 교차표, 카이제곱, Fisher 정확검정 | stats | 후보 |
-| 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체) | 후보 |
+| 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체), UpSetR(조합 그림) | 확정 (시범 구현) |
 | 7 | `org.rsage.reliability` | Cronbach's α, McDonald's ω, 문항 분석 | psych | 후보 |
 | 8 | `org.rsage.factor` | EFA, PCA, CFA | psych, GPArotation, lavaan(CFA) | 후보 |
 | 9 | `org.rsage.mixed` | 선형 혼합모형, 일반화 혼합모형 | lme4, lmerTest, emmeans | 후보 |

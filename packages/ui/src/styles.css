@@ -3342,3 +3342,234 @@ label.check {
   flex: 1;
   min-height: 0;
 }
+
+/* ---------- analysis tabs ---------- */
+.analysis {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+.analysis-empty {
+  padding: 16px;
+}
+.analysis-options {
+  width: 300px;
+  flex: none;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 10px 12px 24px;
+}
+.analysis-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.an-section {
+  border-top: 1px solid var(--border);
+  padding: 6px 0 4px;
+}
+.an-section > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+  color: var(--fg);
+}
+.an-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 8px;
+}
+.an-field > span:first-child {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.an-field select,
+.an-field input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.an-field input.invalid {
+  border-color: var(--err);
+}
+.an-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.an-inline input {
+  width: 80px;
+}
+.an-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+  cursor: pointer;
+}
+.an-hint-line {
+  display: block;
+}
+.an-varlist {
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+}
+.an-var {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.an-var:hover {
+  background: var(--bg-hover);
+}
+.an-var .ellipsis {
+  flex: 1;
+  min-width: 0;
+}
+.an-type {
+  font-size: 10px;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.analysis-results {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 0 18px 32px;
+}
+.analysis-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.an-status {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.an-status.an-running {
+  color: var(--accent);
+}
+.an-status.an-error {
+  color: var(--err);
+}
+.an-code {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.an-code pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+}
+.an-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.an-note {
+  padding: 6px 10px;
+  margin: 6px 0;
+  border-left: 3px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 0 4px 4px 0;
+}
+.an-note.an-warning {
+  border-left-color: var(--warn);
+}
+.an-hint {
+  margin: 24px 0;
+}
+.an-result.dim {
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.an-table {
+  margin: 14px 0 18px;
+}
+.an-table h3,
+.an-plot figcaption {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.an-table-scroll {
+  overflow-x: auto;
+}
+.an-table table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  min-width: 240px;
+}
+.an-table th,
+.an-table td {
+  padding: 3px 12px 3px 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.an-table th {
+  border-top: 1px solid var(--fg-muted);
+  border-bottom: 1px solid var(--fg-muted);
+  font-weight: 600;
+}
+.an-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--fg-muted);
+}
+.an-table .num {
+  text-align: right;
+}
+.an-table-note {
+  margin: 4px 0 0;
+}
+.an-plot {
+  margin: 14px 0 18px;
+}
+.an-plot img {
+  display: block;
+  max-width: min(100%, 760px);
+  width: 100%;
+  height: auto;
+  background: #fff;
+  border-radius: 3px;
+}
+.an-prov {
+  margin-top: 18px;
+}
+.an-clear { align-self: flex-start; }
+.an-varlist .an-var input,
+.an-check input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.an-var .an-type {
+  flex: none;
+}

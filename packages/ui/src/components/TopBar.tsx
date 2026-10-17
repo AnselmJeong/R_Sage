@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { runCommand } from "../commands";
 import { activeEditor, saveFile } from "../editor/files";
 import { newDocument, newProjectDialog, openFileDialog, openFolderDialog, openProject } from "../project";
+import { newAnalysis, openAnalysisTab, useAnalyses } from "../analysis";
 
 type Item = { label: string; hint?: string; run: () => void } | "-" | { heading: string };
 
@@ -71,6 +72,11 @@ const Icon = {
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
   ),
+  chart: (
+    <svg viewBox="0 0 24 24" className="tb-icon">
+      <path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3" />
+    </svg>
+  ),
   save: (
     <svg viewBox="0 0 24 24" className="tb-icon">
       <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
@@ -83,6 +89,8 @@ export function TopBar() {
   const project = useStore((s) => s.project);
   const recent = useStore((s) => s.recent);
   const dirty = useStore((s) => (s.activeFile ? !!s.openFiles[s.activeFile]?.dirty : false));
+  const modules = useAnalyses((s) => s.modules);
+  const instances = useAnalyses((s) => s.instances);
 
   return (
     <div className="titlebar">
@@ -108,6 +116,17 @@ export function TopBar() {
             .slice(0, 8)
             .map((r) => ({ label: r.name, hint: r.path.replace(/^\/Users\/[^/]+/, "~"), run: () => void openProject(r.path) })),
         ]}
+      />
+      <Menu
+        label="분석"
+        icon={Icon.chart}
+        items={() => {
+          const saved = Object.values(instances).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+          const items: Item[] = modules.flatMap((m) => m.analyses.map((a) => ({ label: a.menu.join(" › "), run: () => void newAnalysis(a.key) })));
+          if (!items.length) items.push({ heading: "설치된 분석 모듈이 없습니다" });
+          if (saved.length) items.push("-", { heading: "이 프로젝트의 분석" }, ...saved.slice(0, 10).map((i) => ({ label: i.title, hint: i.dataset, run: () => openAnalysisTab(i.id) })));
+          return items;
+        }}
       />
       <button
         className="tb-btn tb-icon-only"

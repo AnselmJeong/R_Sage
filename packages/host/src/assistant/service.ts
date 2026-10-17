@@ -29,6 +29,7 @@ import { McpBridge } from "./mcp";
 import { OpenAIProvider } from "./openai";
 import { getKey, setKey } from "./secrets";
 import { runTool, TOOL_SPECS } from "./tools";
+import type { AnalysisService } from "../analysis/service";
 import type { AgentProvider, Provider, ToolResult, Turn } from "./types";
 
 const MAX_STEPS = 40;
@@ -57,6 +58,8 @@ export interface AssistantDeps {
   rInfo: () => { version?: string };
   /** Opens a web page in the user's browser (sign-in pages). */
   openUrl: (url: string) => Promise<void>;
+  analyses?: AnalysisService;
+  openAnalysis?: (id: string) => void;
 }
 
 export class AssistantService {
@@ -316,6 +319,8 @@ export class AssistantService {
           autoRunR: () => !!this.options.autoRunR,
           autoApply: (path) => this.autoApply(path),
           readConversation: (cid) => this.fullTranscript(cid),
+          analyses: this.deps.analyses,
+          openAnalysis: this.deps.openAnalysis,
           signal: run.abort.signal,
           update,
           approve: (it) =>
@@ -577,6 +582,7 @@ export class AssistantService {
       "How to work:",
       "- Look before you act: list or read files and check data (e.g. str(), summary(), head()) before analysing.",
       "- Run code with run_r to verify it before putting it in a file, and report actual results; never invent numbers.",
+      "- For a standard statistical analysis, check list_analyses first. When one fits, use describe_analysis and run_analysis instead of writing the R code yourself: the result opens in an analysis tab where the user can adjust options. Use run_r for what the analyses do not cover.",
       "- Prefer tidyverse-style, readable R; load packages explicitly; if a package is missing, say so and suggest install.packages() rather than installing it yourself.",
       "- When writing a report, edit the .qmd: keep YAML header and chunk fences intact, put analysis in ```{r} chunks with labels, and explain results in prose.",
       "- Use edit_file for focused changes and write_file for new files. The user approves every file change.",

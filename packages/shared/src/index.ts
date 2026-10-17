@@ -350,6 +350,129 @@ export interface Conversation extends ConversationSummary {
   items: AssistantItem[];
 }
 
+// ---------- analysis modules ----------
+
+/** One analysis a module offers (e.g. org.rsage.missing/missing). */
+export interface AnalysisDef {
+  /** "<moduleId>/<analysisId>" */
+  key: string;
+  moduleId: string;
+  id: string;
+  title: string;
+  menu: string[];
+  /** JSON Schema of the options (a small subset: object, array, string, integer, number, boolean, enum, null). */
+  schema: any;
+  /** Form layout (form.json). */
+  form: AnalysisForm;
+  summary: string;
+  /** ai.md: how the assistant should use it. */
+  guide: string;
+  requiresDataset: boolean;
+}
+
+export interface AnalysisModuleInfo {
+  id: string;
+  version: string;
+  title: string;
+  description: string;
+  rPackage: string;
+  /** Packages the module's R code cannot load without. */
+  requires: string[];
+  backends: { package: string; role: string; required: boolean }[];
+  analyses: AnalysisDef[];
+}
+
+export type AnalysisFormControl =
+  | { type: "variables"; bind: string; label: string; hint?: string }
+  | { type: "variable"; bind: string; label: string; optional?: boolean; hint?: string; visibleWhen?: AnalysisVisibleWhen }
+  | { type: "list" | "text"; bind: string; label: string; placeholder?: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
+  | { type: "checkbox" | "number"; bind: string; label: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
+  | { type: "select"; bind: string; label: string; labels?: Record<string, string>; hint?: string; visibleWhen?: AnalysisVisibleWhen };
+
+export interface AnalysisVisibleWhen {
+  bind: string;
+  equals: unknown;
+}
+
+export interface AnalysisForm {
+  formVersion: number;
+  sections: { title: string; controls: AnalysisFormControl[] }[];
+}
+
+/** Whether the module's R packages and their dependencies are ready in the current R. */
+export interface AnalysisRuntimeStatus {
+  ready: boolean;
+  /** R library the app installs its own packages into. */
+  libPath?: string;
+  /** Needed and not installed: the analysis cannot run. */
+  missing: string[];
+  /** Backends that are not installed: parts of the analysis fall back or are skipped. */
+  missingOptional: string[];
+  error?: string;
+}
+
+/** A data frame in the R session's global environment. */
+export interface AnalysisDataset {
+  name: string;
+  rows: number;
+  columns: { name: string; type: string }[];
+}
+
+export interface AnalysisTableColumn {
+  id: string;
+  label: string;
+  type: "number" | "integer" | "string" | "logical";
+}
+
+export interface AnalysisTable {
+  id: string;
+  title: string;
+  columns: AnalysisTableColumn[];
+  rows: Record<string, unknown>[];
+  notes: string[];
+}
+
+export interface AnalysisResult {
+  runId: string;
+  title: string;
+  tables: AnalysisTable[];
+  /** Plots with the image inlined as a data: URL. */
+  plots: { id: string; title: string; alt: string; width: number; height: number; src: string }[];
+  notes: { level: "info" | "warning"; code?: string; text: string }[];
+  dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
+  exports: string[];
+  provenance: { r?: string; packages?: Record<string, string>; created?: string };
+}
+
+export interface AnalysisRun {
+  runId: string;
+  revision: number;
+  status: "queued" | "running" | "ok" | "error" | "cancelled";
+  startedAt: string;
+  finishedAt?: string;
+  error?: { code: string; message: string };
+}
+
+/** A saved analysis instance: <project>/.rsage/analyses/<id>.json */
+export interface AnalysisInstance {
+  id: string;
+  /** AnalysisDef.key */
+  analysis: string;
+  title: string;
+  dataset: string;
+  options: any;
+  /** Bumped on every options/dataset change. */
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  lastRun?: AnalysisRun;
+  /** The latest successful result (runs of older revisions included). */
+  result?: AnalysisResult;
+  /** Revision the result was computed for. */
+  resultRevision?: number;
+  createdBy?: "user" | "assistant";
+}
+
 // ---------- methods ----------
 
 export interface HostMethods {
@@ -506,6 +629,23 @@ export interface HostMethods {
   "git.ignore": { params: { pattern: string }; result: void };
   "packages.searchCran": { params: { query: string; limit?: number }; result: CranPackage[] };
   "shell.openExternal": { params: { path: string }; result: void };
+
+  /** Installed analysis modules and their analyses. */
+  "analysis.modules": { params: {}; result: AnalysisModuleInfo[] };
+  /** Checks (and when possible installs) the module's R packages in the current R. */
+  "analysis.prepare": { params: { moduleId: string }; result: AnalysisRuntimeStatus };
+  /** Data frames in the session's global environment. */
+  "analysis.datasets": { params: {}; result: AnalysisDataset[] };
+  "analysis.list": { params: {}; result: AnalysisInstance[] };
+  "analysis.get": { params: { id: string }; result: AnalysisInstance | null };
+  "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string }; result: AnalysisInstance };
+  "analysis.update": { params: { id: string; dataset?: string; options?: any; title?: string }; result: AnalysisInstance };
+  /** Runs the latest revision; resolves when the run ends (the instance carries the outcome). */
+  "analysis.run": { params: { id: string }; result: AnalysisInstance };
+  "analysis.cancel": { params: { id: string }; result: void };
+  "analysis.delete": { params: { id: string }; result: void };
+  /** R code that reproduces the analysis (for a Quarto chunk or the console). */
+  "analysis.code": { params: { id: string }; result: string };
 }
 
 export type MethodName = keyof HostMethods;
@@ -536,6 +676,11 @@ export interface HostEvents {
   /** Streaming text for an assistant item. */
   "assistant.delta": { conversationId: string; itemId: string; text?: string; thinking?: string };
   "assistant.state": { conversationId: string; running: boolean };
+  /** An analysis instance changed (options, run state or result). */
+  "analysis.changed": AnalysisInstance;
+  "analysis.deleted": { id: string };
+  /** Ask the UI to show an analysis tab (e.g. one the assistant just ran). */
+  "analysis.open": { id: string };
   /** Native menu → UI command registry (desktop shell). */
   "ui.command": { id: string };
 }
@@ -548,3 +693,5 @@ export type WireMessage =
   | { t: "req"; id: number; method: string; params: unknown }
   | { t: "res"; id: number; result?: unknown; error?: string }
   | { t: "evt"; type: string; payload: unknown };
+
+export * from "./schema";

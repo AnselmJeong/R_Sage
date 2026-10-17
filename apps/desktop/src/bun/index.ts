@@ -11,6 +11,8 @@ import type { WireMessage } from "@rsage/shared";
 
 // Bundled Ark lives in the app's Resources; findArk() checks this first.
 process.env.RSAGE_ARK_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "ark", "ark");
+process.env.RSAGE_MODULES_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "modules");
+process.env.RSAGE_RPKG_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "r-packages");
 
 type BridgeRPC = {
   bun: RPCSchema<{ requests: {}; messages: { wire: WireMessage } }>;

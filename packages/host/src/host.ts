@@ -38,6 +38,7 @@ import { collectExecution } from "./execute";
 import { renderParams, savePlot } from "./plots";
 import { PreviewServer, QuartoService } from "./quarto";
 import { columnValuesCode, parseColumnValues } from "./dataviewer";
+import { AnalysisService } from "./analysis/service";
 
 export const APP_VERSION = "0.1.0";
 
@@ -59,6 +60,7 @@ export class Host {
   readonly lsp = new LspBridge(this.session);
   readonly comms = new CommManager(this.session);
   readonly assistant: AssistantService;
+  readonly analyses: AnalysisService;
   private frontendWaiters = new Map<string, (result: unknown, error?: string) => void>();
   /** R's working directory as the UI comm last reported it. */
   private rCwd?: string;
@@ -96,15 +98,26 @@ export class Host {
         } catch {}
       }
     });
+    const ensureSession = async () => {
+      const st = this.session.state.state;
+      if (st === "stopped" || st === "exited") await this.startSession();
+    };
+    this.analyses = new AnalysisService({
+      project: () => this.project,
+      session: this.session,
+      ensureSession,
+      rHome: () => this.currentRHome(),
+      emit: (inst) => this.emit("analysis.changed", inst),
+      emitDeleted: (id) => this.emit("analysis.deleted", { id }),
+    });
     this.assistant = new AssistantService({
       config: this.config,
       project: () => this.project,
       session: this.session,
       comms: this.comms,
-      ensureSession: async () => {
-        const st = this.session.state.state;
-        if (st === "stopped" || st === "exited") await this.startSession();
-      },
+      analyses: this.analyses,
+      openAnalysis: (id) => this.emit("analysis.open", { id }),
+      ensureSession,
       emitItem: (conversationId, item) => this.emit("assistant.item", { conversationId, item }),
       emitDelta: (conversationId, itemId, d) => this.emit("assistant.delta", { conversationId, itemId, ...d }),
       emitState: (conversationId, running) => this.emit("assistant.state", { conversationId, running }),
@@ -157,6 +170,7 @@ export class Host {
     clearInterval(this.memTimer);
     this.terminals.killAll();
     this.assistant.dispose();
+    this.analyses.dispose();
     this.quarto.dispose();
     this.preview.dispose();
     this.lsp.stop();
@@ -522,6 +536,19 @@ export class Host {
       "packages.outdated": async () => outdatedPackages(await this.currentRHome(), this.project?.root),
       "packages.searchCran": async ({ query, limit }) => searchCran(await this.currentRHome(), query, limit),
       "shell.openExternal": ({ path }) => this.openExternal(path),
+
+      "analysis.modules": () =>
+        this.analyses.loadedModules().map(({ dir: _d, entrypoints: _e, rSource: _r, ...m }) => m),
+      "analysis.prepare": ({ moduleId }) => this.analyses.prepare(moduleId, true),
+      "analysis.datasets": () => this.analyses.datasets(),
+      "analysis.list": () => this.analyses.list(),
+      "analysis.get": ({ id }) => this.analyses.get(id),
+      "analysis.create": (p) => this.analyses.create(p),
+      "analysis.update": (p) => this.analyses.update(p),
+      "analysis.run": ({ id }) => this.analyses.run(id),
+      "analysis.cancel": ({ id }) => this.analyses.cancel(id),
+      "analysis.delete": ({ id }) => this.analyses.delete(id),
+      "analysis.code": ({ id }) => this.analyses.code(id),
     };
     return h;
   }

@@ -364,6 +364,69 @@ export class KernelSession extends EventEmitter {
     });
   }
 
+  /**
+   * Run app code as one private request (no echo, no history, no execution
+   * record) with no time limit. Aborting interrupts R only once this request
+   * is the one R is running, so queued user code is never interrupted; a
+   * request aborted while still queued runs later and its outcome is ignored.
+   */
+  runPrivate(code: string, signal?: AbortSignal): Promise<{ status: "ok" | "error" | "aborted"; error?: string; stdout: string }> {
+    if (!this.client) return Promise.reject(new Error("R session is not running"));
+    const client = this.client;
+    const generation = this.info.generation;
+    const header = client.send("shell", "execute_request", {
+      code,
+      silent: false,
+      store_history: false,
+      user_expressions: {},
+      allow_stdin: false,
+      stop_on_error: true,
+    });
+    this.privateIds.add(header.msg_id);
+    return new Promise((resolve) => {
+      let out = "";
+      let reply: any;
+      let idle = false;
+      let busy = false;
+      let aborted = false;
+      const finish = (r: { status: "ok" | "error" | "aborted"; error?: string }) => {
+        client.off("message", onMsg);
+        this.off("state", onState);
+        signal?.removeEventListener("abort", onAbort);
+        setTimeout(() => this.privateIds.delete(header.msg_id), 5000);
+        resolve({ ...r, stdout: out });
+      };
+      const onAbort = () => {
+        aborted = true;
+        if (busy && !idle) client.send("control", "interrupt_request", {});
+        else finish({ status: "aborted" });
+      };
+      const onState = (st: SessionInfo) => {
+        if (st.generation !== generation || st.state === "exited" || st.state === "stopped") finish({ status: "error", error: "R 세션이 종료되었습니다." });
+      };
+      const onMsg = (m: JupyterMessage) => {
+        if (m.parent_header?.msg_id !== header.msg_id) return;
+        const t = m.header.msg_type;
+        if (t === "stream" && m.content.name === "stdout") out += m.content.text;
+        if (t === "execute_reply") reply = m.content;
+        if (t === "status" && m.content.execution_state === "busy") {
+          busy = true;
+          if (aborted) client.send("control", "interrupt_request", {});
+        }
+        if (t === "status" && m.content.execution_state === "idle") idle = true;
+        if (reply && idle) {
+          if (aborted) finish({ status: "aborted" });
+          else if (reply.status === "ok") finish({ status: "ok" });
+          else finish({ status: "error", error: reply.evalue ?? "evaluation failed" });
+        }
+      };
+      client.on("message", onMsg);
+      this.on("state", onState);
+      signal?.addEventListener("abort", onAbort);
+      if (signal?.aborted) onAbort();
+    });
+  }
+
   inputReply(value: string) {
     this.client?.send("stdin", "input_reply", { value });
   }
