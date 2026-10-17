@@ -1,6 +1,6 @@
 Package: rsageMissing
 Title: Missing Data Analysis Module for R Sage
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
 Description: Summarises and visualises missing values in a data frame,
     tests whether they are missing completely at random, and imputes them.

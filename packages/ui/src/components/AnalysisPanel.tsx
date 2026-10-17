@@ -4,19 +4,39 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
-import type { AnalysisDataset, AnalysisFormControl, AnalysisInstance, AnalysisResult, AnalysisTable } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisForm, AnalysisFormControl, AnalysisInstance, AnalysisResult, AnalysisShowcase, AnalysisTable } from "@rsage/shared";
 import { getPath, setPath } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
 import { installPackages } from "../packages";
-import { RoleBox, VariableSource, isRole, isVisible, roleNames, useRoleApi, type RoleApi } from "./AnalysisVariables";
+import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } from "./AnalysisVariables";
+import { KIND_LABEL, accepts, varKind } from "../analysisVars";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
 /** The JSON Schema node for a dotted option path. */
 function schemaAt(schema: any, path: string): any {
   return path.split(".").reduce((s, k) => s?.properties?.[k], schema);
+}
+
+/** Variable roles: the form's roles, or (older forms) role controls inside sections. */
+function formRoles(form: AnalysisForm): RoleControl[] {
+  return form.roles ?? form.sections.flatMap((sec) => sec.controls).filter(isRole);
+}
+
+/** Every option a control list binds, sub-options included. */
+function bindsIn(controls: AnalysisFormControl[]): string[] {
+  return controls.flatMap((c) => (c.type === "group" ? bindsIn(c.controls) : [c.bind, ...(c.type === "checkbox" && c.controls ? bindsIn(c.controls) : [])]));
+}
+
+const WIDTH_KEY = "rsage.analysis.optionsWidth";
+function storedWidth() {
+  try {
+    const n = Number(localStorage.getItem(WIDTH_KEY));
+    if (n >= 260 && n <= 900) return n;
+  } catch {}
+  return 380;
 }
 
 export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
@@ -55,11 +75,11 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     void refreshDatasets();
   }, [sessionState === "stopped"]);
 
-  const roles = useMemo(() => (found ? found.def.form.sections.flatMap((sec) => sec.controls).filter(isRole) : []), [found?.def]);
+  const roles = useMemo(() => (found ? formRoles(found.def.form) : []), [found?.def]);
   const ds = datasets.find((d) => d.name === draft?.dataset);
-  const setOptions = useRef<(o: any) => void>(() => {});
-  const roleApi = useRoleApi(roles, draft?.options, ds?.columns ?? [], (o) => setOptions.current(o));
-  useEffect(() => roleApi.setChosen([]), [draft?.dataset]);
+  // Sections the user opened or closed; the rest follow the form's `open`.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [width, setWidth] = useState(storedWidth);
 
   // The first run: an analysis opened with a data set and no result yet.
   useEffect(() => {
@@ -83,7 +103,29 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     }, 450);
   };
 
-  setOptions.current = (o) => commit({ ...draft, options: o });
+  const setOptions = (options: any) => commit({ ...draft, options });
+  const turnOn = (sc: AnalysisShowcase) => {
+    let o = draft.options;
+    for (const [k, v] of Object.entries(sc.enable)) o = setPath(o, k, v);
+    setOptions(o);
+    const keys = Object.keys(sc.enable);
+    setOpen((cur) => ({ ...cur, ...Object.fromEntries(def.form.sections.filter((sec) => bindsIn(sec.controls).some((b) => keys.includes(b))).map((sec) => [sec.title, true])) }));
+  };
+  const startResize = (e: React.MouseEvent) => {
+    const x0 = e.clientX;
+    const w0 = width;
+    let w = w0;
+    const move = (ev: MouseEvent) => setWidth((w = Math.min(900, Math.max(260, w0 + ev.clientX - x0))));
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      try {
+        localStorage.setItem(WIDTH_KEY, String(w));
+      } catch {}
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
   const chooseDataset = (name: string) => {
     useAnalyses.setState((s) => {
       const { [id]: _, ...rest } = s.picks;
@@ -99,7 +141,6 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     }
     commit({ dataset: name, options });
   };
-  const used = new Set(roles.filter((r) => isVisible(r, draft.options)).flatMap((r) => roleNames(r, draft.options)));
   const reason =
     pick && pick.name === draft.dataset ? `자동 선택: ${pick.reason}` : inst.createdBy === "assistant" && draft.dataset === inst.dataset ? "어시스턴트가 지정한 데이터" : null;
   const running = inst.lastRun?.status === "running";
@@ -108,7 +149,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
 
   return (
     <div className="analysis">
-      <div className="analysis-options">
+      <div className="analysis-options" style={{ width }}>
         <div className="analysis-head">
           <strong className="ellipsis" title={def.title}>
             {def.title}
@@ -134,23 +175,29 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
         {reason && <p className="muted small an-pick-reason">{reason}. 다른 데이터는 위에서 고르세요.</p>}
         {!draft.dataset && datasets.length > 1 && <p className="muted small">세션에 데이터 프레임이 {datasets.length}개 있습니다. 분석할 것을 고르세요.</p>}
         {!datasets.length && <p className="muted small">R 세션에 데이터 프레임이 없습니다. 데이터를 먼저 불러오세요 (예: <code>df &lt;- read.csv(...)</code>).</p>}
-        {roles.length > 0 && <VariableSource api={roleApi} used={used} />}
-        {def.form.sections.map((sec) => (
-          <details key={sec.title} className="an-section" open>
-            <summary>{sec.title}</summary>
-            {sec.controls.map((c) => (
-              <Control
-                key={c.bind}
-                control={c}
-                schema={def.schema}
-                options={draft.options}
-                roleApi={roleApi}
-                onChange={(v) => commit({ ...draft, options: setPath(draft.options, c.bind, v) })}
-              />
-            ))}
-          </details>
-        ))}
+        {def.form.about && <About about={def.form.about} options={draft.options} onTurnOn={turnOn} />}
+        {roles.length > 0 && <TransferBlock roles={roles} options={draft.options} columns={ds?.columns ?? []} onOptions={setOptions} />}
+        {def.form.sections.map((sec, i) => {
+          const controls = sec.controls.filter((c) => !isRole(c));
+          if (!controls.length) return null;
+          const isOpen = open[sec.title] ?? sec.open ?? i === 0;
+          return (
+            <section key={sec.title} className={`an-section ${isOpen ? "open" : ""}`}>
+              <button className="an-section-head" onClick={() => setOpen({ ...open, [sec.title]: !isOpen })}>
+                <span className="an-caret">{isOpen ? "▾" : "▸"}</span>
+                {sec.title}
+              </button>
+              {isOpen && (
+                <div className="an-section-body">
+                  {sec.description && <p className="muted small an-sec-desc">{sec.description}</p>}
+                  <Controls controls={controls} schema={def.schema} options={draft.options} dataset={ds} onOptions={setOptions} />
+                </div>
+              )}
+            </section>
+          );
+        })}
       </div>
+      <div className="analysis-resizer" onMouseDown={startResize} title="옵션 창 너비" />
       <div className="analysis-results">
         <div className="analysis-toolbar">
           <span className={`an-status an-${inst.lastRun?.status ?? "none"}`}>
@@ -235,77 +282,238 @@ function RuntimeBanner({ moduleId }: { moduleId: string }) {
   return null;
 }
 
+/** What the analysis can do: the backend package's showcased uses, each one click away. */
+function About({ about, options, onTurnOn }: { about: NonNullable<AnalysisForm["about"]>; options: any; onTurnOn: (sc: AnalysisShowcase) => void }) {
+  const [open, setOpen] = useState(false);
+  const isOn = (sc: AnalysisShowcase) => Object.entries(sc.enable).every(([k, v]) => getPath(options, k) === v);
+  const n = about.showcase?.length ?? 0;
+  return (
+    <div className={`an-about ${open ? "open" : ""}`}>
+      <button className="an-about-head" onClick={() => setOpen(!open)}>
+        <span className="an-caret">{open ? "▾" : "▸"}</span>
+        이 분석으로 할 수 있는 것{n ? ` (${n})` : ""}
+      </button>
+      {open && (
+        <div className="an-about-body">
+          {about.summary && <p className="small">{about.summary}</p>}
+          {about.showcase?.map((sc) => {
+            const on = isOn(sc);
+            return (
+              <div key={sc.title} className={`an-showcase ${on ? "on" : ""}`}>
+                <div className="an-showcase-text">
+                  <strong>{sc.title}</strong>
+                  <span className="muted small">{sc.description}</span>
+                  {sc.fn && (
+                    <span className="an-fns">
+                      {sc.fn.map((f) => (
+                        <code key={f}>{f}</code>
+                      ))}
+                    </span>
+                  )}
+                  {on && sc.needs && (sc.needsFilled ?? []).some((b) => !holds({ bind: b, filled: true }, options)) && <span className="small an-needs">{sc.needs}</span>}
+                </div>
+                <button className="btn btn-small" disabled={on} onClick={() => onTurnOn(sc)}>
+                  {on ? "켜짐" : "켜기"}
+                </button>
+              </div>
+            );
+          })}
+          {!!about.links?.length && (
+            <div className="an-links small">
+              {about.links.map((l) => (
+                <a key={l.url} href={l.url} onClick={(e) => (e.preventDefault(), void host.call("shell.openExternal", { path: l.url }))}>
+                  {l.label} ↗
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Controls({
+  controls,
+  schema,
+  options,
+  dataset,
+  onOptions,
+  disabled = false,
+}: {
+  controls: AnalysisFormControl[];
+  schema: any;
+  options: any;
+  dataset?: AnalysisDataset;
+  onOptions: (o: any) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <>
+      {controls.map((c) => {
+        if (!holds(c.visibleWhen, options)) return null;
+        if (c.type === "group")
+          return (
+            <div key={`g:${c.label}`} className="an-group">
+              <div className="an-group-label">{c.label}</div>
+              {c.description && <p className="muted small an-desc">{c.description}</p>}
+              <Controls controls={c.controls} schema={schema} options={options} dataset={dataset} onOptions={onOptions} disabled={disabled} />
+            </div>
+          );
+        if (isRole(c)) return null;
+        const off = disabled || !holds(c.enabledWhen, options);
+        return (
+          <Control
+            key={c.bind}
+            control={c}
+            schema={schema}
+            options={options}
+            dataset={dataset}
+            disabled={off}
+            onChange={(v) => onOptions(setPath(options, c.bind, v))}
+          >
+            {c.type === "checkbox" && c.controls && (
+              <div className="an-sub">
+                <Controls controls={c.controls} schema={schema} options={options} dataset={dataset} onOptions={onOptions} disabled={off || !getPath(options, c.bind)} />
+              </div>
+            )}
+          </Control>
+        );
+      })}
+    </>
+  );
+}
+
+/** Tags after a label: the backend function and packages the option needs. */
+function Tags({ c }: { c: Exclude<AnalysisFormControl, { type: "group" }> }) {
+  if (!c.fn && !c.requires?.length) return null;
+  return (
+    <span className="an-fns">
+      {c.fn && <code>{c.fn}</code>}
+      {c.requires?.map((p) => (
+        <span key={p} className="an-req" title={`${p} 패키지가 필요합니다`}>
+          {p}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function Control({
   control: c,
   schema,
   options,
-  roleApi,
+  dataset,
+  disabled,
   onChange,
+  children,
 }: {
-  control: AnalysisFormControl;
+  control: Exclude<AnalysisFormControl, { type: "group" }>;
   schema: any;
   options: any;
-  roleApi: RoleApi;
+  dataset?: AnalysisDataset;
+  disabled: boolean;
   onChange: (v: unknown) => void;
+  children?: React.ReactNode;
 }) {
   const value = getPath(options, c.bind);
   const s = schemaAt(schema, c.bind) ?? {};
-  if (!isVisible(c, options)) return null;
+  const why = disabled && c.disabledHint && !holds(c.enabledWhen, options) ? <span className="small an-needs">{c.disabledHint}</span> : null;
+  const desc = c.description ? <span className="muted small an-desc">{c.description}</span> : null;
   const hint = c.hint ? <span className="muted small an-hint-line">{c.hint}</span> : null;
+  const cls = disabled ? " disabled" : "";
   switch (c.type) {
-    case "variables":
-    case "variable":
-      return <RoleBox control={c} api={roleApi} options={options} hint={hint} />;
-    case "list":
-      return <ListField label={c.label} placeholder={c.placeholder} value={value ?? []} onChange={onChange} hint={hint} />;
-    case "text":
-      return (
-        <label className="an-field">
-          <span>{c.label}</span>
-          <TextInput value={value ?? ""} placeholder={c.placeholder} onCommit={(v) => onChange(v)} pattern={s.pattern} />
-          {hint}
-        </label>
-      );
     case "checkbox":
       return (
-        <label className="an-check">
-          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        <div className={`an-opt${cls}`}>
+          <label className="an-check">
+            <input type="checkbox" disabled={disabled} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+            <span>{c.label}</span>
+            <Tags c={c} />
+          </label>
+          {desc}
+          {why}
+          {children}
+        </div>
+      );
+    case "column": {
+      const cols = (dataset?.columns ?? []).filter((x) => accepts(c.types, x.type));
+      const col = dataset?.columns.find((x) => x.name === value);
+      return (
+        <label className={`an-field an-inline${cls}`}>
           <span>{c.label}</span>
+          <span className="an-colpick">
+            {col && <VarIcon type={col.type} />}
+            <select disabled={disabled} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+              <option value="">(선택)</option>
+              {cols.map((x) => (
+                <option key={x.name} value={x.name}>
+                  {x.name} · {KIND_LABEL[varKind(x.type)]}
+                </option>
+              ))}
+              {value && !cols.some((x) => x.name === value) && <option value={value}>{value} (없음)</option>}
+            </select>
+          </span>
+        </label>
+      );
+    }
+    case "list":
+      return (
+        <div className={`an-opt${cls}`}>
+          <ListField label={c.label} placeholder={c.placeholder} value={value ?? []} onChange={onChange} hint={hint} />
+          {desc}
+        </div>
+      );
+    case "text":
+      return (
+        <label className={`an-field${cls}`}>
+          <span>{c.label}</span>
+          <TextInput value={value ?? ""} placeholder={c.placeholder} onCommit={(v) => onChange(v)} pattern={s.pattern} />
+          {desc}
           {hint}
         </label>
       );
     case "number":
       return (
-        <label className="an-field an-inline">
-          <span>{c.label}</span>
-          <input
-            type="number"
-            value={value ?? ""}
-            min={s.minimum}
-            max={s.maximum}
-            step={s.type === "integer" ? 1 : "any"}
-            onChange={(e) => {
-              const n = s.type === "integer" ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
-              if (Number.isFinite(n) && (s.minimum === undefined || n >= s.minimum) && (s.maximum === undefined || n <= s.maximum)) onChange(n);
-            }}
-          />
+        <label className={`an-field an-inline${cls}`}>
+          <span>
+            {c.label}
+            {c.hint && <span className="muted small"> · {c.hint}</span>}
+          </span>
+          <span className="an-num">
+            <input
+              type="number"
+              disabled={disabled}
+              value={value ?? ""}
+              min={s.minimum}
+              max={s.maximum}
+              step={s.type === "integer" ? 1 : "any"}
+              onChange={(e) => {
+                const n = s.type === "integer" ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+                if (Number.isFinite(n) && (s.minimum === undefined || n >= s.minimum) && (s.maximum === undefined || n <= s.maximum)) onChange(n);
+              }}
+            />
+            {c.unit && <span className="muted small">{c.unit}</span>}
+          </span>
         </label>
       );
     case "select":
       return (
-        <label className="an-field">
+        <label className={`an-field${cls}`}>
           <span>{c.label}</span>
-          <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+          <select disabled={disabled} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
             {(s.enum ?? []).map((v: string) => (
               <option key={v} value={v}>
                 {c.labels?.[v] ?? v}
               </option>
             ))}
           </select>
+          {desc}
           {hint}
         </label>
       );
   }
+  return null;
 }
 
 /** Text that is saved when the user stops typing (on blur or Enter), not on every key. */
@@ -360,11 +568,16 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
             {n.text}
           </div>
         ))}
-      {result.tables.map((t) => (
-        <ResultTable key={t.id} table={t} />
-      ))}
-      {result.plots.map((p) => (
-        <Figure key={p.id} inst={inst} plot={p} />
+      {resultSections(result).map((sec) => (
+        <div key={sec.name || "_"} className="an-rsection">
+          {sec.name && resultSections(result).length > 1 && <h2 className="an-rsection-title">{sec.name}</h2>}
+          {sec.tables.map((t) => (
+            <ResultTable key={t.id} table={t} />
+          ))}
+          {sec.plots.map((p) => (
+            <Figure key={p.id} inst={inst} plot={p} />
+          ))}
+        </div>
       ))}
       {result.notes
         .filter((n) => n.level !== "warning")
@@ -385,6 +598,14 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
   );
 }
 
+/** Tables and plots grouped by section, in the result's section order (unsectioned first). */
+function resultSections(result: AnalysisResult) {
+  const names = [...new Set(["", ...(result.sections ?? []), ...result.tables.map((t) => t.section ?? ""), ...result.plots.map((p) => p.section ?? "")])];
+  return names
+    .map((name) => ({ name, tables: result.tables.filter((t) => (t.section ?? "") === name), plots: result.plots.filter((p) => (p.section ?? "") === name) }))
+    .filter((s) => s.tables.length || s.plots.length);
+}
+
 function fmt(v: unknown, type: string): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "number") {
@@ -401,6 +622,7 @@ function ResultTable({ table }: { table: AnalysisTable }) {
   return (
     <section className="an-table">
       <h3>{table.title}</h3>
+      {table.description && <p className="muted small an-read">{table.description}</p>}
       <div className="an-table-scroll">
         <table>
           <thead>
@@ -522,6 +744,7 @@ function Figure({ inst, plot }: { inst: AnalysisInstance; plot: Plot }) {
           플롯 창
         </button>
       </figcaption>
+      {plot.description && <p className="muted small an-read">{plot.description}</p>}
       {editing && (
         <div className="an-fig-size">
           <label>

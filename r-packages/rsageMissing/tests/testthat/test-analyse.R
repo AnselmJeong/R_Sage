@@ -96,8 +96,7 @@ test_that("plots by very many groups become a heat map sized to the groups", {
   d <- airquality
   d$site <- rep(sprintf("s%02d", 1:70), length.out = nrow(d))
   res <- analyse(d, list(group = "site", plots = list(matrix = FALSE)))
-  p <- res$plots[[1]]
-  expect_equal(p$id, "variables")
+  p <- res$plots$byGroup
   expect_true(any(vapply(p$plot$layers, function(l) inherits(l$geom, "GeomTile"), TRUE)))
   expect_gt(p$width, 10)
   expect_lt(p$height, 5)
@@ -106,10 +105,10 @@ test_that("plots by very many groups become a heat map sized to the groups", {
 test_that("plots by groups stay small multiples on a grid sized to them", {
   skip_if_not_installed("naniar")
   res <- analyse(airquality, list(group = "Month", plots = list(matrix = FALSE)))
-  p <- res$plots[[1]]
+  p <- res$plots$byGroup
   expect_false(any(vapply(p$plot$layers, function(l) inherits(l$geom, "GeomTile"), TRUE)))
   expect_equal(p$plot$facet$params$ncol, 3)
-  days <- analyse(airquality, list(group = "Day", plots = list(matrix = FALSE)))$plots[[1]]
+  days <- analyse(airquality, list(group = "Day", plots = list(matrix = FALSE)))$plots$byGroup
   expect_equal(days$plot$facet$params$ncol, 6)
   expect_gte(days$width, 11)
   expect_gte(days$height, 9)
@@ -118,7 +117,42 @@ test_that("plots by groups stay small multiples on a grid sized to them", {
 test_that("a user size from the app overrides the automatic one", {
   auto <- analyse(airquality, list())
   res <- rsage::rs_resize(auto, list(variables = list(width = 9, height = 3)))
-  expect_equal(c(res$plots[[1]]$width, res$plots[[1]]$height), c(9, 3))
-  expect_equal(res$plots[[1]]$auto, auto$plots[[1]]$auto)
-  expect_equal(res$plots[[2]]$width, auto$plots[[2]]$width)
+  expect_equal(c(res$plots$variables$width, res$plots$variables$height), c(9, 3))
+  expect_equal(res$plots$variables$auto, auto$plots$variables$auto)
+  expect_equal(res$plots$matrix$width, auto$plots$matrix$width)
+})
+
+test_that("the showcase plots are drawn when asked for", {
+  skip_if_not_installed("naniar")
+  skip_if_not_installed("mice")
+  d <- airquality
+  d$Month <- factor(d$Month)
+  r <- analyse(d, list(
+    variables = c("Ozone", "Solar.R", "Wind", "Temp"), group = "Month",
+    plots = list(cases = TRUE, cluster = TRUE, upset = TRUE, upsetSets = 3, span = TRUE, spanVariable = "Ozone", spanSize = 20),
+    relations = list(scatter = TRUE, x = "Solar.R", y = "Ozone", shadowDensity = TRUE, variable = "Temp", by = "Ozone"),
+    impute = list(enabled = TRUE, m = 2, maxit = 3),
+    imputePreview = list(enabled = TRUE, method = "mean", x = "Solar.R", y = "Ozone")
+  ))
+  expect_setequal(names(r$plots), c("matrix", "variables", "cases", "byGroup", "span", "upset", "scatter", "shadow",
+                                    "convergence", "imputation", "preview"))
+  expect_equal(r$plots$matrix$title, "결측 위치 (비슷한 행끼리 모음)")
+  s <- table_of(r, "shadow")
+  expect_equal(s$n, c(116, 37))
+  expect_equal(r$sections[1], "개요")
+  expect_equal(r$plots$scatter$section, "결측과 다른 변수의 관계")
+  for (p in r$plots) expect_false(is.null(p$description))
+  dir <- tempfile()
+  rsage::rs_write(r, dir, "t2")
+  j <- jsonlite::read_json(file.path(dir, "result.json"))
+  expect_equal(j$sections[[5]], "대체")
+  for (p in j$plots) expect_true(file.exists(file.path(dir, p$file)))
+})
+
+test_that("options that need a choice say so instead of failing", {
+  skip_if_not_installed("naniar")
+  r <- analyse(airquality, list(mcarTest = FALSE, relations = list(scatter = TRUE), plots = list(span = TRUE),
+                                imputePreview = list(enabled = TRUE, method = "mice", x = "Solar.R", y = "Ozone")))
+  codes <- vapply(r$notes, function(n) n$code %||% "", "")
+  expect_true(all(c("scatter_needs_variables", "span_needs_variable", "preview_needs_mice") %in% codes))
 })
