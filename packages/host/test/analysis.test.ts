@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverR, findArk } from "@rsage/kernel";
 import { fillDefaults, validateOptions } from "@rsage/shared";
-import { loadModules, descriptionImports } from "../src/analysis/registry";
+import { loadModules, descriptionImports, formProblems } from "../src/analysis/registry";
 import { analysisCode, toR } from "../src/analysis/rcode";
 import { formatResult, runAnalysisTool } from "../src/assistant/analysis-tools";
 
@@ -26,9 +26,10 @@ describe("module registry", () => {
   });
 
   test("every form control binds to an option in the schema", () => {
-    const opts = fillDefaults(def.schema, {});
-    for (const s of def.form.sections)
-      for (const c of s.controls) expect(c.bind.split(".").reduce((o: any, k) => (o && k in o ? o[k] : Symbol.for("missing")), opts)).not.toBe(Symbol.for("missing"));
+    expect(formProblems(def.form, def.schema)).toEqual([]);
+    expect(formProblems({ formVersion: 2, sections: [{ title: "x", controls: [{ type: "checkbox", bind: "plots.nope", label: "n" }] }] }, def.schema)).toEqual([
+      'x > n refers to unknown option "plots.nope"',
+    ]);
   });
 
   test("R imports come from DESCRIPTION without base packages", () => {
@@ -41,7 +42,8 @@ describe("option schema", () => {
     const o = fillDefaults(def.schema, { plots: { upset: true } });
     expect(o.variables).toEqual([]);
     expect(o.group).toBeNull();
-    expect(o.plots).toEqual({ upset: true, variables: true, matrix: true });
+    expect(o.plots).toMatchObject({ upset: true, variables: true, matrix: true, byGroup: true, spanVariable: null, upsetSets: 5 });
+    expect(o.relations).toEqual({ scatter: false, x: null, y: null, shadowDensity: false, variable: null, by: null });
     expect(o.impute.method).toBe("pmm");
   });
 
@@ -146,7 +148,7 @@ live("missing-data analysis in a live session", async () => {
     expect(v.rds).toEndWith("plot-variables.rds");
     expect(await call("analysis.code", { id: inst.id })).toContain("rs_resize(res, list(variables = c(9, 3)))");
     await call("analysis.update", { id: inst.id, figures: { variables: null } });
-    expect((await call("analysis.run", { id: inst.id })).result.plots[0].width).toBe(auto.width);
+    expect((await call("analysis.run", { id: inst.id })).result.plots.find((p: any) => p.id === "variables").width).toBe(auto.width);
   }, 240_000);
 
   test("the assistant runs it through run_analysis", async () => {

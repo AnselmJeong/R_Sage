@@ -1,41 +1,432 @@
 {
-  "formVersion": 1,
+  "formVersion": 2,
+  "about": {
+    "summary": "결측이 얼마나, 어디에, 어떤 조합으로 있는지 보고, 결측이 다른 변수와 관련 있는지 살핀 다음, 필요하면 다중대체하고 그 대체를 점검합니다. naniar 개발자가 홈페이지에서 소개하는 대표 활용법을 그대로 골라 쓸 수 있습니다.",
+    "links": [
+      {
+        "label": "naniar 홈페이지",
+        "url": "https://naniar.njtierney.com/"
+      },
+      {
+        "label": "naniar 그림 갤러리",
+        "url": "https://naniar.njtierney.com/articles/naniar-visualisation.html"
+      },
+      {
+        "label": "mice 안내",
+        "url": "https://amices.org/mice/"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "결측이 어디에 있는지 한눈에 보기",
+        "description": "행×변수 지도와 변수별 결측 비율 막대. 결측이 몰린 변수와 행 구간이 바로 보입니다.",
+        "fn": [
+          "naniar::vis_miss",
+          "naniar::gg_miss_var"
+        ],
+        "enable": {
+          "plots.matrix": true,
+          "plots.variables": true
+        }
+      },
+      {
+        "title": "어떤 변수들이 함께 빠지는지 보기",
+        "description": "결측 조합별 행 수를 UpSet 그림과 패턴 표로 봅니다. 늘 함께 빠지는 변수는 같은 원인을 가집니다.",
+        "fn": [
+          "naniar::gg_miss_upset"
+        ],
+        "enable": {
+          "plots.upset": true,
+          "patterns": true
+        }
+      },
+      {
+        "title": "그룹마다 결측이 다른지 보기",
+        "description": "처치군·병원·조사 시점처럼 그룹별로 결측 비율을 비교합니다.",
+        "fn": [
+          "naniar::miss_var_summary",
+          "naniar::gg_miss_fct"
+        ],
+        "enable": {
+          "plots.byGroup": true,
+          "variableSummary": true
+        },
+        "needs": "그룹 변수를 넣으세요.",
+        "needsFilled": [
+          "group"
+        ]
+      },
+      {
+        "title": "결측이 다른 변수 값과 관련 있는지 보기",
+        "description": "한쪽이 빠진 점도 함께 그리는 산점도와, 결측 여부로 나눈 분포 비교. 결측이 무작위가 아니라는 단서(MAR)를 찾습니다.",
+        "fn": [
+          "naniar::geom_miss_point",
+          "naniar::bind_shadow"
+        ],
+        "enable": {
+          "relations.scatter": true,
+          "relations.shadowDensity": true
+        },
+        "needs": "'결측과 다른 변수의 관계'에서 변수를 고르세요.",
+        "needsFilled": [
+          "relations.x",
+          "relations.y",
+          "relations.variable",
+          "relations.by"
+        ]
+      },
+      {
+        "title": "결측이 완전히 무작위인지 검정하기",
+        "description": "Little의 MCAR 검정.",
+        "fn": [
+          "naniar::mcar_test"
+        ],
+        "enable": {
+          "mcarTest": true
+        }
+      },
+      {
+        "title": "시간 순서 데이터에서 결측 구간 찾기",
+        "description": "정해진 행 수씩 끊어 결측 비율을 봅니다. 센서 고장이나 수집 중단 시기를 찾을 때 씁니다.",
+        "fn": [
+          "naniar::gg_miss_span"
+        ],
+        "enable": {
+          "plots.span": true
+        },
+        "needs": "변수를 고르세요.",
+        "needsFilled": [
+          "plots.spanVariable"
+        ]
+      },
+      {
+        "title": "다중대체하고 대체가 그럴듯한지 점검하기",
+        "description": "mice로 여러 번 대체한 뒤 수렴 그림과 관측값·대체값 분포를 봅니다.",
+        "fn": [
+          "mice::mice"
+        ],
+        "enable": {
+          "impute.enabled": true,
+          "impute.convergence": true,
+          "impute.densities": true
+        }
+      },
+      {
+        "title": "대체값을 관측값과 함께 그려 보기",
+        "description": "평균 대체가 왜 분산을 줄이는지, mice 대체는 어떻게 다른지 산점도로 비교합니다.",
+        "fn": [
+          "naniar::impute_below",
+          "naniar::impute_mean"
+        ],
+        "enable": {
+          "imputePreview.enabled": true
+        },
+        "needs": "X·Y 변수를 고르세요.",
+        "needsFilled": [
+          "imputePreview.x",
+          "imputePreview.y"
+        ]
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variables",
+      "bind": "variables",
+      "label": "변수",
+      "hint": "비워 두면 그룹 변수를 뺀 모든 변수를 봅니다."
+    },
+    {
+      "type": "variable",
+      "bind": "group",
+      "label": "그룹 (Split)",
+      "optional": true
+    }
+  ],
   "sections": [
     {
-      "title": "변수",
+      "title": "요약 표",
+      "open": true,
       "controls": [
-        { "type": "variables", "bind": "variables", "label": "분석할 변수", "hint": "비워 두면 그룹 변수를 뺀 모든 변수를 봅니다." },
-        { "type": "variable", "bind": "group", "label": "그룹 변수 (선택)", "optional": true },
-        { "type": "list", "bind": "naValues", "label": "결측으로 볼 값", "placeholder": "-99, 999, 빈 문자열은 \"\"", "hint": "원자료에서 결측을 뜻하는 코드. 이 분석에서만 결측으로 봅니다." }
+        {
+          "type": "checkbox",
+          "bind": "variableSummary",
+          "label": "변수별 결측",
+          "description": "변수마다 결측 개수와 비율. 그룹을 넣으면 그룹별로 나눕니다.",
+          "fn": "naniar::miss_var_summary"
+        },
+        {
+          "type": "checkbox",
+          "bind": "caseSummary",
+          "label": "행별 결측 개수",
+          "description": "결측이 0개, 1개, 2개…인 행이 몇 개인지.",
+          "fn": "naniar::miss_case_table"
+        },
+        {
+          "type": "checkbox",
+          "bind": "patterns",
+          "label": "결측 패턴",
+          "description": "어떤 변수들이 함께 빠지는지 조합별 행 수.",
+          "controls": [
+            {
+              "type": "number",
+              "bind": "maxPatterns",
+              "label": "보여 줄 패턴 수"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "mcarTest",
+          "label": "Little의 MCAR 검정",
+          "description": "결측이 완전히 무작위인지 검정합니다. MAR과 MNAR은 가리지 못합니다.",
+          "fn": "naniar::mcar_test"
+        }
       ]
     },
     {
-      "title": "표",
+      "title": "결측 한눈에 보기",
+      "open": true,
+      "description": "naniar 홈페이지의 기본 그림들입니다.",
       "controls": [
-        { "type": "checkbox", "bind": "variableSummary", "label": "변수별 결측" },
-        { "type": "checkbox", "bind": "caseSummary", "label": "행별 결측 개수" },
-        { "type": "checkbox", "bind": "patterns", "label": "결측 패턴" },
-        { "type": "number", "bind": "maxPatterns", "label": "보여 줄 패턴 수", "visibleWhen": { "bind": "patterns", "equals": true } },
-        { "type": "checkbox", "bind": "mcarTest", "label": "Little의 MCAR 검정" }
+        {
+          "type": "checkbox",
+          "bind": "plots.matrix",
+          "label": "결측 위치 지도",
+          "description": "행×변수 칸마다 결측인지 칠합니다.",
+          "fn": "naniar::vis_miss",
+          "controls": [
+            {
+              "type": "checkbox",
+              "bind": "plots.cluster",
+              "label": "비슷한 행끼리 모으기",
+              "description": "결측 모양이 비슷한 행을 모아 덩어리를 드러냅니다."
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.variables",
+          "label": "변수별 결측 비율",
+          "fn": "naniar::gg_miss_var"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.cases",
+          "label": "행별 결측 비율",
+          "description": "거의 비어 있는 행(응답 탈락)을 찾습니다.",
+          "fn": "naniar::gg_miss_case"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.byGroup",
+          "label": "그룹별 결측 비율",
+          "description": "그룹이 많으면 변수×그룹 색 지도로 바꿉니다.",
+          "fn": "naniar::gg_miss_fct",
+          "enabledWhen": {
+            "bind": "group",
+            "filled": true
+          },
+          "disabledHint": "그룹 변수를 넣으면 쓸 수 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.upset",
+          "label": "결측 조합 (UpSet)",
+          "description": "변수 조합마다 함께 빠진 행 수를 막대로 봅니다.",
+          "fn": "naniar::gg_miss_upset",
+          "requires": [
+            "UpSetR"
+          ],
+          "controls": [
+            {
+              "type": "number",
+              "bind": "plots.upsetSets",
+              "label": "포함할 변수 수",
+              "hint": "결측이 많은 변수부터"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.span",
+          "label": "시계열 결측 구간",
+          "description": "데이터가 시간 순서일 때, 정해진 행 수씩 끊어 결측 비율을 봅니다.",
+          "fn": "naniar::gg_miss_span",
+          "controls": [
+            {
+              "type": "column",
+              "bind": "plots.spanVariable",
+              "label": "변수"
+            },
+            {
+              "type": "number",
+              "bind": "plots.spanSize",
+              "label": "구간 크기",
+              "unit": "행"
+            }
+          ]
+        }
       ]
     },
     {
-      "title": "그림",
+      "title": "결측과 다른 변수의 관계",
+      "description": "결측이 다른 변수의 값과 관련 있으면(MAR) 결측 행을 지우는 분석은 치우칩니다. 그 단서를 찾는 그림입니다.",
       "controls": [
-        { "type": "checkbox", "bind": "plots.variables", "label": "변수별 결측 비율" },
-        { "type": "checkbox", "bind": "plots.matrix", "label": "결측 위치 (행 × 변수)" },
-        { "type": "checkbox", "bind": "plots.upset", "label": "결측 조합 (UpSet)" }
+        {
+          "type": "checkbox",
+          "bind": "relations.scatter",
+          "label": "결측 산점도",
+          "description": "한쪽이 빠진 점을 축 바깥에 함께 찍습니다.",
+          "fn": "naniar::geom_miss_point",
+          "controls": [
+            {
+              "type": "column",
+              "bind": "relations.x",
+              "label": "X",
+              "types": [
+                "numeric"
+              ]
+            },
+            {
+              "type": "column",
+              "bind": "relations.y",
+              "label": "Y",
+              "types": [
+                "numeric"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "relations.shadowDensity",
+          "label": "결측 여부로 나눈 분포",
+          "description": "B가 빠진 행과 아닌 행에서 A의 분포를 비교합니다(그림자 행렬).",
+          "fn": "naniar::bind_shadow",
+          "controls": [
+            {
+              "type": "column",
+              "bind": "relations.variable",
+              "label": "분포를 볼 변수 (A)",
+              "types": [
+                "numeric"
+              ]
+            },
+            {
+              "type": "column",
+              "bind": "relations.by",
+              "label": "결측 여부로 나눌 변수 (B)"
+            }
+          ]
+        }
       ]
     },
     {
-      "title": "다중대체 (mice)",
+      "title": "대체",
       "controls": [
-        { "type": "checkbox", "bind": "impute.enabled", "label": "다중대체 실행" },
-        { "type": "select", "bind": "impute.method", "label": "수치형 변수 방법", "labels": { "pmm": "예측평균대응 (pmm)", "norm": "베이지안 선형회귀 (norm)", "mean": "평균 (mean)", "cart": "분류·회귀나무 (cart)", "rf": "랜덤 포레스트 (rf)" }, "visibleWhen": { "bind": "impute.enabled", "equals": true } },
-        { "type": "number", "bind": "impute.m", "label": "대체 데이터 수 (m)", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
-        { "type": "number", "bind": "impute.maxit", "label": "반복 횟수", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
-        { "type": "number", "bind": "impute.seed", "label": "seed", "visibleWhen": { "bind": "impute.enabled", "equals": true } },
-        { "type": "text", "bind": "impute.saveAs", "label": "R 세션에 저장할 이름 (선택)", "placeholder": "예: imp", "visibleWhen": { "bind": "impute.enabled", "equals": true } }
+        {
+          "type": "checkbox",
+          "bind": "impute.enabled",
+          "label": "다중대체 (mice)",
+          "description": "결측을 여러 번 그럴듯하게 채운 데이터 세트를 만듭니다.",
+          "fn": "mice::mice",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "impute.method",
+              "label": "수치형 변수 방법",
+              "labels": {
+                "pmm": "예측평균대응 (pmm)",
+                "norm": "베이지안 선형회귀 (norm)",
+                "mean": "평균 (mean)",
+                "cart": "분류·회귀나무 (cart)",
+                "rf": "랜덤 포레스트 (rf)"
+              }
+            },
+            {
+              "type": "number",
+              "bind": "impute.m",
+              "label": "대체 데이터 수 (m)"
+            },
+            {
+              "type": "number",
+              "bind": "impute.maxit",
+              "label": "반복 횟수"
+            },
+            {
+              "type": "number",
+              "bind": "impute.seed",
+              "label": "seed"
+            },
+            {
+              "type": "checkbox",
+              "bind": "impute.convergence",
+              "label": "수렴 그림",
+              "description": "반복마다 대체값 평균·표준편차가 안정되는지 봅니다."
+            },
+            {
+              "type": "checkbox",
+              "bind": "impute.densities",
+              "label": "관측값·대체값 분포",
+              "description": "대체값 분포가 관측값과 어떻게 다른지 봅니다."
+            },
+            {
+              "type": "text",
+              "bind": "impute.saveAs",
+              "label": "R 세션에 저장할 이름 (선택)",
+              "placeholder": "예: imp"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "imputePreview.enabled",
+          "label": "대체값 함께 보기",
+          "description": "산점도에 대체한 값을 색으로 표시해, 대체 방법이 자료를 어떻게 바꾸는지 봅니다.",
+          "fn": "naniar::impute_below",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "imputePreview.method",
+              "label": "방법",
+              "labels": {
+                "below": "최솟값 아래로 밀기 (표시용)",
+                "mean": "평균 대체",
+                "median": "중앙값 대체",
+                "mice": "mice 첫 번째 대체"
+              }
+            },
+            {
+              "type": "column",
+              "bind": "imputePreview.x",
+              "label": "X",
+              "types": [
+                "numeric"
+              ]
+            },
+            {
+              "type": "column",
+              "bind": "imputePreview.y",
+              "label": "Y",
+              "types": [
+                "numeric"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "데이터 준비",
+      "controls": [
+        {
+          "type": "list",
+          "bind": "naValues",
+          "label": "결측으로 볼 값",
+          "placeholder": "-99, 999, 빈 문자열은 \"\"",
+          "description": "원자료에서 결측을 뜻하는 코드. 이 분석에서만 결측으로 봅니다."
+        }
       ]
     }
   ]

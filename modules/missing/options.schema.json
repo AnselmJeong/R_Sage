@@ -5,33 +5,116 @@
   "properties": {
     "variables": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": [],
       "description": "Columns to examine. Empty means every column except the group variable."
     },
     "group": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "default": null,
-      "description": "Optional column to split the per-variable summary by."
+      "description": "Optional column to split the per-variable summary and plot by."
     },
     "naValues": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": [],
       "description": "Values that stand for missing in the source data, e.g. \"-99\" or \"\" (empty string). Treated as missing for this analysis only."
     },
-    "variableSummary": { "type": "boolean", "default": true, "description": "Missing count and percentage per variable." },
-    "caseSummary": { "type": "boolean", "default": true, "description": "Number of rows by how many values they miss." },
-    "patterns": { "type": "boolean", "default": true, "description": "Table of missingness patterns (which variables are missing together)." },
-    "maxPatterns": { "type": "integer", "minimum": 1, "maximum": 100, "default": 15, "description": "Most frequent patterns to show." },
-    "mcarTest": { "type": "boolean", "default": true, "description": "Little's MCAR test (needs naniar)." },
+    "variableSummary": {
+      "type": "boolean",
+      "default": true,
+      "description": "Missing count and percentage per variable, by group when group is set (naniar::miss_var_summary)."
+    },
+    "caseSummary": {
+      "type": "boolean",
+      "default": true,
+      "description": "Number of rows by how many values they miss (naniar::miss_case_table)."
+    },
+    "patterns": {
+      "type": "boolean",
+      "default": true,
+      "description": "Table of missingness patterns (which variables are missing together)."
+    },
+    "maxPatterns": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 15,
+      "description": "Most frequent patterns to show."
+    },
+    "mcarTest": {
+      "type": "boolean",
+      "default": true,
+      "description": "Little's MCAR test (naniar::mcar_test)."
+    },
     "plots": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "variables": { "type": "boolean", "default": true, "description": "Bar chart of missing percentage per variable." },
-        "matrix": { "type": "boolean", "default": true, "description": "Where values are missing, row by variable." },
-        "upset": { "type": "boolean", "default": false, "description": "UpSet plot of combinations of missing variables (needs naniar and UpSetR)." }
+        "variables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bar chart of missing percentage per variable (naniar::gg_miss_var)."
+        },
+        "cases": {
+          "type": "boolean",
+          "default": false,
+          "description": "Missing percentage per row (naniar::gg_miss_case)."
+        },
+        "matrix": {
+          "type": "boolean",
+          "default": true,
+          "description": "Where values are missing, row by variable (naniar::vis_miss)."
+        },
+        "cluster": {
+          "type": "boolean",
+          "default": false,
+          "description": "Order the rows of the missingness map so similar rows sit together (vis_miss cluster = TRUE)."
+        },
+        "byGroup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Missing percentage per variable for each value of the group variable; needs group."
+        },
+        "upset": {
+          "type": "boolean",
+          "default": false,
+          "description": "UpSet plot of combinations of missing variables (naniar::gg_miss_upset; needs UpSetR)."
+        },
+        "upsetSets": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 20,
+          "default": 5,
+          "description": "Variables with the most missing values to include in the UpSet plot."
+        },
+        "span": {
+          "type": "boolean",
+          "default": false,
+          "description": "Missing percentage of one variable in consecutive blocks of rows, for data in time order (naniar::gg_miss_span)."
+        },
+        "spanVariable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Column for the span plot."
+        },
+        "spanSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000,
+          "default": 10,
+          "description": "Rows per block in the span plot."
+        }
       },
       "default": {}
     },
@@ -39,14 +122,148 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false, "description": "Run multiple imputation with mice." },
-        "method": { "type": "string", "enum": ["pmm", "norm", "mean", "cart", "rf"], "default": "pmm", "description": "mice method for numeric variables (factors get mice's defaults)." },
-        "m": { "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Number of imputed data sets." },
-        "maxit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 5, "description": "Iterations." },
-        "seed": { "type": "integer", "default": 123, "description": "Random seed, for reproducible imputations." },
-        "saveAs": { "type": "string", "default": "", "pattern": "^([A-Za-z.][A-Za-z0-9._]*)?$", "description": "If set, the mids object is saved in the R session under this name." }
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run multiple imputation with mice."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "pmm",
+            "norm",
+            "mean",
+            "cart",
+            "rf"
+          ],
+          "default": "pmm",
+          "description": "mice method for numeric variables (factors get mice's defaults)."
+        },
+        "m": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5,
+          "description": "Number of imputed data sets."
+        },
+        "maxit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5,
+          "description": "Iterations."
+        },
+        "seed": {
+          "type": "integer",
+          "default": 123,
+          "description": "Random seed, for reproducible imputations."
+        },
+        "saveAs": {
+          "type": "string",
+          "default": "",
+          "pattern": "^([A-Za-z.][A-Za-z0-9._]*)?$",
+          "description": "If set, the mids object is saved in the R session under this name."
+        },
+        "convergence": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trace plot of the imputed values' mean and SD over iterations, per imputation."
+        },
+        "densities": {
+          "type": "boolean",
+          "default": true,
+          "description": "Density of observed vs imputed values per numeric variable."
+        }
       },
       "default": {}
+    },
+    "relations": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "scatter": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scatter plot of x and y that also shows rows where either is missing (naniar::geom_miss_point)."
+        },
+        "x": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Numeric column on the x axis of the missingness scatter plot."
+        },
+        "y": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Numeric column on the y axis of the missingness scatter plot."
+        },
+        "shadowDensity": {
+          "type": "boolean",
+          "default": false,
+          "description": "Distribution of `variable` in rows where `by` is missing vs observed (shadow matrix, naniar::bind_shadow), with a summary table."
+        },
+        "variable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Numeric column whose distribution is compared."
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Column whose missingness splits the rows."
+        }
+      }
+    },
+    "imputePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scatter plot of x and y with imputed values coloured, to see what an imputation does."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "below",
+            "mean",
+            "median",
+            "mice"
+          ],
+          "default": "below",
+          "description": "below: shift missing values below the minimum (naniar's display), mean/median: single imputation, mice: the first mice imputation (needs impute.enabled)."
+        },
+        "x": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Numeric column on the x axis."
+        },
+        "y": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Numeric column on the y axis."
+        }
+      }
     }
   }
 }

@@ -382,12 +382,41 @@ export interface AnalysisModuleInfo {
   analyses: AnalysisDef[];
 }
 
+/** Common fields of a form control. See docs/module-authoring-guide.md. */
+interface AnalysisControlBase {
+  /** Dotted path of the option in the options schema, e.g. "plots.upset". */
+  bind: string;
+  label: string;
+  /** One line under the control: what this gives the user and when it helps. */
+  description?: string;
+  /** Short hint about how to fill the control in. */
+  hint?: string;
+  /** Backend function behind the option, shown as a tag (e.g. "naniar::gg_miss_upset"). */
+  fn?: string;
+  /** R packages the option needs beyond the module's required ones; shown as a tag. */
+  requires?: string[];
+  /** Hidden unless the condition holds. */
+  visibleWhen?: AnalysisCondition;
+  /** Shown but greyed out unless the condition holds, so the user still sees the possibility. */
+  enabledWhen?: AnalysisCondition;
+  /** Shown while disabled, saying what turns it on (e.g. "그룹 변수를 넣으면 쓸 수 있습니다"). */
+  disabledHint?: string;
+}
+
 export type AnalysisFormControl =
-  | { type: "variables"; bind: string; label: string; hint?: string; types?: AnalysisVarType[]; visibleWhen?: AnalysisVisibleWhen }
-  | { type: "variable"; bind: string; label: string; optional?: boolean; hint?: string; types?: AnalysisVarType[]; visibleWhen?: AnalysisVisibleWhen }
-  | { type: "list" | "text"; bind: string; label: string; placeholder?: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
-  | { type: "checkbox" | "number"; bind: string; label: string; hint?: string; visibleWhen?: AnalysisVisibleWhen }
-  | { type: "select"; bind: string; label: string; labels?: Record<string, string>; hint?: string; visibleWhen?: AnalysisVisibleWhen };
+  /** A role box in the variable transfer block (several variables). */
+  | (AnalysisControlBase & { type: "variables"; types?: AnalysisVarType[] })
+  /** A role box in the variable transfer block (one variable). */
+  | (AnalysisControlBase & { type: "variable"; optional?: boolean; types?: AnalysisVarType[] })
+  /** A compact column picker inside an option section (e.g. the x axis of a plot). */
+  | (AnalysisControlBase & { type: "column"; types?: AnalysisVarType[] })
+  | (AnalysisControlBase & { type: "list" | "text"; placeholder?: string })
+  /** A checkbox; `controls` are its sub-options, indented and greyed out while it is off. */
+  | (AnalysisControlBase & { type: "checkbox"; controls?: AnalysisFormControl[] })
+  | (AnalysisControlBase & { type: "number"; unit?: string })
+  | (AnalysisControlBase & { type: "select"; labels?: Record<string, string> })
+  /** A labelled group of controls inside a section, like JASP's "Central tendency". */
+  | { type: "group"; label: string; description?: string; controls: AnalysisFormControl[]; visibleWhen?: AnalysisCondition };
 
 /**
  * Variable types a role box accepts (all when left out). numeric covers
@@ -396,14 +425,40 @@ export type AnalysisFormControl =
  */
 export type AnalysisVarType = "numeric" | "factor" | "ordered" | "character" | "logical" | "date";
 
-export interface AnalysisVisibleWhen {
+/** A condition on another option: equal to a value, or (filled) not empty. */
+export interface AnalysisCondition {
   bind: string;
-  equals: unknown;
+  equals?: unknown;
+  filled?: boolean;
+}
+
+/** @deprecated Use AnalysisCondition. */
+export type AnalysisVisibleWhen = AnalysisCondition;
+
+
+/**
+ * A use case the backend package showcases, offered in the form's "이 분석으로
+ * 할 수 있는 것" list. Turning it on sets `enable` in the options.
+ */
+export interface AnalysisShowcase {
+  title: string;
+  description: string;
+  /** Backend functions behind it, shown as tags. */
+  fn?: string[];
+  enable: Record<string, unknown>;
+  /** What the user still has to choose after turning it on (e.g. "X·Y 변수를 고르세요"). */
+  needs?: string;
+  /** Options that must be filled before it works; `needs` shows while any is empty. */
+  needsFilled?: string[];
 }
 
 export interface AnalysisForm {
   formVersion: number;
-  sections: { title: string; controls: AnalysisFormControl[] }[];
+  /** What the analysis can do, shown above the variables. */
+  about?: { summary?: string; links?: { label: string; url: string }[]; showcase?: AnalysisShowcase[] };
+  /** Variable roles, shown as the transfer block under the data picker. */
+  roles?: Extract<AnalysisFormControl, { type: "variables" | "variable" }>[];
+  sections: { title: string; description?: string; open?: boolean; controls: AnalysisFormControl[] }[];
 }
 
 /** Whether the module's R packages and their dependencies are ready in the current R. */
@@ -437,6 +492,10 @@ export interface AnalysisTable {
   columns: AnalysisTableColumn[];
   rows: Record<string, unknown>[];
   notes: string[];
+  /** How to read the table, shown under its title. */
+  description?: string;
+  /** Result section it belongs to (AnalysisResult.sections). */
+  section?: string;
 }
 
 export interface AnalysisResult {
@@ -448,7 +507,21 @@ export interface AnalysisResult {
    * autoWidth/autoHeight the size the module chose from the content.
    * rds is the saved plot, for redrawing it in the Plots pane.
    */
-  plots: { id: string; title: string; alt: string; width: number; height: number; autoWidth: number; autoHeight: number; src: string; rds?: string }[];
+  plots: {
+    id: string;
+    title: string;
+    alt: string;
+    width: number;
+    height: number;
+    autoWidth: number;
+    autoHeight: number;
+    src: string;
+    rds?: string;
+    description?: string;
+    section?: string;
+  }[];
+  /** Order of the result sections; tables and plots are shown grouped by their section. */
+  sections?: string[];
   notes: { level: "info" | "warning"; code?: string; text: string }[];
   dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
   exports: string[];

@@ -65,12 +65,17 @@ export function formatResult(inst: AnalysisInstance, result: AnalysisResult | un
   const d = result.dataInfo;
   if (d.rows !== undefined) out.push(`Data: ${d.rows} rows × ${d.columns} columns`);
   for (const t of result.tables) {
-    out.push("", `## ${t.title}`, t.columns.map((c) => c.label).join("\t"));
+    out.push("", `## ${t.title}`);
+    if (t.description) out.push(`(How to read: ${t.description})`);
+    out.push(t.columns.map((c) => c.label).join("\t"));
     for (const r of t.rows.slice(0, maxRows)) out.push(t.columns.map((c) => cell(r[c.id])).join("\t"));
     if (t.rows.length > maxRows) out.push(`… ${t.rows.length - maxRows} more rows`);
     for (const n of t.notes) out.push(`Note: ${n}`);
   }
-  if (result.plots.length) out.push("", `Plots shown to the user: ${result.plots.map((p) => p.title).join("; ")}`);
+  if (result.plots.length) {
+    out.push("", "Plots shown to the user:");
+    for (const p of result.plots) out.push(`- ${p.title}${p.description ? `: ${p.description}` : ""}`);
+  }
   for (const n of result.notes) out.push(`${n.level === "warning" ? "Warning" : "Note"}: ${n.text}`);
   if (result.exports.length) out.push(`Saved in the R session: ${result.exports.join(", ")}`);
   return out.join("\n");
