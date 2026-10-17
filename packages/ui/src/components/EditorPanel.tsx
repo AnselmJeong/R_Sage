@@ -82,7 +82,8 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
       unicodeHighlight: { ambiguousCharacters: false },
     });
     editorsByPath.set(path, ed);
-    setActiveEditor(path);
+    // Restored tabs mount in the background; only the visible one is the active file.
+    if (props.api.isActive) setActiveEditor(path);
 
     // Running code
     ed.addAction({
@@ -137,7 +138,7 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
       setActive(e.isActive);
       if (e.isActive) {
         setActiveEditor(path);
-        setTimeout(() => ed.focus(), 0);
+        setTimeout(() => props.api.isActive && ed.focus(), 0);
       }
     });
     setTimeout(() => ed.focus(), 0);

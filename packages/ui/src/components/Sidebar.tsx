@@ -4,7 +4,7 @@
 import { useRef } from "react";
 import { create } from "zustand";
 import { FileTree } from "./FileTree";
-import { SearchPanel } from "./SearchPanel";
+import { SearchPanel, searchHooks } from "./SearchPanel";
 import { OutlinePanel } from "./OutlinePanel";
 import { PackagesPanel } from "./PackagesPanel";
 
@@ -73,7 +73,12 @@ export function ActivityBar() {
           key={v.id}
           className={`activity ${open && view === v.id ? "active" : ""}`}
           title={v.title}
-          onClick={() => useSidebar.setState(open && view === v.id ? { open: false } : { view: v.id, open: true })}
+          onClick={() => {
+            const closing = open && view === v.id;
+            useSidebar.setState(closing ? { open: false } : { view: v.id, open: true });
+            // The search view stays mounted, so its input needs focusing each time it opens.
+            if (!closing && v.id === "search") searchHooks.focus?.();
+          }}
         >
           {ICONS[v.id]}
         </button>

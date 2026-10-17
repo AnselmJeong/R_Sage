@@ -1463,6 +1463,8 @@ label.check {
   font-family: var(--mono);
   font-size: 12px;
   width: 200px;
+  flex: 0 1 200px;
+  min-width: 40px;
 }
 .qv-cell-header:focus {
   outline: 1px solid var(--border);
@@ -2119,7 +2121,17 @@ label.check {
     background: transparent;
   }
 }
+/* On a narrow chunk the secondary run buttons keep only their arrow (labels stay in the tooltip). */
+.qv-cell {
+  container-type: inline-size;
+}
+@container (max-width: 460px) {
+  .qv-run-label {
+    display: none;
+  }
+}
 .qv-run-group {
+  flex: none;
   display: inline-flex;
   border: 1px solid var(--border);
   border-radius: 4px;

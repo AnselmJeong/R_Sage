@@ -4,6 +4,7 @@
 // model from elsewhere are parsed back into this view.
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { XREF_KINDS, xrefTargets, type XrefTarget } from "./xref";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -52,11 +53,16 @@ function carryCellIds(next: PMNode, prev: PMNode | undefined): PMNode {
 /** The last document per file, so chunk results survive switching to source and back. */
 const lastDocs = new Map<string, PMNode>();
 
+/** Replaces the whole document without an undo step, so ⌘Z never undoes loading the file. */
+function replaceDoc(editor: Editor, content: any) {
+  editor.chain().setMeta("addToHistory", false).setContent(content, { emitUpdate: false }).run();
+}
+
 function load(editor: Editor, text: string, prev?: PMNode) {
   const parsed = parseQmd(text);
-  editor.commands.setContent(carryCellIds(withCellIds(parsed.doc), prev) as any, { emitUpdate: false });
+  replaceDoc(editor, carryCellIds(withCellIds(parsed.doc), prev));
   // Baselines from the editor's own (normalized) document.
-  editor.commands.setContent(withBaselines(editor.getJSON() as PMNode) as any, { emitUpdate: false });
+  replaceDoc(editor, withBaselines(editor.getJSON() as PMNode));
   return parsed.trailing;
 }
 
@@ -137,7 +143,7 @@ export function VisualEditor({ path, active }: { path: string; active: boolean }
         if (editor.isDestroyed) return;
         setDocContext(editor, { path, base: url.endsWith("/") ? url : url + "/" });
         // Redraw images with the folder now known.
-        editor.commands.setContent(editor.getJSON(), { emitUpdate: false });
+        replaceDoc(editor, editor.getJSON());
       })
       .catch(() => {});
   }, [editor, path]);
@@ -195,8 +201,9 @@ function XrefButton({ editor, path }: { editor: Editor; path: string }) {
   const [sel, setSel] = useState(0);
   const [at, setAt] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
   const show = () => {
-    // Fixed position, so the list never widens (and scrolls) the editor.
+    // Fixed position in a portal on <body>: the dock's panels would otherwise offset it, and it never widens the editor.
     const r = ref.current?.getBoundingClientRect();
     if (r) setAt({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 400)) });
     setTargets(xrefTargets(getModel(path)?.getValue() ?? ""));
@@ -210,7 +217,10 @@ function XrefButton({ editor, path }: { editor: Editor; path: string }) {
   }, [editor, path]);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as globalThis.Node) && setOpen(false);
+    const close = (e: MouseEvent) => {
+      const t = e.target as globalThis.Node;
+      if (!ref.current?.contains(t) && !pop.current?.contains(t)) setOpen(false);
+    };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, [open]);
@@ -225,8 +235,9 @@ function XrefButton({ editor, path }: { editor: Editor; path: string }) {
       <button className={`btn btn-small qv-tb ${open ? "active" : ""}`} title="상호 참조 넣기 (⇧⌘F10)" onMouseDown={(e) => e.preventDefault()} onClick={() => (open ? setOpen(false) : show())}>
         @참조
       </button>
-      {open && (
-        <div className="qv-xref-pop" style={at}>
+      {open &&
+        createPortal(
+        <div className="qv-xref-pop" style={at} ref={pop}>
           <input
             className="text-input"
             autoFocus
@@ -263,8 +274,9 @@ function XrefButton({ editor, path }: { editor: Editor; path: string }) {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }

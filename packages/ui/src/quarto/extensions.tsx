@@ -219,13 +219,13 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
               ▶ 실행
             </button>
             <button className="qv-run" onClick={() => runRange("above")} title="처음부터 이 청크까지 실행 (⌘⇧↩)">
-              ⇡ 여기까지
+              ⇡<span className="qv-run-label"> 여기까지</span>
             </button>
             <button className="qv-run" onClick={() => runRange("below")} title="이 청크부터 끝까지 실행">
-              ⇣ 끝까지
+              ⇣<span className="qv-run-label"> 끝까지</span>
             </button>
             <button className="qv-run" onClick={() => runRange("all")} title="모든 청크 실행">
-              ⇕ 전체
+              ⇕<span className="qv-run-label"> 전체</span>
             </button>
           </div>
         )}
