@@ -15,6 +15,7 @@ import type {
   AssistantStatus,
   Conversation,
   ConversationSummary,
+  EditApprovalScope,
 } from "@rsage/shared";
 import type { KernelSession } from "@rsage/kernel";
 import type { CommManager } from "../comms";
@@ -39,7 +40,7 @@ interface Stored extends Conversation {
 }
 
 type AnyProvider = Provider | AgentProvider;
-type Run = { abort: AbortController; approvals: Map<string, (ok: boolean) => void> };
+type Run = { abort: AbortController; approvals: Map<string, (ok: boolean, scope?: EditApprovalScope) => void> };
 const isAgent = (p: AnyProvider): p is AgentProvider => (p as AgentProvider).kind === "agent";
 
 type ToolItem = Extract<AssistantItem, { kind: "tool" }>;
@@ -117,6 +118,7 @@ export class AssistantService {
       models,
       defaultModel: models.find((m) => m.id === def)?.id ?? prefer.map((id) => models.find((m) => m.id === id)?.id).find(Boolean) ?? models[0]?.id,
       autoRunR: !!this.options.autoRunR,
+      autoApproveEdits: this.projectApproved(),
     };
   }
 
@@ -149,10 +151,41 @@ export class AssistantService {
     return this.status();
   }
 
-  async setOptions(o: { autoRunR?: boolean; defaultModel?: string }) {
-    const cfg = this.deps.config;
-    cfg.update({ assistant: { ...this.options, ...o } });
+  async setOptions({ autoApproveEdits, ...o }: { autoRunR?: boolean; defaultModel?: string; autoApproveEdits?: boolean }) {
+    const next = { ...this.options, ...o };
+    const root = this.deps.project()?.root;
+    if (root && autoApproveEdits !== undefined) {
+      const rest = (next.autoApproveEditsIn ?? []).filter((r) => r !== root);
+      next.autoApproveEditsIn = autoApproveEdits ? [...rest, root] : rest;
+    }
+    this.deps.config.update({ assistant: next });
     return this.status();
+  }
+
+  // ---------- file-change approvals ----------
+
+  /** Files whose changes the user approved for the rest of this app session, per project. */
+  private approvedFiles = new Map<string, Set<string>>();
+
+  private projectApproved() {
+    const root = this.deps.project()?.root;
+    return !!root && (this.options.autoApproveEditsIn ?? []).includes(root);
+  }
+
+  /** True when a change to this file needs no approval. */
+  private autoApply(path: string) {
+    const root = this.deps.project()?.root;
+    return !!root && (this.projectApproved() || !!this.approvedFiles.get(root)?.has(path));
+  }
+
+  private rememberApproval(path: string, scope: EditApprovalScope) {
+    const root = this.deps.project()?.root;
+    if (!root) return;
+    if (scope === "project") void this.setOptions({ autoApproveEdits: true });
+    else if (scope === "file") {
+      if (!this.approvedFiles.has(root)) this.approvedFiles.set(root, new Set());
+      this.approvedFiles.get(root)!.add(path);
+    }
   }
 
   // ---------- storage ----------
@@ -227,12 +260,12 @@ export class AssistantService {
     for (const resolve of r.approvals.values()) resolve(false);
   }
 
-  approve(id: string, itemId: string, ok: boolean, always?: boolean) {
+  approve(id: string, itemId: string, ok: boolean, always?: boolean, scope?: EditApprovalScope) {
     if (ok && always) void this.setOptions({ autoRunR: true });
     const r = this.running.get(id);
     const resolve = r?.approvals.get(itemId);
     r?.approvals.delete(itemId);
-    resolve?.(ok);
+    resolve?.(ok, scope);
   }
 
   /** Validates and starts a reply; resolves when the whole tool loop is done. */
@@ -280,12 +313,14 @@ export class AssistantService {
           comms: this.deps.comms,
           ensureSession: this.deps.ensureSession,
           autoRunR: () => !!this.options.autoRunR,
+          autoApply: (path) => this.autoApply(path),
           signal: run.abort.signal,
           update,
           approve: (it) =>
             new Promise<boolean>((resolve) => {
               update({ ...it, status: "awaiting-approval" });
-              run.approvals.set(toolItem.id, (ok) => {
+              run.approvals.set(toolItem.id, (ok, scope) => {
+                if (ok && scope && toolItem.diff) this.rememberApproval(toolItem.diff.path, scope);
                 update({ status: ok ? "running" : "denied" });
                 resolve(ok);
               });

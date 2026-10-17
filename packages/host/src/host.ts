@@ -451,7 +451,7 @@ export class Host {
         this.assistant.send(conversationId, text, model, context);
       },
       "assistant.stop": ({ conversationId }) => this.assistant.stop(conversationId),
-      "assistant.approve": ({ conversationId, itemId, approve, always }) => this.assistant.approve(conversationId, itemId, approve, always),
+      "assistant.approve": ({ conversationId, itemId, approve, always, scope }) => this.assistant.approve(conversationId, itemId, approve, always, scope),
       "comm.list": () => this.comms.list(),
       "comm.rpc": ({ commId, method, params }) => this.comms.rpc(commId, method, params),
       "comm.close": ({ commId }) => this.comms.close(commId),

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { diffLines } from "diff";
-import type { AssistantItem } from "@rsage/shared";
+import type { AssistantItem, EditApprovalScope } from "@rsage/shared";
 import { host } from "../host/client";
 import { activeEditor, openFile } from "../editor/files";
 import { useStore } from "../store";
@@ -284,7 +284,8 @@ function ToolView({ item, conversationId }: { item: ToolItem; conversationId: st
   useEffect(() => {
     if (item.status === "awaiting-approval") setOpen(true);
   }, [item.status]);
-  const approve = (ok: boolean, always?: boolean) => host.call("assistant.approve", { conversationId, itemId: item.id, approve: ok, always });
+  const approve = (ok: boolean, always?: boolean, scope?: EditApprovalScope) =>
+    host.call("assistant.approve", { conversationId, itemId: item.id, approve: ok, always, scope });
   const target = item.input?.path ?? item.input?.dir ?? item.input?.query ?? item.input?.purpose ?? "";
   const isFile = item.name === "write_file" || item.name === "edit_file";
 
@@ -312,9 +313,17 @@ function ToolView({ item, conversationId }: { item: ToolItem; conversationId: st
                   </button>
                 </>
               ) : (
-                <button className="btn btn-small btn-primary" onClick={() => approve(true)}>
-                  {item.diff?.isNew ? "파일 만들기" : "변경 적용"}
-                </button>
+                <>
+                  <button className="btn btn-small btn-primary" onClick={() => approve(true, false, "once")} title="이번 변경만 적용합니다. 다음 변경은 다시 묻습니다.">
+                    {item.diff?.isNew ? "이번만 만들기" : "이번만 적용"}
+                  </button>
+                  <button className="btn btn-small" onClick={() => approve(true, false, "file")} title="R Sage를 끌 때까지 이 파일의 변경은 묻지 않고 적용합니다. 다른 파일은 다시 묻습니다.">
+                    이 파일은 모두 허용
+                  </button>
+                  <button className="btn btn-small" onClick={() => approve(true, false, "project")} title="이 프로젝트 폴더 안의 파일 변경은 앞으로 묻지 않고 적용합니다 (AI 연결 설정에서 끌 수 있음).">
+                    이 프로젝트는 모두 허용
+                  </button>
+                </>
               )}
               <button className="btn btn-small" onClick={() => approve(false)}>
                 거절

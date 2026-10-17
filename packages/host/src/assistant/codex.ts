@@ -29,7 +29,8 @@ const CONFIG = [
   "features.plugins=false",
   "features.hooks=false",
   "features.code_mode=false",
-  "features.code_mode_host=false",
+  // Not features.code_mode_host: Codex 0.160 exposes MCP tools through the
+  // code-mode host, so turning it off hides every R Sage tool from the model.
   "features.apply_patch_freeform=false",
   "project_doc_max_bytes=0",
   "analytics.enabled=false",

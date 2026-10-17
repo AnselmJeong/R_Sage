@@ -109,6 +109,8 @@ export interface ToolEnv {
   comms: CommManager;
   ensureSession(): Promise<void>;
   autoRunR(): boolean;
+  /** True when changes to this file were already approved (this file or the whole project). */
+  autoApply(path: string): boolean;
   /** Show the item for approval; resolves true when approved. */
   approve(item: Extract<AssistantItem, { kind: "tool" }>): Promise<boolean>;
   /** Update the tool item shown to the user. */
@@ -225,7 +227,7 @@ export async function runTool(
       }
       if (after === before) return { output: "No change." };
       env.update({ diff: { path: abs, before, after, isNew } });
-      const ok = await env.approve({ ...item, diff: { path: abs, before, after, isNew } });
+      const ok = env.autoApply(abs) || (await env.approve({ ...item, diff: { path: abs, before, after, isNew } }));
       if (!ok) return { output: "The user rejected this change.", isError: true };
       // Re-check the file hasn't changed while the user was looking at the diff.
       const now = existsSync(abs) ? readFileSync(abs, "utf8") : "";
