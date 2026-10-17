@@ -159,6 +159,74 @@ export interface RVariable {
   updated_time: number;
 }
 
+// ---------- AI assistant ----------
+
+export type AssistantProviderId = "anthropic" | "openai" | "fake";
+
+export interface AssistantModel {
+  id: string;
+  label: string;
+  provider: AssistantProviderId;
+}
+
+export interface AssistantProviderStatus {
+  id: AssistantProviderId;
+  label: string;
+  configured: boolean;
+  /** Where the key came from. */
+  source?: "keychain" | "file" | "env";
+  /** Last error talking to the provider (bad key, network). */
+  error?: string;
+}
+
+export interface AssistantStatus {
+  providers: AssistantProviderStatus[];
+  models: AssistantModel[];
+  defaultModel?: string;
+  /** Run R code from the assistant without asking each time. */
+  autoRunR: boolean;
+}
+
+export interface AssistantContext {
+  /** Active editor file (absolute path). */
+  file?: string;
+  selection?: { text: string; startLine: number; endLine: number };
+}
+
+export type AssistantToolStatus = "awaiting-approval" | "running" | "done" | "error" | "denied";
+
+export type AssistantItem =
+  | { kind: "user"; id: string; text: string; context?: AssistantContext; at: string }
+  | { kind: "assistant"; id: string; text: string; thinking?: string; model: string; at: string }
+  | {
+      kind: "tool";
+      id: string;
+      name: string;
+      input: any;
+      status: AssistantToolStatus;
+      /** What the tool returned to the model (truncated for display). */
+      output?: string;
+      /** Plots or images the tool produced, as data: URLs. */
+      images?: string[];
+      /** Proposed file change, shown as a diff before approval. */
+      diff?: { path: string; before: string; after: string; isNew: boolean };
+      executionId?: string;
+      at: string;
+    }
+  | { kind: "error"; id: string; text: string; at: string };
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface Conversation extends ConversationSummary {
+  createdAt: string;
+  model?: string;
+  items: AssistantItem[];
+}
+
 // ---------- methods ----------
 
 export interface HostMethods {
@@ -241,6 +309,18 @@ export interface HostMethods {
   /** Write base64 data to a project file (plot export). */
   "fs.writeBase64": { params: { path: string; data: string }; result: void };
 
+  "assistant.status": { params: { refresh?: boolean }; result: AssistantStatus };
+  /** Store (or with key null, remove) a provider's API key. */
+  "assistant.setKey": { params: { provider: AssistantProviderId; key: string | null }; result: AssistantStatus };
+  "assistant.setOptions": { params: { autoRunR?: boolean; defaultModel?: string }; result: AssistantStatus };
+  "assistant.list": { params: {}; result: ConversationSummary[] };
+  "assistant.load": { params: { id: string }; result: Conversation | null };
+  "assistant.new": { params: {}; result: Conversation };
+  "assistant.delete": { params: { id: string }; result: void };
+  "assistant.send": { params: { conversationId: string; text: string; model: string; context?: AssistantContext }; result: void };
+  "assistant.stop": { params: { conversationId: string }; result: void };
+  "assistant.approve": { params: { conversationId: string; itemId: string; approve: boolean; always?: boolean }; result: void };
+
   "dialog.pickFolder": { params: { title?: string }; result: string | null };
   "shell.openExternal": { params: { path: string }; result: void };
 }
@@ -266,6 +346,11 @@ export interface HostEvents {
   "comm.close": { commId: string; target: string };
   /** The kernel is waiting for the UI to answer (frontend.reply). */
   "frontend.request": { id: string; method: string; params: any };
+  /** A conversation item was added or changed (replace by id). */
+  "assistant.item": { conversationId: string; item: AssistantItem };
+  /** Streaming text for an assistant item. */
+  "assistant.delta": { conversationId: string; itemId: string; text?: string; thinking?: string };
+  "assistant.state": { conversationId: string; running: boolean };
   /** Native menu → UI command registry (desktop shell). */
   "ui.command": { id: string };
 }

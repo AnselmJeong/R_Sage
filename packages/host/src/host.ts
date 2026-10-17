@@ -25,6 +25,7 @@ import type {
   SessionInfo,
 } from "@rsage/shared";
 import { randomUUID } from "node:crypto";
+import { AssistantService } from "./assistant/service";
 import { CommManager } from "./comms";
 import { appDir, ConfigStore } from "./config";
 import { LspBridge } from "./lsp";
@@ -50,6 +51,7 @@ export class Host {
   readonly session = new KernelSession();
   readonly lsp = new LspBridge(this.session);
   readonly comms = new CommManager(this.session);
+  readonly assistant: AssistantService;
   private frontendWaiters = new Map<string, (result: unknown, error?: string) => void>();
   /** R's working directory as the UI comm last reported it. */
   private rCwd?: string;
@@ -80,6 +82,20 @@ export class Host {
           this.project?.appendHistory(rec);
         } catch {}
       }
+    });
+    this.assistant = new AssistantService({
+      config: this.config,
+      project: () => this.project,
+      session: this.session,
+      comms: this.comms,
+      ensureSession: async () => {
+        const st = this.session.state.state;
+        if (st === "stopped" || st === "exited") await this.startSession();
+      },
+      emitItem: (conversationId, item) => this.emit("assistant.item", { conversationId, item }),
+      emitDelta: (conversationId, itemId, d) => this.emit("assistant.delta", { conversationId, itemId, ...d }),
+      emitState: (conversationId, running) => this.emit("assistant.state", { conversationId, running }),
+      rInfo: () => ({ version: this.session.state.rVersion }),
     });
     this.comms.on("open", (c) => this.emit("comm.open", c));
     this.comms.on("close", (c) => this.emit("comm.close", c));
@@ -375,6 +391,19 @@ export class Host {
       },
       "lsp.status": () => ({ running: this.lsp.running }),
 
+      "assistant.status": ({ refresh }) => this.assistant.status(refresh),
+      "assistant.setKey": ({ provider, key }) => this.assistant.setKey(provider, key),
+      "assistant.setOptions": (o) => this.assistant.setOptions(o),
+      "assistant.list": () => this.assistant.list(),
+      "assistant.load": ({ id }) => this.assistant.load(id),
+      "assistant.new": () => this.assistant.create(),
+      "assistant.delete": ({ id }) => this.assistant.delete(id),
+      "assistant.send": ({ conversationId, text, model, context }) => {
+        // The reply runs in the background; progress arrives as assistant.* events.
+        this.assistant.send(conversationId, text, model, context);
+      },
+      "assistant.stop": ({ conversationId }) => this.assistant.stop(conversationId),
+      "assistant.approve": ({ conversationId, itemId, approve, always }) => this.assistant.approve(conversationId, itemId, approve, always),
       "comm.list": () => this.comms.list(),
       "comm.rpc": ({ commId, method, params }) => this.comms.rpc(commId, method, params),
       "comm.close": ({ commId }) => this.comms.close(commId),
