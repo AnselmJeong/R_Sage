@@ -59,6 +59,9 @@ describe("R code", () => {
       'list(\n  a = c("x", "y"),\n  b = NULL,\n  c = TRUE,\n  n = 5L,\n  f = 0.5,\n  e = character(),\n  s = "say \\"hi\\""\n)',
     );
     expect(analysisCode("rsageMissing", "analyse", "내 데이터", { m: 1 })).toContain("rsageMissing::analyse(\n  `내 데이터`,");
+    expect(analysisCode("rsageMissing", "analyse", "aq", {}, { variables: { width: 9, height: 3 } })).toContain(
+      "res <- rsage::rs_resize(res, list(variables = c(9, 3)))",
+    );
   });
 });
 
@@ -131,6 +134,19 @@ live("missing-data analysis in a live session", async () => {
 
     const code = await call("analysis.code", { id: inst.id });
     expect(code).toContain("rsageMissing::analyse(");
+
+    // A size the user picks for one figure redraws that figure only, and travels with the code.
+    await call("analysis.update", { id: inst.id, options: { variables: ["Ozone", "Solar.R"] } });
+    const sized0 = await call("analysis.run", { id: inst.id });
+    const auto = sized0.result.plots.find((p: any) => p.id === "variables");
+    await call("analysis.update", { id: inst.id, figures: { variables: { width: 9, height: 3 } } });
+    const sized = await call("analysis.run", { id: inst.id });
+    const v = sized.result.plots.find((p: any) => p.id === "variables");
+    expect([v.width, v.height, v.autoWidth, v.autoHeight]).toEqual([9, 3, auto.width, auto.height]);
+    expect(v.rds).toEndWith("plot-variables.rds");
+    expect(await call("analysis.code", { id: inst.id })).toContain("rs_resize(res, list(variables = c(9, 3)))");
+    await call("analysis.update", { id: inst.id, figures: { variables: null } });
+    expect((await call("analysis.run", { id: inst.id })).result.plots[0].width).toBe(auto.width);
   }, 240_000);
 
   test("the assistant runs it through run_analysis", async () => {

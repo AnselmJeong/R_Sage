@@ -91,3 +91,34 @@ test_that("without naniar the module falls back to its own summaries", {
   rsage::rs_write(r, dir, "t2")
   expect_true(file.exists(file.path(dir, "result.json")))
 })
+
+test_that("plots by very many groups become a heat map sized to the groups", {
+  d <- airquality
+  d$site <- rep(sprintf("s%02d", 1:70), length.out = nrow(d))
+  res <- analyse(d, list(group = "site", plots = list(matrix = FALSE)))
+  p <- res$plots[[1]]
+  expect_equal(p$id, "variables")
+  expect_true(any(vapply(p$plot$layers, function(l) inherits(l$geom, "GeomTile"), TRUE)))
+  expect_gt(p$width, 10)
+  expect_lt(p$height, 5)
+})
+
+test_that("plots by groups stay small multiples on a grid sized to them", {
+  skip_if_not_installed("naniar")
+  res <- analyse(airquality, list(group = "Month", plots = list(matrix = FALSE)))
+  p <- res$plots[[1]]
+  expect_false(any(vapply(p$plot$layers, function(l) inherits(l$geom, "GeomTile"), TRUE)))
+  expect_equal(p$plot$facet$params$ncol, 3)
+  days <- analyse(airquality, list(group = "Day", plots = list(matrix = FALSE)))$plots[[1]]
+  expect_equal(days$plot$facet$params$ncol, 6)
+  expect_gte(days$width, 11)
+  expect_gte(days$height, 9)
+})
+
+test_that("a user size from the app overrides the automatic one", {
+  auto <- analyse(airquality, list())
+  res <- rsage::rs_resize(auto, list(variables = list(width = 9, height = 3)))
+  expect_equal(c(res$plots[[1]]$width, res$plots[[1]]$height), c(9, 3))
+  expect_equal(res$plots[[1]]$auto, auto$plots[[1]]$auto)
+  expect_equal(res$plots[[2]]$width, auto$plots[[2]]$width)
+})

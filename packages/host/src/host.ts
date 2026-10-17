@@ -549,6 +549,7 @@ export class Host {
       "analysis.cancel": ({ id }) => this.analyses.cancel(id),
       "analysis.delete": ({ id }) => this.analyses.delete(id),
       "analysis.code": ({ id }) => this.analyses.code(id),
+      "analysis.showPlot": ({ id, plotId }) => this.analyses.showPlot(id, plotId),
     };
     return h;
   }

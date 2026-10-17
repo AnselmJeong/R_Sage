@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
-import type { AnalysisDataset, AnalysisFormControl, AnalysisResult, AnalysisTable } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisFormControl, AnalysisInstance, AnalysisResult, AnalysisTable } from "@rsage/shared";
 import { getPath, setPath } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
@@ -161,7 +161,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
         <RuntimeBanner moduleId={mod.id} />
         {inst.lastRun?.status === "error" && <div className="an-note an-warning">{inst.lastRun.error?.message}</div>}
         {!draft.dataset && <p className="muted an-hint">왼쪽에서 분석할 데이터 프레임을 고르세요.</p>}
-        {inst.result && <ResultView result={inst.result} dim={running || !!stale} />}
+        {inst.result && <ResultView inst={inst} result={inst.result} dim={running || !!stale} />}
       </div>
     </div>
   );
@@ -372,7 +372,7 @@ function typeLabel(t: string) {
   )[t] ?? t;
 }
 
-function ResultView({ result, dim }: { result: AnalysisResult; dim: boolean }) {
+function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: AnalysisResult; dim: boolean }) {
   return (
     <div className={`an-result ${dim ? "dim" : ""}`}>
       {result.notes
@@ -386,10 +386,7 @@ function ResultView({ result, dim }: { result: AnalysisResult; dim: boolean }) {
         <ResultTable key={t.id} table={t} />
       ))}
       {result.plots.map((p) => (
-        <figure key={p.id} className="an-plot">
-          <figcaption>{p.title}</figcaption>
-          <img src={p.src} alt={p.alt} style={{ aspectRatio: `${p.width} / ${p.height}` }} />
-        </figure>
+        <Figure key={p.id} inst={inst} plot={p} />
       ))}
       {result.notes
         .filter((n) => n.level !== "warning")
@@ -456,5 +453,130 @@ function ResultTable({ table }: { table: AnalysisTable }) {
         </p>
       ))}
     </section>
+  );
+}
+
+type Plot = AnalysisResult["plots"][number];
+
+/** CSS pixels per inch: a figure at 100% shows at the size it prints. */
+const PX_PER_IN = 96;
+
+const ASPECTS: { label: string; ratio: number }[] = [
+  { label: "가로 16:9", ratio: 9 / 16 },
+  { label: "가로 4:3", ratio: 3 / 4 },
+  { label: "정사각", ratio: 1 },
+  { label: "세로 3:4", ratio: 4 / 3 },
+];
+
+/**
+ * A result figure with its size controls. The module picks a size from what
+ * the figure shows; the user can pick an aspect or type a size in inches,
+ * which re-runs the analysis and draws the figure again at that size (so
+ * text keeps its point size instead of being stretched). "실제 크기" shows it
+ * as it prints; "플롯 창" redraws it in the Plots pane, with its own fit,
+ * aspect and Save Plot.
+ */
+function Figure({ inst, plot }: { inst: AnalysisInstance; plot: Plot }) {
+  const custom = !!inst.figures?.[plot.id];
+  const [actual, setActual] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [w, setW] = useState(String(plot.width));
+  const [h, setH] = useState(String(plot.height));
+  useEffect(() => {
+    setW(String(plot.width));
+    setH(String(plot.height));
+  }, [plot.width, plot.height]);
+
+  const resize = async (size: { width: number; height: number } | null) => {
+    const figures: Record<string, { width: number; height: number } | null> = { ...(inst.figures ?? {}), [plot.id]: size };
+    try {
+      await host.call("analysis.update", { id: inst.id, figures });
+      await host.call("analysis.run", { id: inst.id });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const round = (x: number) => Math.round(x * 10) / 10;
+
+  return (
+    <figure className="an-plot">
+      <figcaption>
+        <span>{plot.title}</span>
+        <span className="spacer" />
+        <span className="muted small" title="인치 (너비 × 높이)">
+          {plot.width} × {plot.height} in{custom ? "" : " · 자동"}
+        </span>
+        <select
+          className="an-fig-select"
+          value=""
+          title="그림 크기"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "auto") void resize(null);
+            else if (v === "custom") setEditing(true);
+            else if (v.startsWith("r:")) void resize({ width: plot.width, height: round(plot.width * Number(v.slice(2))) });
+            else if (v === "bigger") void resize({ width: round(plot.width * 1.25), height: round(plot.height * 1.25) });
+            else if (v === "smaller") void resize({ width: round(plot.width * 0.8), height: round(plot.height * 0.8) });
+          }}
+        >
+          <option value="">크기…</option>
+          <option value="auto" disabled={!custom}>
+            자동 ({plot.autoWidth} × {plot.autoHeight})
+          </option>
+          {ASPECTS.map((a) => (
+            <option key={a.label} value={`r:${a.ratio}`}>
+              {a.label}
+            </option>
+          ))}
+          <option value="bigger">크게 (글자는 상대적으로 작게)</option>
+          <option value="smaller">작게 (글자는 상대적으로 크게)</option>
+          <option value="custom">직접 입력…</option>
+        </select>
+        <button className="btn btn-small" onClick={() => setActual(!actual)} title="인쇄될 크기로 보기 / 탭 너비에 맞추기">
+          {actual ? "맞춤" : "실제 크기"}
+        </button>
+        <button
+          className="btn btn-small"
+          disabled={!plot.rds}
+          title="플롯 창에서 열기: 창 크기에 맞추기, 비율, 그림 저장(PNG·SVG·PDF…)"
+          onClick={() => void host.call("analysis.showPlot", { id: inst.id, plotId: plot.id }).catch(notifyError)}
+        >
+          플롯 창
+        </button>
+      </figcaption>
+      {editing && (
+        <div className="an-fig-size">
+          <label>
+            너비 <input type="number" min={1} max={30} step={0.5} value={w} onChange={(e) => setW(e.target.value)} /> in
+          </label>
+          <label>
+            높이 <input type="number" min={1} max={30} step={0.5} value={h} onChange={(e) => setH(e.target.value)} /> in
+          </label>
+          <button
+            className="btn btn-small btn-primary"
+            onClick={() => {
+              const width = Number(w);
+              const height = Number(h);
+              if (width > 0 && height > 0) {
+                setEditing(false);
+                void resize({ width, height });
+              }
+            }}
+          >
+            적용
+          </button>
+          <button className="btn btn-small" onClick={() => setEditing(false)}>
+            취소
+          </button>
+        </div>
+      )}
+      <div className={`an-plot-frame ${actual ? "actual" : ""}`}>
+        <img
+          src={plot.src}
+          alt={plot.alt}
+          style={actual ? { width: plot.width * PX_PER_IN } : { width: "100%", maxWidth: plot.width * PX_PER_IN, aspectRatio: `${plot.width} / ${plot.height}` }}
+        />
+      </div>
+    </figure>
   );
 }

@@ -233,18 +233,51 @@ mcar_table <- function(dv, backend) {
                   notes = notes)
 }
 
+label_chars <- function(x) max(c(0, nchar(as.character(x), type = "width")))
+
 variable_plot <- function(d, vars, group, backend) {
+  if (!is.null(group)) return(group_plot(d, vars, group, backend))
   if (backend == "naniar") {
-    p <- if (is.null(group)) naniar::gg_miss_var(d[vars], show_pct = TRUE)
-         else rlang::inject(naniar::gg_miss_var(d, facet = !!rlang::sym(group), show_pct = TRUE))
+    p <- naniar::gg_miss_var(d[vars], show_pct = TRUE)
   } else {
     s <- data.frame(variable = vars, pct = vapply(d[vars], function(x) pct(sum(is.na(x)), length(x)), 0))
     p <- ggplot2::ggplot(s, ggplot2::aes(stats::reorder(.data$variable, .data$pct), .data$pct)) +
       ggplot2::geom_col(fill = "#4aa5f0") + ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "결측 비율(%)") + ggplot2::theme_minimal()
   }
-  rsage::rs_plot("variables", "변수별 결측 비율", p, width = 7, height = max(3, 0.3 * length(vars) + 1.5),
-                 alt = "변수마다 결측 비율을 막대로 보여 주는 그림")
+  size <- rsage::rs_figure_size(y_items = length(vars), label_chars = label_chars(vars))
+  rsage::rs_plot("variables", "변수별 결측 비율", p, size = size, alt = "변수마다 결측 비율을 막대로 보여 주는 그림")
+}
+
+# By group: one small chart per group while they fit; past that (e.g. 31
+# days) a heat map of variable × group, which stays legible with dozens.
+group_plot <- function(d, vars, group, backend) {
+  g <- d[[group]]
+  levels_g <- if (is.factor(g)) levels(droplevels(g)) else sort(unique(g))
+  size <- rsage::rs_figure_size(panels = length(levels_g), y_items = length(vars), label_chars = label_chars(vars))
+  if (!size$compact && backend == "naniar") {
+    p <- rlang::inject(naniar::gg_miss_var(d[c(vars, group)], facet = !!rlang::sym(group), show_pct = TRUE)) +
+      ggplot2::facet_wrap(ggplot2::vars(.data[[group]]), ncol = size$ncol)
+    return(rsage::rs_plot("variables", sprintf("변수별 결측 비율 (%s별)", group), p, size = size,
+                          alt = sprintf("%s의 값마다 변수별 결측 비율을 보여 주는 그림", group)))
+  }
+  cells <- expand.grid(variable = vars, group = levels_g, stringsAsFactors = FALSE)
+  cells$pct <- mapply(function(v, l) {
+    x <- d[[v]][!is.na(g) & g == l]
+    pct(sum(is.na(x)), length(x))
+  }, cells$variable, cells$group)
+  cells$variable <- factor(cells$variable, levels = names(sort(vapply(vars, function(v) mean(is.na(d[[v]])), 0))))
+  cells$group <- factor(as.character(cells$group), levels = as.character(levels_g))
+  p <- ggplot2::ggplot(cells, ggplot2::aes(.data$group, .data$variable, fill = .data$pct)) +
+    ggplot2::geom_tile(colour = "white", linewidth = 0.4) +
+    ggplot2::scale_fill_gradient(low = "#f1f4f8", high = "#b2182b", limits = c(0, 100), name = "결측(%)") +
+    ggplot2::labs(x = group, y = NULL) + ggplot2::theme_minimal() +
+    ggplot2::theme(panel.grid = ggplot2::element_blank())
+  if (length(levels_g) * length(vars) <= 120) p <- p + ggplot2::geom_text(ggplot2::aes(label = round(.data$pct)), size = 2.8)
+  if (length(levels_g) > 12) p <- p + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1))
+  hsize <- rsage::rs_figure_size(x_items = length(levels_g), y_items = length(vars), label_chars = label_chars(vars), legend = TRUE)
+  rsage::rs_plot("variables", sprintf("변수별 결측 비율 (%s별)", group), p, size = hsize,
+                 alt = sprintf("%s의 값마다 변수별 결측 비율을 색으로 보여 주는 그림", group))
 }
 
 matrix_plot <- function(dv, backend) {
@@ -259,7 +292,8 @@ matrix_plot <- function(dv, backend) {
       ggplot2::scale_fill_manual(values = c(`FALSE` = "grey80", `TRUE` = "grey20"), labels = c("관측", "결측"), name = NULL) +
       ggplot2::labs(x = NULL, y = "행") + ggplot2::theme_minimal()
   }
-  rsage::rs_plot("matrix", "결측 위치", p, width = 7, height = 4.5, alt = "행과 변수마다 값이 결측인지 보여 주는 그림")
+  size <- rsage::rs_figure_size(x_items = ncol(dv), aspect = 0.7, legend = backend != "naniar")
+  rsage::rs_plot("matrix", "결측 위치", p, size = size, alt = "행과 변수마다 값이 결측인지 보여 주는 그림")
 }
 
 upset_plot <- function(dv, backend) {
@@ -271,7 +305,7 @@ upset_plot <- function(dv, backend) {
     return(rsage::rs_note("결측 조합 그림에는 결측이 있는 변수가 2개 이상 필요합니다.", code = "upset_not_applicable"))
   }
   rsage::rs_plot("upset", "결측 조합", function() print(naniar::gg_miss_upset(as.data.frame(dv), nsets = length(miss_vars))),
-                 width = 7, height = 4.5, alt = "어떤 변수들이 함께 결측인지 조합별 행 수를 보여 주는 그림")
+                 size = rsage::rs_figure_size(x_items = min(40, 2^length(miss_vars))), alt = "어떤 변수들이 함께 결측인지 조합별 행 수를 보여 주는 그림")
 }
 
 impute <- function(dv, o) {
@@ -303,11 +337,12 @@ impute <- function(dv, o) {
       rbind(data.frame(variable = v, value = obs, source = "관측값"), data.frame(variable = v, value = imp, source = "대체값"))
     })
     pd <- do.call(rbind, rows)
+    isize <- rsage::rs_figure_size(panels = length(num), legend = TRUE)
     plot <- rsage::rs_plot("imputation", "관측값과 대체값 분포",
       ggplot2::ggplot(pd, ggplot2::aes(.data$value, colour = .data$source)) +
-        ggplot2::geom_density() + ggplot2::facet_wrap(~variable, scales = "free") +
+        ggplot2::geom_density() + ggplot2::facet_wrap(~variable, scales = "free", ncol = isize$ncol) +
         ggplot2::labs(x = NULL, y = "밀도", colour = NULL) + ggplot2::theme_minimal(),
-      width = 7, height = max(3, 2.5 * ceiling(length(num) / 3)),
+      size = isize,
       alt = "대체된 수치형 변수마다 관측값과 대체값의 밀도를 겹쳐 그린 그림")
   }
   list(table = rsage::rs_table("imputation", "다중대체(mice)", tab,

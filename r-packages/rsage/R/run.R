@@ -35,6 +35,7 @@ rs_run <- function(path) {
       fun(data, options),
       warning = function(w) invokeRestart("muffleWarning")
     )
+    result <- rs_resize(result, req$figures)
     result$data_info <- c(result$data_info, list(
       dataset = req$dataset,
       rows = nrow(data),
@@ -58,4 +59,11 @@ normalize_json <- function(x) {
     return(lapply(x, normalize_json))
   }
   x
+}
+
+#' Draw a saved result plot on the current device (the app's "open in Plots pane").
+rs_show_plot <- function(file) {
+  p <- readRDS(file)
+  if (is.function(p)) p() else print(p)
+  invisible(NULL)
 }
