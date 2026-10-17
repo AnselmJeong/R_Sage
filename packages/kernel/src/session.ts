@@ -164,6 +164,22 @@ export class KernelSession extends EventEmitter {
     const executionId = rec?.id;
     const c = m.content;
 
+    if (m.channel === "stdin" && m.header.msg_type === "rpc_request") {
+      // Positron extension: the kernel asks the frontend something (e.g.
+      // show_question) and blocks until we send an rpc_reply on stdin.
+      this.emit("frontend_request", {
+        method: c.method as string,
+        params: c.params,
+        reply: (result: unknown, error?: string) =>
+          this.client?.send(
+            "stdin",
+            "rpc_reply",
+            error ? { error: { code: -32603, message: error, data: null } } : { result: result ?? null },
+            m.header,
+          ),
+      });
+      return;
+    }
     if (m.channel === "stdin" && m.header.msg_type === "input_request") {
       this.emit("output", { kind: "input_request", prompt: c.prompt ?? "", password: !!c.password } satisfies OutputEvent);
       return;
@@ -258,6 +274,12 @@ export class KernelSession extends EventEmitter {
       this.emit("execution", { ...rec });
     }
     return rec;
+  }
+
+  /** The execution R is busy with right now, if any. */
+  runningExecution(): ExecutionRecord | undefined {
+    for (const rec of this.byMsgId.values()) if (rec.status === "running") return rec;
+    return undefined;
   }
 
   executionForMsg(msgId: string | undefined): ExecutionRecord | undefined {

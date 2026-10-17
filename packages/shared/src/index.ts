@@ -131,6 +131,34 @@ export interface Diagnostic {
   message: string;
 }
 
+// ---------- comms (Positron extensions to Jupyter) ----------
+
+export interface CommInfo {
+  commId: string;
+  /** positron.ui, positron.variables, positron.help, positron.plot, positron.dataExplorer */
+  target: string;
+  data: any;
+  /** Execution that created it (plots, data viewers). */
+  executionId?: string;
+  openedAt: string;
+}
+
+/** A variable row from the variables comm (Ark's Variable type). */
+export interface RVariable {
+  access_key: string;
+  display_name: string;
+  display_value: string;
+  display_type: string;
+  type_info: string;
+  size: number;
+  kind: string;
+  length: number;
+  has_children: boolean;
+  has_viewer: boolean;
+  is_truncated: boolean;
+  updated_time: number;
+}
+
 // ---------- methods ----------
 
 export interface HostMethods {
@@ -204,6 +232,15 @@ export interface HostMethods {
   "lsp.notify": { params: { method: string; params: unknown }; result: void };
   "lsp.status": { params: {}; result: { running: boolean } };
 
+  "comm.list": { params: {}; result: CommInfo[] };
+  /** JSON-RPC request on a comm; params omitted for unit-variant requests. */
+  "comm.rpc": { params: { commId: string; method: string; params?: unknown }; result: unknown };
+  "comm.close": { params: { commId: string }; result: void };
+  /** Answer a kernel → frontend request (show_question and friends). */
+  "frontend.reply": { params: { id: string; result?: unknown; error?: string }; result: void };
+  /** Write base64 data to a project file (plot export). */
+  "fs.writeBase64": { params: { path: string; data: string }; result: void };
+
   "dialog.pickFolder": { params: { title?: string }; result: string | null };
   "shell.openExternal": { params: { path: string }; result: void };
 }
@@ -224,6 +261,11 @@ export interface HostEvents {
   "terminal.exit": { id: string; code: number | null };
   "lsp.notification": { method: string; params: any };
   "lsp.state": { running: boolean };
+  "comm.open": CommInfo;
+  "comm.event": { commId: string; target: string; method: string; params: any };
+  "comm.close": { commId: string; target: string };
+  /** The kernel is waiting for the UI to answer (frontend.reply). */
+  "frontend.request": { id: string; method: string; params: any };
   /** Native menu → UI command registry (desktop shell). */
   "ui.command": { id: string };
 }

@@ -24,6 +24,8 @@ import type {
   Result,
   SessionInfo,
 } from "@rsage/shared";
+import { randomUUID } from "node:crypto";
+import { CommManager } from "./comms";
 import { appDir, ConfigStore } from "./config";
 import { LspBridge } from "./lsp";
 import { Project } from "./project";
@@ -47,6 +49,10 @@ export class Host {
   readonly config = new ConfigStore();
   readonly session = new KernelSession();
   readonly lsp = new LspBridge(this.session);
+  readonly comms = new CommManager(this.session);
+  private frontendWaiters = new Map<string, (result: unknown, error?: string) => void>();
+  /** R's working directory as the UI comm last reported it. */
+  private rCwd?: string;
   private project?: Project;
   private rCache?: RInstallation[];
   private recentRuns: ExecutionRecord[] = [];
@@ -75,6 +81,18 @@ export class Host {
         } catch {}
       }
     });
+    this.comms.on("open", (c) => this.emit("comm.open", c));
+    this.comms.on("close", (c) => this.emit("comm.close", c));
+    this.comms.on("event", (e) => {
+      if (e.target === "positron.ui" && e.method === "working_directory") {
+        this.rCwd = e.params.directory;
+        this.emit("session.state", this.sessionInfo());
+      }
+      this.emit("comm.event", e);
+    });
+    this.session.on("frontend_request", (r: { method: string; params: any; reply: (res: unknown, err?: string) => void }) =>
+      this.onFrontendRequest(r),
+    );
     this.lsp.on("notification", (method, params) => this.emit("lsp.notification", { method, params }));
     this.lsp.on("state", (running: boolean) => this.emit("lsp.state", { running }));
     this.handlers = this.buildHandlers();
@@ -110,7 +128,7 @@ export class Host {
   // ---------- helpers ----------
 
   private sessionInfo(s: SessionInfo = this.session.state): SessionInfo {
-    return { ...s, memoryBytes: s.pid ? this.memoryBytes : undefined };
+    return { ...s, cwd: (s.pid && this.rCwd) || s.cwd, memoryBytes: s.pid ? this.memoryBytes : undefined };
   }
 
   private requireProject(): Project {
@@ -149,10 +167,40 @@ export class Host {
     const r = await this.chooseR(rHome);
     const cwd = this.project?.root ?? homedir();
     const opts = { arkPath, rHome: r.home, cwd, runtimeDir: join(appDir(), "runtime") };
+    this.rCwd = undefined;
     const info = restart && this.session.state.state !== "stopped" ? await this.session.restart(opts) : await this.session.start(opts);
+    this.comms.openFrontendComms();
     this.startMemorySampling();
     void this.lsp.start(cwd).catch((err) => console.warn("[lsp]", err.message));
     return this.sessionInfo(info);
+  }
+
+  /**
+   * Kernel → frontend requests (rstudioapi shims, readline-style questions).
+   * Ones the host can answer itself are answered here; the rest go to the UI.
+   */
+  private onFrontendRequest(r: { method: string; params: any; reply: (res: unknown, err?: string) => void }) {
+    switch (r.method) {
+      case "workspace_folder":
+        return r.reply(this.project?.root ?? null);
+      case "evaluate_when_clause":
+        return r.reply(false);
+      case "last_active_editor_context":
+      case "debug_sleep":
+        return r.reply(null);
+      case "show_question":
+      case "show_dialog":
+      case "show_prompt": {
+        const id = randomUUID();
+        this.frontendWaiters.set(id, r.reply);
+        this.emit("frontend.request", { id, method: r.method, params: r.params });
+        return;
+      }
+      default:
+        // Unknown request: answer null so R is never left blocked.
+        this.emit("frontend.request", { id: "", method: r.method, params: r.params });
+        return r.reply(null);
+    }
   }
 
   private startMemorySampling() {
@@ -327,6 +375,17 @@ export class Host {
       },
       "lsp.status": () => ({ running: this.lsp.running }),
 
+      "comm.list": () => this.comms.list(),
+      "comm.rpc": ({ commId, method, params }) => this.comms.rpc(commId, method, params),
+      "comm.close": ({ commId }) => this.comms.close(commId),
+      "frontend.reply": ({ id, result, error }) => {
+        const w = this.frontendWaiters.get(id);
+        this.frontendWaiters.delete(id);
+        w?.(result, error);
+      },
+      "fs.writeBase64": async ({ path, data }) => {
+        await Bun.write(this.file(path), Buffer.from(data, "base64"));
+      },
       "dialog.pickFolder": ({ title }) => (this.opts.pickFolder ? this.opts.pickFolder(title) : null),
       "shell.openExternal": async ({ path }) => {
         if (this.opts.openExternal) return this.opts.openExternal(path);

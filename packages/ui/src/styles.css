@@ -779,3 +779,196 @@ select {
   white-space: pre-wrap;
   font-family: var(--mono);
 }
+
+/* ---- environment / plots / help / data viewer ---- */
+.env,
+.plots,
+.help,
+.dataviewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.env-list {
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+}
+.env-row {
+  display: grid;
+  grid-template-columns: 12px minmax(60px, 0.8fr) minmax(50px, 0.6fr) 1.6fr auto;
+  gap: 6px;
+  align-items: center;
+  height: 24px;
+  padding-right: 6px;
+  cursor: default;
+  border-bottom: 1px solid #262a30;
+}
+.env-row:hover {
+  background: var(--bg-hover);
+}
+.env-twisty {
+  color: var(--fg-muted);
+  font-size: 10px;
+}
+.env-name,
+.env-type,
+.env-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.env-name {
+  font-family: var(--mono);
+}
+.env-value {
+  font-family: var(--mono);
+  color: #b9c2cf;
+}
+.env-view {
+  padding: 0 6px;
+}
+.select-small {
+  background: var(--bg-3);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.plot-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #fff;
+}
+.plot-stage .empty {
+  color: #666;
+}
+.plot-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+.plot-source {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.plot-source code {
+  font-family: var(--mono);
+  flex: 1;
+}
+.plot-strip {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.plot-thumb {
+  flex: none;
+  width: 64px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid transparent;
+  background: #fff;
+  cursor: pointer;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.plot-thumb.active {
+  border-color: var(--accent);
+}
+.plot-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.help-frame {
+  flex: 1;
+  border: 0;
+  background: #fff;
+  width: 100%;
+}
+.dv-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.dv-header {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-2);
+  width: max-content;
+  min-width: 100%;
+}
+.dv-row {
+  display: grid;
+  position: absolute;
+  left: 0;
+  height: 24px;
+  width: max-content;
+  min-width: 100%;
+}
+.dv-row:hover {
+  background: var(--bg-hover);
+}
+.dv-cell {
+  padding: 0 8px;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid #262a30;
+  border-bottom: 1px solid #262a30;
+}
+.dv-colhead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.3;
+  padding: 3px 8px;
+  background: none;
+  color: var(--fg);
+  border: none;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  font-family: var(--sans);
+}
+.dv-colhead:hover {
+  background: var(--bg-hover);
+}
+.dv-rowlabel {
+  color: var(--fg-muted);
+  text-align: right;
+  position: sticky;
+  left: 0;
+  background: var(--bg-2);
+}
+.dv-na {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+.panel-toolbar .btn,
+.panel-toolbar .select-small {
+  flex: none;
+  white-space: nowrap;
+  width: auto;
+}

@@ -29,6 +29,11 @@ import { ConsolePanel } from "./ConsolePanel";
 import { EditorPanel } from "./EditorPanel";
 import { FileTree } from "./FileTree";
 import { HistoryPanel } from "./HistoryPanel";
+import { EnvironmentPanel } from "./EnvironmentPanel";
+import { PlotsPanel } from "./PlotsPanel";
+import { HelpPanel } from "./HelpPanel";
+import { DataViewerPanel } from "./DataViewerPanel";
+import { commHooks } from "../comms";
 import { SearchPanel } from "./SearchPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import { StatusBar } from "./StatusBar";
@@ -88,6 +93,10 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   console: () => <ConsolePanel />,
   terminal: (props) => <TerminalPanelHost {...props} />,
   history: () => <HistoryPanel />,
+  environment: () => <EnvironmentPanel />,
+  plots: () => <PlotsPanel />,
+  help: () => <HelpPanel />,
+  dataViewer: DataViewerPanel,
 };
 
 function TerminalPanelHost(props: IDockviewPanelProps) {
@@ -106,10 +115,15 @@ function buildDefaultLayout(api: DockviewApi) {
   api.addPanel({ id: "welcome-editor", component: "editorWelcome", title: "시작", position: { referencePanel: "files", direction: "right" } });
   api.addPanel({ id: "console", component: "console", title: "Console", position: { referencePanel: "welcome-editor", direction: "below" } });
   api.addPanel({ id: "terminal", component: "terminal", title: "Terminal", position: { referencePanel: "console", direction: "within" }, inactive: true });
-  api.addPanel({ id: "history", component: "history", title: "실행 이력", position: { referencePanel: "welcome-editor", direction: "right" } });
+  // Right column spans the full height (root-level split), like Positron.
+  api.addPanel({ id: "environment", component: "environment", title: "환경", position: { direction: "right" } });
+  api.addPanel({ id: "history", component: "history", title: "실행 이력", position: { referencePanel: "environment", direction: "within" }, inactive: true });
+  api.addPanel({ id: "plots", component: "plots", title: "플롯", position: { referencePanel: "environment", direction: "below" } });
+  api.addPanel({ id: "help", component: "help", title: "도움말", position: { referencePanel: "plots", direction: "within" }, inactive: true });
   try {
     api.getPanel("files")?.group.api.setSize({ width: 240 });
-    api.getPanel("history")?.group.api.setSize({ width: 320 });
+    api.getPanel("environment")?.group.api.setSize({ width: 420 });
+    api.getPanel("environment")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.38) });
     api.getPanel("console")?.group.api.setSize({ height: Math.round(window.innerHeight * 0.38) });
   } catch {}
 }
@@ -276,7 +290,10 @@ function registerAppCommands() {
     registerCommand({ id: "view.files", title: "파일", category: "보기", key: "Mod+Shift+E", run: () => showPanel("files", "files", "파일", { id: "search", dir: "within" }) }),
     registerCommand({ id: "view.search", title: "프로젝트 검색", category: "보기", key: "Mod+Shift+F", run: () => showPanel("search", "search", "검색", { id: "files", dir: "within" }) }),
     registerCommand({ id: "view.terminal", title: "터미널", category: "보기", key: "Ctrl+`", run: () => showPanel("terminal", "terminal", "Terminal", { id: "console", dir: "within" }) }),
-    registerCommand({ id: "view.history", title: "실행 이력", category: "보기", run: () => showPanel("history", "history", "실행 이력", { id: "console", dir: "right" }) }),
+    registerCommand({ id: "view.history", title: "실행 이력", category: "보기", run: () => showPanel("history", "history", "실행 이력", { id: "environment", dir: "within" }) }),
+    registerCommand({ id: "view.environment", title: "환경", category: "보기", run: () => showPanel("environment", "environment", "환경", { id: "history", dir: "within" }) }),
+    registerCommand({ id: "view.plots", title: "플롯", category: "보기", run: () => showPanel("plots", "plots", "플롯", { id: "help", dir: "within" }) }),
+    registerCommand({ id: "view.help", title: "도움말", category: "보기", run: () => showPanel("help", "help", "도움말", { id: "plots", dir: "within" }) }),
     registerCommand({
       id: "view.resetLayout",
       title: "패널 배치 초기화",
@@ -300,6 +317,29 @@ export function Workbench() {
 
   useEffect(() => registerAppCommands(), []);
   useEffect(() => host.on("fs.changed", ({ paths }) => void onExternalChange(paths)), []);
+  useEffect(() => {
+    commHooks.showPlots = () => showPanel("plots", "plots", "플롯", { id: "help", dir: "within" });
+    commHooks.showHelp = () => showPanel("help", "help", "도움말", { id: "plots", dir: "within" });
+    commHooks.openDataViewer = (v) => {
+      const api = getDockApi();
+      if (!api) return;
+      const id = `data:${v.commId}`;
+      const existing = api.getPanel(id);
+      if (existing) return existing.api.setActive();
+      // Data viewers open as tabs in the editor area, like Positron.
+      const ref = api.panels.find((p) => p.id.startsWith("editor:") || p.id === "welcome-editor");
+      api.addPanel({
+        id,
+        component: "dataViewer",
+        title: `표: ${v.title}`,
+        params: { commId: v.commId },
+        position: ref ? { referencePanel: ref.id, direction: "within" } : undefined,
+      });
+    };
+    commHooks.closeDataViewer = () => {
+      // Keep the tab: it still shows the last rows; the panel says it is stale.
+    };
+  }, []);
 
   // Reopen the files that were open last time.
   useEffect(() => {
