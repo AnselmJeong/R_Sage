@@ -37,6 +37,7 @@ import { TerminalService } from "./terminal";
 import { collectExecution } from "./execute";
 import { renderParams, savePlot } from "./plots";
 import { PreviewServer, QuartoService } from "./quarto";
+import { columnValuesCode, parseColumnValues } from "./dataviewer";
 
 export const APP_VERSION = "0.1.0";
 
@@ -339,6 +340,7 @@ export class Host {
         await this.session.shutdown();
       },
       "session.libPaths": async () => (await this.session.evalText("cat(.libPaths(), sep = '\\n')")).trim().split("\n"),
+      "data.columnValues": async ({ object, column, limit }) => parseColumnValues(await this.session.evalText(columnValuesCode(object, column, limit ?? 1000))),
 
       "console.execute": ({ code, origin, source }) => {
         const rec = this.session.execute(code, { origin: origin ?? "console", source });

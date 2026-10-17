@@ -63,6 +63,30 @@ export const commHooks: {
   closeDataViewer?: (commId: string) => void;
 } = {};
 
+/** get_column_profiles answers with a return_column_profiles event carrying the callback id. */
+const profileCallbacks = new Map<string, (p: { profiles: any[]; error_message?: string }) => void>();
+let profileSeq = 0;
+
+export function columnProfiles<T = any>(commId: string, profiles: unknown[], formatOptions: unknown, timeoutMs = 60000): Promise<T[]> {
+  const callback_id = `rsage-profile-${++profileSeq}`;
+  return new Promise<T[]>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      profileCallbacks.delete(callback_id);
+      reject(new Error("column profile timed out"));
+    }, timeoutMs);
+    profileCallbacks.set(callback_id, (p) => {
+      clearTimeout(timer);
+      if (p.error_message) reject(new Error(p.error_message));
+      else resolve(p.profiles as T[]);
+    });
+    rpc(commId, "get_column_profiles", { callback_id, profiles, format_options: formatOptions }).catch((e) => {
+      clearTimeout(timer);
+      profileCallbacks.delete(callback_id);
+      reject(e);
+    });
+  });
+}
+
 export const rpc = <T = any>(commId: string, method: string, params?: unknown) =>
   host.call("comm.rpc", { commId, method, params }) as Promise<T>;
 
@@ -152,7 +176,13 @@ function onEvent(e: { commId: string; target: string; method: string; params: an
       }
       break;
     case "positron.dataExplorer":
-      if (e.method === "schema_update" || e.method === "data_update") {
+      if (e.method === "return_column_profiles") {
+        const cb = profileCallbacks.get(e.params?.callback_id);
+        if (cb) {
+          profileCallbacks.delete(e.params.callback_id);
+          cb(e.params);
+        }
+      } else if (e.method === "schema_update" || e.method === "data_update") {
         const v = s.dataViewers[e.commId];
         if (v) useComms.setState({ dataViewers: { ...s.dataViewers, [e.commId]: { ...v, version: v.version + 1 } } });
       }
