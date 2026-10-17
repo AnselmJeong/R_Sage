@@ -364,7 +364,7 @@ export class CodexProvider implements AgentProvider {
               status: it.status === "in_progress" ? "running" : it.status === "completed" && !it.exit_code ? "done" : "error",
             });
           // Non-fatal notices, e.g. a deprecated config key.
-          else if (it.type === "error" && /deprecated|under-development|suppress_unstable|Code Mode is unavailable/i.test(it.message)) continue;
+          else if (it.type === "error" && /deprecated|under-development|suppress_unstable|Code Mode is unavailable|is resuming with/i.test(it.message)) continue;
           else if (it.type === "error") req.onOwnTool({ key: it.id, name: "codex", input: {}, output: it.message, status: "error" });
         }
       }
