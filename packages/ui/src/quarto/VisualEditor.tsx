@@ -10,7 +10,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import { Placeholder } from "@tiptap/extensions";
-import { getModel } from "../editor/files";
+import { getModel, visualFlushers } from "../editor/files";
 import { host } from "../host/client";
 import { Footnote, FootnoteRef, FrontMatter, InlineMath, MathBlock, QImage, RawBlock, RCell, RoundTrip, insertFootnote, insertRCell, insertTopLevel, newCellId, runCellRange, setDocContext } from "./extensions";
 import { parseQmd, toQmd, withBaselines, type PMNode } from "./qmd";
@@ -111,6 +111,12 @@ export function VisualEditor({ path, active }: { path: string; active: boolean }
     const model = getModel(path);
     if (!editor || !model) return;
     trailing.current = load(editor, model.getValue(), lastDocs.get(path));
+    const flush = () => {
+      if (!timer.current) return;
+      clearTimeout(timer.current);
+      writeBack();
+    };
+    visualFlushers.set(path, flush);
     let reload: ReturnType<typeof setTimeout> | undefined;
     const sub = model.onDidChangeContent(() => {
       if (applying.current) return;
@@ -121,6 +127,7 @@ export function VisualEditor({ path, active }: { path: string; active: boolean }
       }, 150);
     });
     return () => {
+      if (visualFlushers.get(path) === flush) visualFlushers.delete(path);
       sub.dispose();
       clearTimeout(reload);
       // Don't lose the last keystrokes when switching back to source.

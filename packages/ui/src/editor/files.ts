@@ -135,7 +135,12 @@ export async function openInEditor(path: string, at?: { line: number; column?: n
   persistWorkspaceSoon();
 }
 
+/** Per open .qmd in the visual view: writes its last keystrokes into the source model now. */
+export const visualFlushers = new Map<string, () => void>();
+
 export async function saveFile(path: string, force = false): Promise<boolean> {
+  // The visual view writes edits back after a short delay; a late write-back would undo the formatting.
+  visualFlushers.get(path)?.();
   const model = getModel(path);
   const f = useStore.getState().openFiles[path];
   if (!model || !f) return false;
@@ -160,7 +165,7 @@ export async function saveFile(path: string, force = false): Promise<boolean> {
 }
 
 /** Formats R code with Air before saving, as one undoable edit that touches only the changed lines. */
-async function formatModel(path: string, model: monaco.editor.ITextModel) {
+async function formatModel(path: string, model: monaco.editor.ITextModel, attempt = 0): Promise<void> {
   const before = model.getValue();
   let r: { text: string; failed: number; error?: string };
   try {
@@ -175,7 +180,10 @@ async function formatModel(path: string, model: monaco.editor.ITextModel) {
   }
   if (r.failed && !/\.(qmd|rmd)$/i.test(path)) return; // a syntax error: save as typed
   if (r.failed) useStore.getState().notify(`R 청크 ${r.failed}개는 문법 오류가 있어 정리하지 않았습니다.`);
-  if (r.text === before || model.getValue() !== before) return;
+  if (r.text === before) return;
+  // The visual editor writes chunk edits back after a short delay; if that landed while Air ran
+  // (the first run starts slowly), format the current text instead of saving it unformatted.
+  if (model.getValue() !== before) return attempt < 2 ? formatModel(path, model, attempt + 1) : undefined;
   const next = r.text;
   let top = 0;
   while (top < before.length && top < next.length && before[top] === next[top]) top++;
