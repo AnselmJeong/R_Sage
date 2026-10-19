@@ -20,6 +20,7 @@ import { runCommand } from "../commands";
 import { VisualEditor } from "../quarto/VisualEditor";
 import { FORMATS, renderDocument, useRender, type RenderFormat } from "../quarto/render";
 import { useEditorModes } from "../editor/views";
+import { editorFontOptions } from "../editor/prefs";
 
 const MODE_KEY = (path: string) => `rsage.qmdMode:${path}`;
 const FORMAT_KEY = "rsage.renderFormat";
@@ -66,8 +67,7 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
       model,
       theme: "rsage-dark",
       automaticLayout: true,
-      fontSize: 13,
-      fontFamily: "var(--mono)",
+      ...editorFontOptions(),
       minimap: { enabled: false },
       tabSize: 2,
       insertSpaces: true,

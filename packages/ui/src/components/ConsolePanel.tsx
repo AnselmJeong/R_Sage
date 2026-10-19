@@ -6,6 +6,7 @@ import { addLocalCommand, monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
 import { parseAnsi, stripAnsi } from "../util/ansi";
 import { isMac } from "../commands";
+import { editorFontOptions } from "../editor/prefs";
 
 /** Fallback when the kernel can't answer is_complete (busy or not started). */
 export function looksIncomplete(code: string): boolean {
@@ -188,8 +189,7 @@ export function ConsolePanel() {
       renderLineHighlight: "none",
       scrollbar: { vertical: "hidden", horizontal: "auto", alwaysConsumeMouseWheel: false },
       wordWrap: "on",
-      fontSize: 13,
-      fontFamily: "var(--mono)",
+      ...editorFontOptions(),
       automaticLayout: true,
       quickSuggestions: false,
       suggestOnTriggerCharacters: false,

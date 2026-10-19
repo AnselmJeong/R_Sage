@@ -11,7 +11,7 @@
   --ok: #8cc265;
   --warn: #d7a85a;
   --err: #e05561;
-  --mono: "SF Mono", Menlo, "D2Coding", "JetBrains Mono", monospace;
+  --mono: "Fira Code", "D2Coding", "SF Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Segoe UI", sans-serif;
   color-scheme: dark;
 }
@@ -3906,6 +3906,53 @@ label.check {
   background: none;
 }
 
+/* ---- settings: editor ---- */
+.dialog.settings {
+  max-height: 88vh;
+  overflow: auto;
+}
+.dialog.settings h4 {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.settings-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-row {
+  display: flex;
+  gap: 10px;
+}
+.settings-row > label {
+  flex: 1;
+}
+.settings-row > .settings-size {
+  flex: 0 0 90px;
+}
+.settings-sample {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  white-space: pre;
+  overflow: hidden;
+}
+.settings-editor .check-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.settings-air {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 /* Analysis form: rule rows (e.g. "나이 0 ~ 120") */
 .an-rows-label {
   display: flex;

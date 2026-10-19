@@ -736,6 +736,12 @@ export interface HostMethods {
   /** Adds a pattern to the .gitignore at the repository root. */
   "git.ignore": { params: { pattern: string }; result: void };
   "packages.searchCran": { params: { query: string; limit?: number }; result: CranPackage[] };
+
+  /** Formats a .R file, or the R chunks of a .qmd/.Rmd, with Air (downloaded on first use). */
+  "format.document": { params: { path: string; text: string }; result: { text: string; failed: number; error?: string } };
+  /** Air's version, or null when it is not on this machine yet. */
+  "format.status": { params: {}; result: { air: string | null } };
+  "format.installAir": { params: {}; result: { air: string | null } };
   "shell.openExternal": { params: { path: string }; result: void };
 
   /** Installed analysis modules and their analyses. */
@@ -809,3 +815,4 @@ export type WireMessage =
   | { t: "evt"; type: string; payload: unknown };
 
 export * from "./schema";
+export * from "./rchunks";

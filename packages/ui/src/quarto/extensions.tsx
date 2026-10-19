@@ -13,6 +13,7 @@ import { useStore } from "../store";
 import { addLocalCommand, monaco, registerRCellModel } from "../editor/monaco";
 import { formDialog } from "../components/Dialogs";
 import { focusedCells } from "../editor/views";
+import { editorFontOptions } from "../editor/prefs";
 
 const TOP_TYPES = [
   "paragraph",
@@ -160,8 +161,7 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
     const e = monaco.editor.create(hostEl.current, {
       model,
       theme: "rsage-dark",
-      fontSize: 13,
-      fontFamily: "var(--mono)",
+      ...editorFontOptions(),
       minimap: { enabled: false },
       lineNumbers: "off",
       folding: false,

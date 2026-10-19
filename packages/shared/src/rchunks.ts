@@ -1,4 +1,4 @@
-// Finding R chunks in Quarto/R Markdown source, for code intelligence.
+// Finding R chunks in Quarto/R Markdown source, for code intelligence and formatting.
 
 /** R chunks of a .qmd/.Rmd: the 0-based line of their first code line and their code. */
 export function qmdRChunks(text: string): { start: number; code: string }[] {

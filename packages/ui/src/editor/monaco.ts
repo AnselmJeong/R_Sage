@@ -5,7 +5,7 @@ import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { qmdRChunks } from "./rchunks";
+import { qmdRChunks } from "@rsage/shared";
 
 (self as any).MonacoEnvironment = {
   getWorker(_: unknown, label: string) {
