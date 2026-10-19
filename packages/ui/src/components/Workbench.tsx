@@ -17,6 +17,7 @@ import {
   getDockApi,
   onExternalChange,
   openFile,
+  openInEditor,
   persistWorkspaceSoon,
   runCurrentStatement,
   runEnclosingFunction,
@@ -371,7 +372,7 @@ function registerAppCommands() {
         if (!api) return;
         const open = Object.keys(useStore.getState().openFiles);
         buildDefaultLayout(api);
-        for (const p of open) void openFile(p);
+        for (const p of open) void openInEditor(p);
       },
     }),
   ];
@@ -436,9 +437,9 @@ export function Workbench() {
     void (async () => {
       const state = await host.call("project.loadState");
       for (const f of state?.openFiles ?? []) {
-        await openFile(f.path, f.cursor ? { line: f.cursor.line, column: f.cursor.column } : undefined).catch(() => {});
+        await openInEditor(f.path, f.cursor ? { line: f.cursor.line, column: f.cursor.column } : undefined).catch(() => {});
       }
-      if (state?.activeFile && useStore.getState().openFiles[state.activeFile]) await openFile(state.activeFile);
+      if (state?.activeFile && useStore.getState().openFiles[state.activeFile]) await openInEditor(state.activeFile);
     })();
   }, [project?.path]);
 

@@ -50,5 +50,5 @@ diagnosis_report <- function(d, r) {
     return(rsage::rs_note(sprintf("진단 보고서를 만들지 못했습니다: %s", paste(utils::tail(log, 3), collapse = " ")), "warning", "report_failed"))
   }
   file.copy(made, path, overwrite = TRUE)
-  rsage::rs_note(sprintf("dlookr 진단 보고서를 %s에 저장했습니다. 브라우저로 열어 보세요.", path), code = "report_saved")
+  rsage::rs_note(sprintf("dlookr 진단 보고서를 %s에 저장했습니다.", path), code = "report_saved", file = path)
 }

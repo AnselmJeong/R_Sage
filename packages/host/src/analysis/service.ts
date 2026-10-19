@@ -172,14 +172,15 @@ export class AnalysisService {
 
   create(p: { analysis: string; dataset?: string; options?: any; title?: string; createdBy?: "user" | "assistant" }): AnalysisInstance {
     const { def } = this.def(p.analysis);
-    // An untouched analysis of the same kind and data (opened from the menu,
-    // never changed or run) is reused, so repeated opens don't pile up copies.
-    const blank = this.list().find(
-      (i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && i.revision === 1 && !i.lastRun && !i.result,
-    );
-    if (blank) {
-      if (p.options === undefined && p.title === undefined) return this.save(this.read(blank.id)!);
-      return this.update({ id: blank.id, options: p.options, title: p.title });
+    // Opening the same analysis on the same data again (from the menu, with
+    // nothing changed) brings back the earlier one, run or not, instead of
+    // piling up copies. A new analysis is made once options differ.
+    if (p.options === undefined && p.title === undefined) {
+      const defaults = JSON.stringify(sortKeys(this.checkOptions(def, {})));
+      const same = this.list()
+        .reverse()
+        .find((i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && !i.figures && JSON.stringify(sortKeys(i.options)) === defaults);
+      if (same) return this.save(this.read(same.id)!);
     }
     const now = new Date().toISOString();
     const s: Stored = {
@@ -377,4 +378,11 @@ export class AnalysisService {
   dispose() {
     for (const c of this.running.values()) c.abort();
   }
+}
+
+/** Same value with object keys in sorted order, so equal options compare equal as JSON. */
+function sortKeys(v: any): any {
+  if (Array.isArray(v)) return v.map(sortKeys);
+  if (v && typeof v === "object") return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]));
+  return v;
 }

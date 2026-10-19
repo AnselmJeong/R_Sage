@@ -221,18 +221,21 @@ live("missing-data analysis in a live session", async () => {
     expect(again.output).toContain("Little");
   }, 120_000);
 
-  test("opening the same analysis twice reuses the untouched one", async () => {
-    const a = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
-    const b = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
-    expect(b.id).toBe(a.id);
-    const c = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run", options: { plots: { matrix: false } } });
-    expect(c.id).toBe(a.id);
-    expect(c.options.plots.matrix).toBe(false);
-    const d = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
-    expect(d.id).not.toBe(a.id);
-    await call("analysis.delete", { id: a.id });
-    await call("analysis.delete", { id: d.id });
-  });
+  test("opening the same analysis again brings back the earlier one", async () => {
+    const make = (options?: any) => call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", options });
+    const a = await make();
+    expect((await make()).id).toBe(a.id);
+    // Still the same one after it has run.
+    expect((await call("analysis.run", { id: a.id })).lastRun.status).toBe("ok");
+    expect((await make()).id).toBe(a.id);
+    // Different options, or changed ones, make a new analysis.
+    const b = await make({ plots: { matrix: false } });
+    expect(b.id).not.toBe(a.id);
+    await call("analysis.update", { id: a.id, options: { plots: { matrix: false } } });
+    const c = await make();
+    expect(c.id).not.toBe(a.id);
+    for (const id of [a.id, b.id, c.id]) await call("analysis.delete", { id });
+  }, 60_000);
 
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;

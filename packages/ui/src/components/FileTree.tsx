@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FileEntry } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { basename, disposeFile, openFile } from "../editor/files";
+import { basename, disposeFile, openFile, openInEditor } from "../editor/files";
 import { confirmDialog, promptDialog } from "./Dialogs";
 import { newDocument, newProjectDialog, openFolderDialog, openProject } from "../project";
 
@@ -20,7 +20,7 @@ export function iconFor(e: FileEntry, open: boolean): { glyph: string; cls: stri
   return { glyph: "·", cls: "ic-file" };
 }
 
-const OPENABLE = /\.(r|qmd|rmd|md|txt|csv|tsv|json|ya?ml|bib|tex|css|js|ts|sh|sql|toml|lua|csl|html|rprofile|renviron|gitignore|py)$/i;
+const OPENABLE = /\.(r|qmd|rmd|md|txt|csv|tsv|json|ya?ml|bib|tex|css|js|ts|sh|sql|toml|lua|csl|html?|pdf|rprofile|renviron|gitignore|py)$/i;
 
 interface Menu {
   x: number;
@@ -99,7 +99,7 @@ export function FileTree() {
       await host.call("fs.create", { path, kind });
       setExpanded((s) => new Set(s).add(base));
       await refresh(base);
-      if (kind === "file") void openFile(path);
+      if (kind === "file") void openInEditor(path);
     } catch (e) {
       useStore.getState().notify((e as Error).message, "error");
     }
