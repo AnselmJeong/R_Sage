@@ -3895,3 +3895,13 @@ label.check {
   margin: 0 0 6px;
   max-width: 760px;
 }
+/* Popups (suggestions, hover, argument hints) of chunk editors live on <body>. */
+.qv-overflow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 60;
+  background: none;
+}

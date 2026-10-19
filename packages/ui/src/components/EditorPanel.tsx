@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
 import { useStore } from "../store";
-import { monaco } from "../editor/monaco";
+import { addLocalCommand, monaco } from "../editor/monaco";
 import {
   discardBackup,
   editorsByPath,
@@ -124,9 +124,9 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
       },
     });
     // App-level shortcuts must still work while the editor has focus.
-    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveFile(path));
-    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => void runCommand("palette.open"));
-    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => void runCommand("file.quickOpen"));
+    addLocalCommand(ed, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveFile(path));
+    addLocalCommand(ed, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => void runCommand("palette.open"));
+    addLocalCommand(ed, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => void runCommand("file.quickOpen"));
 
     ed.onDidFocusEditorText(() => setActiveEditor(path));
     ed.onDidChangeCursorPosition(() => persistWorkspaceSoon());

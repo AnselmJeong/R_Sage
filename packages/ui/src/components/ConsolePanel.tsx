@@ -2,7 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { host } from "../host/client";
 import { installPackages } from "../packages";
 import { useStore, type ConsoleItem } from "../store";
-import { monaco } from "../editor/monaco";
+import { addLocalCommand, monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
 import { parseAnsi, stripAnsi } from "../util/ansi";
 import { isMac } from "../commands";
@@ -229,9 +229,9 @@ export function ConsolePanel() {
       await host.call("console.execute", { code, origin: "console" });
     };
 
-    ed.addCommand(monaco.KeyCode.Enter, () => void submit(), "!suggestWidgetVisible");
-    ed.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => ed.trigger("keyboard", "type", { text: "\n" }));
-    ed.addCommand(
+    addLocalCommand(ed, monaco.KeyCode.Enter, () => void submit(), "!suggestWidgetVisible");
+    addLocalCommand(ed, monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => ed.trigger("keyboard", "type", { text: "\n" }));
+    addLocalCommand(ed, 
       monaco.KeyCode.UpArrow,
       () => {
         const pos = ed.getPosition()!;
@@ -246,7 +246,7 @@ export function ConsolePanel() {
       },
       "!suggestWidgetVisible",
     );
-    ed.addCommand(
+    addLocalCommand(ed, 
       monaco.KeyCode.DownArrow,
       () => {
         const pos = ed.getPosition()!;
@@ -264,7 +264,7 @@ export function ConsolePanel() {
       "!suggestWidgetVisible",
     );
     // Ctrl+C with nothing selected interrupts, as in a terminal. Escape too.
-    ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyC, () => {
+    addLocalCommand(ed, monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyC, () => {
       const sel = ed.getSelection();
       if (sel && !sel.isEmpty() && !isMac) {
         void navigator.clipboard.writeText(model.getValueInRange(sel));
@@ -272,12 +272,12 @@ export function ConsolePanel() {
       }
       void host.call("session.interrupt");
     });
-    ed.addCommand(monaco.KeyCode.Escape, () => {
+    addLocalCommand(ed, monaco.KeyCode.Escape, () => {
       if (useStore.getState().session.state === "busy") void host.call("session.interrupt");
       else model.setValue("");
     }, "!suggestWidgetVisible && !findWidgetVisible");
-    ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyL, () => useStore.getState().clearConsole());
-    ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyR, () => setSearch(""));
+    addLocalCommand(ed, monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyL, () => useStore.getState().clearConsole());
+    addLocalCommand(ed, monaco.KeyMod.WinCtrl | monaco.KeyCode.KeyR, () => setSearch(""));
 
     (window as any).__rsageConsoleFocus = () => ed.focus();
     return () => {

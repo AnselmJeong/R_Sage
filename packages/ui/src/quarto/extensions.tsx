@@ -10,7 +10,7 @@ import katex from "katex";
 import { create } from "zustand";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { monaco } from "../editor/monaco";
+import { addLocalCommand, monaco, registerRCellModel } from "../editor/monaco";
 import { formDialog } from "../components/Dialogs";
 import { focusedCells } from "../editor/views";
 
@@ -175,9 +175,24 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
       tabSize: 2,
       wordWrap: "on",
       padding: { top: 8, bottom: 8 },
+      // Suggestions, hover help and signature hints float above the document instead of being clipped by the chunk.
+      fixedOverflowWidgets: true,
+      overflowWidgetsDomNode: overflowHost(),
       unicodeHighlight: { ambiguousCharacters: false },
     });
     ed.current = e;
+    // Completion sees every R chunk of the document, in order, like Positron.
+    const unregister = registerRCellModel(model, () => {
+      const cells: string[] = [];
+      let index = -1;
+      editor.state.doc.forEach((n) => {
+        if (n.type.name !== "rCell") return;
+        if (n.attrs.cid === cidRef.current) index = cells.length;
+        cells.push(n.attrs.code ?? "");
+      });
+      const p = docContext(editor)?.path;
+      return p && index >= 0 ? { path: p, cells, index } : null;
+    });
     const fit = () => {
       if (hostEl.current) hostEl.current.style.height = `${Math.max(38, e.getContentHeight())}px`;
       e.layout();
@@ -193,9 +208,10 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
       focusCell = undefined;
       setTimeout(() => e.focus(), 0);
     }
-    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
-    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => runRange("above"));
+    addLocalCommand(e, monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
+    addLocalCommand(e, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => runRange("above"));
     return () => {
+      unregister();
       e.dispose();
       model.dispose();
     };
@@ -486,6 +502,17 @@ export const QImage = Image.extend({
 }).configure({ inline: true });
 
 export const notifyError = (e: unknown) => useStore.getState().notify(String((e as any)?.message ?? e), "error");
+
+let overflowEl: HTMLElement | undefined;
+/** One layer on <body> for chunk editors' popups: inside the dock, fixed positions come out shifted. */
+function overflowHost() {
+  if (!overflowEl) {
+    overflowEl = document.createElement("div");
+    overflowEl.className = "monaco-editor qv-overflow";
+    document.body.appendChild(overflowEl);
+  }
+  return overflowEl;
+}
 
 /** Positron-style run glyphs: a play triangle, with a small arrow for "above" or "below". */
 function RunIcon({ arrow }: { arrow?: "up" | "down" }) {

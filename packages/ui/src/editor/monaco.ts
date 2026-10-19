@@ -5,6 +5,7 @@ import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import { host } from "../host/client";
 import { useStore } from "../store";
+import { qmdRChunks } from "./rchunks";
 
 (self as any).MonacoEnvironment = {
   getWorker(_: unknown, label: string) {
@@ -51,6 +52,24 @@ export function languageFor(path: string): string {
   }
 }
 
+let localId = 0;
+const localKeys = new WeakMap<monaco.editor.ICodeEditor, string>();
+
+/**
+ * editor.addCommand() registers its keybinding app-wide in standalone Monaco,
+ * so the last editor to bind a key wins in every editor (the console's Enter
+ * swallowed Enter everywhere). This keeps a command to its own editor.
+ */
+export function addLocalCommand(ed: monaco.editor.IStandaloneCodeEditor, keybinding: number, handler: () => void, when?: string) {
+  let key = localKeys.get(ed);
+  if (!key) {
+    key = `rsageEditor${++localId}`;
+    ed.createContextKey(key, true);
+    localKeys.set(ed, key);
+  }
+  return ed.addCommand(keybinding, handler, when ? `${key} && ${when}` : key);
+}
+
 export function uriFor(path: string) {
   return monaco.Uri.file(path);
 }
@@ -68,8 +87,17 @@ function lspReady() {
   return useStore.getState().lspRunning;
 }
 
+let autoStarted = false;
 async function lsp<T>(method: string, params: unknown): Promise<T | null> {
-  if (!lspReady()) return null;
+  if (!lspReady()) {
+    // Completion and help come from the live R session (Ark), like Positron: start it once on first need.
+    const st = useStore.getState().session.state;
+    if (!autoStarted && (st === "stopped" || st === "exited")) {
+      autoStarted = true;
+      void host.call("session.start", {}).catch(() => {});
+    }
+    return null;
+  }
   try {
     return (await host.call("lsp.request", { method, params })) as T;
   } catch {
@@ -160,91 +188,97 @@ export function registerRLanguage() {
     folding: { markers: { start: /^\s*#\s*region\b|^.*----\s*$/, end: /^\s*#\s*endregion\b/ } },
   });
 
-  monaco.languages.registerCompletionItemProvider("r", {
-    triggerCharacters: ["$", "@", ":", "(", ",", '"', "/"],
-    async provideCompletionItems(model, position) {
-      const word = model.getWordUntilPosition(position);
-      const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-      const snippets: monaco.languages.CompletionItem[] = SNIPPETS.map((s) => ({
-        label: s.label,
-        kind: monaco.languages.CompletionItemKind.Snippet,
-        insertText: s.insert,
-        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        documentation: s.doc,
-        range,
-        sortText: "zz" + s.label,
-      }));
-      const res = await lsp<any>("textDocument/completion", {
-        textDocument: { uri: model.uri.toString() },
-        position: toPos(position),
-      });
-      const items: any[] = Array.isArray(res) ? res : res?.items ?? [];
-      const suggestions = items.map((it): monaco.languages.CompletionItem => {
-        const edit = it.textEdit;
+  // R files, R chunks in .qmd source mode (markdown models) and visual-mode chunk editors all go
+  // through lspTarget(), which maps chunk positions into a virtual R document Ark can read.
+  for (const lang of ["r", "markdown"]) {
+    monaco.languages.registerCompletionItemProvider(lang, {
+      triggerCharacters: ["$", "@", ":", "(", ",", '"', "/"],
+      async provideCompletionItems(model, position) {
+        const t = lspTarget(model, position);
+        if (!t) return { suggestions: [] };
+        const word = model.getWordUntilPosition(position);
+        const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+        // Snippets only while typing a word, and never after x$, x@ or pkg:: (only members belong there).
+        const before = model.getLineContent(position.lineNumber).slice(0, word.startColumn - 1);
+        const snippets: monaco.languages.CompletionItem[] = !word.word || /[$@:]$/.test(before) ? [] : SNIPPETS.map((s) => ({
+          label: s.label,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: s.insert,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: s.doc,
+          range,
+          sortText: "zz" + s.label,
+        }));
+        const res = await lsp<any>("textDocument/completion", { textDocument: { uri: t.uri }, position: t.pos });
+        const items: any[] = Array.isArray(res) ? res : res?.items ?? [];
+        const suggestions = items.map((it): monaco.languages.CompletionItem => {
+          const edit = it.textEdit;
+          return {
+            label: it.label,
+            kind: kindMap[it.kind] ?? monaco.languages.CompletionItemKind.Text,
+            detail: it.detail,
+            documentation: markdown(it.documentation),
+            insertText: edit?.newText ?? it.insertText ?? it.label,
+            insertTextRules:
+              it.insertTextFormat === 2 ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
+            range: edit?.range ? t.toModel(edit.range) : edit?.insert ? t.toModel(edit.insert) : range,
+            sortText: it.sortText,
+            filterText: it.filterText,
+            command: it.command?.command === "editor.action.triggerParameterHints"
+              ? { id: "editor.action.triggerParameterHints", title: "" }
+              : undefined,
+            // Kept for resolve
+            ...({ _lsp: it } as object),
+          };
+        });
+        return { suggestions: [...suggestions, ...snippets], incomplete: res?.isIncomplete };
+      },
+      async resolveCompletionItem(item) {
+        const raw = (item as any)._lsp;
+        if (!raw || item.documentation) return item;
+        const r = await lsp<any>("completionItem/resolve", raw);
+        if (r) {
+          item.documentation = markdown(r.documentation);
+          item.detail = r.detail ?? item.detail;
+        }
+        return item;
+      },
+    });
+
+    monaco.languages.registerHoverProvider(lang, {
+      async provideHover(model, position) {
+        const t = lspTarget(model, position);
+        if (!t) return null;
+        const r = await lsp<any>("textDocument/hover", { textDocument: { uri: t.uri }, position: t.pos });
+        if (!r?.contents) return null;
+        const contents = Array.isArray(r.contents) ? r.contents.map(markdown) : [markdown(r.contents)];
+        return { contents: contents.filter(Boolean) as monaco.IMarkdownString[], range: r.range ? t.toModel(r.range) : undefined };
+      },
+    });
+
+    monaco.languages.registerSignatureHelpProvider(lang, {
+      signatureHelpTriggerCharacters: ["(", ","],
+      signatureHelpRetriggerCharacters: [","],
+      async provideSignatureHelp(model, position) {
+        const t = lspTarget(model, position);
+        if (!t) return null;
+        const r = await lsp<any>("textDocument/signatureHelp", { textDocument: { uri: t.uri }, position: t.pos });
+        if (!r?.signatures?.length) return null;
         return {
-          label: it.label,
-          kind: kindMap[it.kind] ?? monaco.languages.CompletionItemKind.Text,
-          detail: it.detail,
-          documentation: markdown(it.documentation),
-          insertText: edit?.newText ?? it.insertText ?? it.label,
-          insertTextRules:
-            it.insertTextFormat === 2 ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
-          range: edit?.range ? toRange(edit.range) : edit?.insert ? toRange(edit.insert) : range,
-          sortText: it.sortText,
-          filterText: it.filterText,
-          command: it.command?.command === "editor.action.triggerParameterHints"
-            ? { id: "editor.action.triggerParameterHints", title: "" }
-            : undefined,
-          // Kept for resolve
-          ...({ _lsp: it } as object),
+          value: {
+            activeSignature: r.activeSignature ?? 0,
+            activeParameter: r.activeParameter ?? 0,
+            signatures: r.signatures.map((s: any) => ({
+              label: s.label,
+              documentation: markdown(s.documentation),
+              parameters: (s.parameters ?? []).map((p: any) => ({ label: p.label, documentation: markdown(p.documentation) })),
+            })),
+          },
+          dispose() {},
         };
-      });
-      return { suggestions: [...suggestions, ...snippets], incomplete: res?.isIncomplete };
-    },
-    async resolveCompletionItem(item) {
-      const raw = (item as any)._lsp;
-      if (!raw || item.documentation) return item;
-      const r = await lsp<any>("completionItem/resolve", raw);
-      if (r) {
-        item.documentation = markdown(r.documentation);
-        item.detail = r.detail ?? item.detail;
-      }
-      return item;
-    },
-  });
-
-  monaco.languages.registerHoverProvider("r", {
-    async provideHover(model, position) {
-      const r = await lsp<any>("textDocument/hover", { textDocument: { uri: model.uri.toString() }, position: toPos(position) });
-      if (!r?.contents) return null;
-      const contents = Array.isArray(r.contents) ? r.contents.map(markdown) : [markdown(r.contents)];
-      return { contents: contents.filter(Boolean) as monaco.IMarkdownString[], range: r.range ? toRange(r.range) : undefined };
-    },
-  });
-
-  monaco.languages.registerSignatureHelpProvider("r", {
-    signatureHelpTriggerCharacters: ["(", ","],
-    signatureHelpRetriggerCharacters: [","],
-    async provideSignatureHelp(model, position) {
-      const r = await lsp<any>("textDocument/signatureHelp", {
-        textDocument: { uri: model.uri.toString() },
-        position: toPos(position),
-      });
-      if (!r?.signatures?.length) return null;
-      return {
-        value: {
-          activeSignature: r.activeSignature ?? 0,
-          activeParameter: r.activeParameter ?? 0,
-          signatures: r.signatures.map((s: any) => ({
-            label: s.label,
-            documentation: markdown(s.documentation),
-            parameters: (s.parameters ?? []).map((p: any) => ({ label: p.label, documentation: markdown(p.documentation) })),
-          })),
-        },
-        dispose() {},
-      };
-    },
-  });
+      },
+    });
+  }
 
   monaco.languages.registerDefinitionProvider("r", {
     async provideDefinition(model, position) {
@@ -291,6 +325,78 @@ export function regexSymbols(model: monaco.editor.ITextModel): monaco.languages.
     out.push({ name: m[1]!, detail: "", kind: monaco.languages.SymbolKind.Function, tags: [], range, selectionRange: range });
   }
   return out;
+}
+
+// ---------- R chunks in Quarto documents ----------
+//
+// Like Positron/Quarto, Ark never sees the .qmd itself: the R chunks are
+// joined into a virtual R document next to it, and positions are mapped
+// between the chunk and that document.
+
+export interface LspTarget {
+  uri: string;
+  pos: LspPos;
+  /** Maps a range in the LSP document back to the editor's model. */
+  toModel: (r: LspRange) => monaco.Range;
+}
+
+type CellContext = () => { path: string; cells: string[]; index: number } | null;
+const cellModels = new Map<string, CellContext>();
+
+/** Visual-mode chunk editors register their model so completions see the whole document's R code. */
+export function registerRCellModel(model: monaco.editor.ITextModel, ctx: CellContext) {
+  const uri = model.uri.toString();
+  cellModels.set(uri, ctx);
+  return () => void cellModels.delete(uri);
+}
+
+const virtualText = new Map<string, string>();
+
+function syncVirtual(uri: string, text: string) {
+  if (!lspReady() || virtualText.get(uri) === text) return;
+  virtualText.set(uri, text);
+  const v = (versions.get(uri) ?? 0) + 1;
+  versions.set(uri, v);
+  void host.call(
+    "lsp.notify",
+    v === 1
+      ? { method: "textDocument/didOpen", params: { textDocument: { uri, languageId: "r", version: 1, text } } }
+      : { method: "textDocument/didChange", params: { textDocument: { uri, version: v }, contentChanges: [{ text }] } },
+  );
+}
+
+/** Where to send an LSP request for this position, or null when it is not R code. */
+export function lspTarget(model: monaco.editor.ITextModel, position: monaco.IPosition): LspTarget | null {
+  const pos = toPos(position);
+  const cell = cellModels.get(model.uri.toString())?.();
+  let path: string;
+  let cells: string[];
+  let index: number;
+  let base = 0; // model line of the chunk's first code line
+  if (cell) {
+    ({ path, cells, index } = cell);
+    cells = [...cells];
+    cells[index] = model.getValue();
+  } else if (model.getLanguageId() === "markdown" && /\.(qmd|rmd)$/i.test(model.uri.path)) {
+    const chunks = qmdRChunks(model.getValue());
+    index = chunks.findIndex((c) => pos.line >= c.start && pos.line < c.start + c.code.split("\n").length);
+    if (index < 0) return null;
+    path = model.uri.path;
+    cells = chunks.map((c) => c.code);
+    base = chunks[index]!.start;
+  } else if (model.getLanguageId() === "r") {
+    return { uri: model.uri.toString(), pos, toModel: toRange };
+  } else return null;
+  let offset = 0;
+  for (let i = 0; i < index; i++) offset += cells[i]!.split("\n").length;
+  const uri = monaco.Uri.file(`${path}.rsage-chunks.R`).toString();
+  syncVirtual(uri, cells.join("\n"));
+  const back = (p: LspPos) => ({ line: p.line - offset + base, character: p.character });
+  return {
+    uri,
+    pos: { line: pos.line - base + offset, character: pos.character },
+    toModel: (r) => toRange({ start: back(r.start), end: back(r.end) }),
+  };
 }
 
 // ---------- LSP document sync & diagnostics ----------
@@ -368,6 +474,7 @@ export function initLspEvents() {
     );
   });
   host.on("lsp.state", ({ running }) => {
+    virtualText.clear();
     if (running) setTimeout(lspReopenAll, 0);
     else versions.clear();
   });
