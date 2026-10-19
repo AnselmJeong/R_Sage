@@ -25,8 +25,15 @@ export default {
     },
     watchIgnore: ["dist/**"],
     mac: {
-      codesign: true,
-      notarize: true,
+      // scripts/build-dmg.ts makes the DMG (with the volume icon and signing).
+      createDmg: false,
+      // Developer ID signing and notarization only when the credentials are
+      // set (see scripts/build-dmg.ts); otherwise the app is signed ad hoc.
+      codesign: !!process.env.ELECTROBUN_DEVELOPER_ID,
+      notarize:
+        !!process.env.ELECTROBUN_DEVELOPER_ID &&
+        !process.env.ELECTROBUN_SKIP_NOTARIZATION &&
+        !!(process.env.ELECTROBUN_APPLEID || process.env.ELECTROBUN_APPLEAPIKEY),
       bundleCEF: false,
       // Converted to .icns by iconutil at build time; source in assets/icon.
       icons: "assets/icon/icon.iconset",
