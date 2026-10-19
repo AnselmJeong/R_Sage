@@ -62,6 +62,7 @@ Anselm이 준 점검 목록(2026-10-19)을 그대로 옮겼다.
 | 텍스트 | 공백 오류(앞뒤, 겹친, 보이지 않는 공백) | `text.whitespace` | 표 `whitespace` |
 | 텍스트 | 대소문자·공백만 다른 값 | `text.variants` | 표 `variants` |
 | 텍스트 | 오타(철자가 비슷한 값) | `text.similar`, `text.maxDistance` | 표 `similar` |
+| 텍스트 | 같은 뜻의 다른 코드를 규칙 없이 찾기(남·남자·M, Y·예·O, 한국·KOREA, 서울·서울시) | `text.suspectSynonyms` | 표 `suspectSynonyms` |
 | 텍스트 | 동의어 불일치(한국, 대한민국, KOREA, 남한) | `text.synonyms` (규칙) | 표 `synonyms` |
 
 모든 점검은 요약 표 `summary`에 한 줄씩 들어간다. 열은 결과(확인 필요, 문제 없음, 규칙 없음), 분류, 점검 항목, 건수, 해당 변수, 해결 방법이다.

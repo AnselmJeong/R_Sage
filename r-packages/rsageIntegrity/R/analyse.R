@@ -19,7 +19,7 @@ defaults <- function() {
                   rareLevels = TRUE, rareShare = 1, ranges = list(), allowed = list(), order = list()),
     missing = list(summary = TRUE, pareto = TRUE, hidden = TRUE, codes = DEFAULT_CODES),
     duplicates = list(rows = TRUE, keys = TRUE),
-    text = list(whitespace = TRUE, variants = TRUE, similar = FALSE, maxDistance = 1L,
+    text = list(whitespace = TRUE, variants = TRUE, suspectSynonyms = TRUE, similar = FALSE, maxDistance = 1L,
                 categories = FALSE, topLevels = 10L, synonyms = list()),
     clean = list(enabled = FALSE, trim = TRUE, hiddenMissing = TRUE, synonyms = TRUE, variants = TRUE,
                  numbers = TRUE, dates = TRUE, padZeros = TRUE, ruleViolations = FALSE,

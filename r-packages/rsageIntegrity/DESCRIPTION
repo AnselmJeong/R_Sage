@@ -1,6 +1,6 @@
 Package: rsageIntegrity
 Title: Data Integrity Check Module for R Sage
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
 Description: Checks a data frame received as a spreadsheet before analysis:
     column names, empty rows and columns, numbers stored as text, mixed date
