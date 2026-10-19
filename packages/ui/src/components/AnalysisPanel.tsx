@@ -8,7 +8,7 @@ import type { AnalysisDataset, AnalysisForm, AnalysisFormControl, AnalysisInstan
 import { getPath, setPath } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
+import { deleteAnalysis, findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
 import { installPackages } from "../packages";
 import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } from "./AnalysisVariables";
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
@@ -219,6 +219,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
           >
             R 코드
           </button>
+          <DeleteButton disabled={running} onDelete={() => void deleteAnalysis(id)} />
         </div>
         {showCode !== null && (
           <div className="an-code">
@@ -867,5 +868,25 @@ function Figure({ inst, plot }: { inst: AnalysisInstance; plot: Plot }) {
         />
       </div>
     </figure>
+  );
+}
+
+/** Deletes on a second click, since a dialog may not show in the app's web view. */
+function DeleteButton({ disabled, onDelete }: { disabled?: boolean; onDelete: () => void }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button
+      className={`btn btn-small ${armed ? "btn-danger" : ""}`}
+      disabled={disabled}
+      title="이 분석과 결과를 프로젝트에서 지웁니다"
+      onClick={() => (armed ? onDelete() : setArmed(true))}
+    >
+      {armed ? "한 번 더 누르면 삭제" : "삭제"}
+    </button>
   );
 }

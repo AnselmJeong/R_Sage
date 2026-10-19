@@ -172,6 +172,15 @@ export class AnalysisService {
 
   create(p: { analysis: string; dataset?: string; options?: any; title?: string; createdBy?: "user" | "assistant" }): AnalysisInstance {
     const { def } = this.def(p.analysis);
+    // An untouched analysis of the same kind and data (opened from the menu,
+    // never changed or run) is reused, so repeated opens don't pile up copies.
+    const blank = this.list().find(
+      (i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && i.revision === 1 && !i.lastRun && !i.result,
+    );
+    if (blank) {
+      if (p.options === undefined && p.title === undefined) return this.save(this.read(blank.id)!);
+      return this.update({ id: blank.id, options: p.options, title: p.title });
+    }
     const now = new Date().toISOString();
     const s: Stored = {
       id: `a-${randomUUID().slice(0, 8)}`,
