@@ -258,7 +258,15 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
           </button>
         )}
       </div>
-      <div className="qv-cell-code" ref={hostEl} contentEditable={false} />
+      <div
+        className="qv-cell-code"
+        ref={hostEl}
+        contentEditable={false}
+        // In WebKit (the Mac app) a click into a chunk of a freshly opened document can leave the keyboard
+        // on the surrounding document editor, so typing goes nowhere until some chunk was focused by code.
+        // Hand the focus to this chunk's editor explicitly.
+        onMouseUp={() => setTimeout(() => ed.current && !ed.current.hasTextFocus() && ed.current.focus(), 0)}
+      />
       {result && !result.running && (result.text?.trim() || result.images?.length) ? (
         <div className="qv-cell-out" contentEditable={false}>
           {result.text?.trim() && <pre className={result.isError ? "error" : ""}>{result.text.trimEnd()}</pre>}
