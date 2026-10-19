@@ -17,7 +17,7 @@
 //   or ELECTROBUN_APPLEAPIKEY + ELECTROBUN_APPLEAPIISSUER + ELECTROBUN_APPLEAPIKEYPATH.
 // ELECTROBUN_SKIP_NOTARIZATION=1 signs without notarizing.
 
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -59,15 +59,28 @@ const buildDir = join(desktop, "build", `stable-macos-${arch}`);
 const app = join(buildDir, "R Sage.app");
 if (!existsSync(app)) fail(`No app at ${app}. Run without --skip-build.`);
 
-// 2. Signature. Electrobun signs with the Developer ID when it is set; otherwise sign ad hoc
-// so the bundle's seal covers every file (Gatekeeper on this Mac accepts that).
-if (!identity) run(["codesign", "--force", "--deep", "--sign", "-", app], { quiet: true });
-run(["codesign", "--verify", "--deep", "--strict", app], { quiet: true });
-
-// 3. Disk image: the app, an Applications shortcut and the volume icon.
+// 2. The real app. Electrobun's release "R Sage.app" is a small self-extracting
+// launcher that replaces itself with the app on first open, which fails when
+// it is opened inside the read-only DMG ("Installation failed"). Ship the
+// unpacked app instead: it runs from the DMG, from Applications or anywhere.
 const stage = mkdtempSync(join(tmpdir(), "rsage-dmg-"));
 try {
-  cpSync(app, join(stage, "R Sage.app"), { recursive: true, verbatimSymlinks: true });
+  const resources = join(app, "Contents", "Resources");
+  const archive = readdirSync(resources).find((f) => f.endsWith(".tar.zst"));
+  if (!archive) fail(`No packed app (.tar.zst) in ${resources}.`);
+  const tar = join(stage, "..", `${stage.split("/").pop()}.tar`);
+  writeFileSync(tar, Bun.zstdDecompressSync(readFileSync(join(resources, archive))));
+  run(["tar", "-xf", tar, "-C", stage], { quiet: true });
+  rmSync(tar, { force: true });
+  const unpacked = join(stage, "R Sage.app");
+  if (!existsSync(unpacked)) fail(`The packed app has no "R Sage.app".`);
+
+  // Signature. Electrobun signs the app with the Developer ID when it is set;
+  // otherwise sign ad hoc so the bundle's seal covers every file.
+  if (!identity) run(["codesign", "--force", "--deep", "--sign", "-", unpacked], { quiet: true });
+  run(["codesign", "--verify", "--deep", "--strict", unpacked], { quiet: true });
+
+  // 3. Disk image: the app, an Applications shortcut and the volume icon.
   symlinkSync("/Applications", join(stage, "Applications"));
   const icns = join(desktop, "assets", "icon", "icon.icns");
   if (existsSync(icns)) cpSync(icns, join(stage, ".VolumeIcon.icns"));
