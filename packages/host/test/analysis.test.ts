@@ -221,6 +221,19 @@ live("missing-data analysis in a live session", async () => {
     expect(again.output).toContain("Little");
   }, 120_000);
 
+  test("opening the same analysis twice reuses the untouched one", async () => {
+    const a = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
+    const b = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
+    expect(b.id).toBe(a.id);
+    const c = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run", options: { plots: { matrix: false } } });
+    expect(c.id).toBe(a.id);
+    expect(c.options.plots.matrix).toBe(false);
+    const d = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "never_run" });
+    expect(d.id).not.toBe(a.id);
+    await call("analysis.delete", { id: a.id });
+    await call("analysis.delete", { id: d.id });
+  });
+
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
     const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "no_such_df" });

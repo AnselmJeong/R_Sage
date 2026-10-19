@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { runCommand } from "../commands";
 import { activeEditor, saveFile } from "../editor/files";
 import { newDocument, newProjectDialog, openFileDialog, openFolderDialog, openProject } from "../project";
+import type { AnalysisInstance } from "@rsage/shared";
 import { newAnalysis, openAnalysisTab, useAnalyses } from "../analysis";
 
 type Item = { label: string; hint?: string; run: () => void } | "-" | { heading: string };
@@ -124,7 +125,7 @@ export function TopBar() {
           const saved = Object.values(instances).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
           const items: Item[] = modules.flatMap((m) => m.analyses.map((a) => ({ label: a.menu.join(" › "), run: () => void newAnalysis(a.key) })));
           if (!items.length) items.push({ heading: "설치된 분석 모듈이 없습니다" });
-          if (saved.length) items.push("-", { heading: "이 프로젝트의 분석" }, ...saved.slice(0, 10).map((i) => ({ label: i.title, hint: i.dataset, run: () => openAnalysisTab(i.id) })));
+          if (saved.length) items.push("-", { heading: "이 프로젝트의 분석" }, ...saved.slice(0, 10).map((i) => ({ label: i.title, hint: analysisHint(i), run: () => openAnalysisTab(i.id) })));
           return items;
         }}
       />
@@ -158,4 +159,15 @@ export function TopBar() {
       </button>
     </div>
   );
+}
+
+/** Data set and when the analysis last ran, so saved analyses of the same kind can be told apart. */
+function analysisHint(i: AnalysisInstance): string {
+  const at = i.lastRun?.finishedAt ?? i.lastRun?.startedAt;
+  if (!at) return [i.dataset, "실행 전"].filter(Boolean).join(" · ");
+  const d = new Date(at);
+  const today = d.toDateString() === new Date().toDateString();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const when = today ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return [i.dataset, when].filter(Boolean).join(" · ");
 }
