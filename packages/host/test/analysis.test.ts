@@ -192,9 +192,27 @@ live("missing-data analysis in a live session", async () => {
     expect(done.lastRun.error.code).toBe("dataset_missing");
   }, 60_000);
 
+  // R ignores an interrupt that lands inside C code such as saveRDS; it must be retried.
+  test.skipIf(useShim)("a private run stops even when interrupted inside C code", async () => {
+    await host.session.evalText("big2 <- airquality[rep(1:153, 40000), ]; invisible(NULL)");
+    const ctl = new AbortController();
+    const t0 = Date.now();
+    const p = host.session.runPrivate("for (i in 1:20) saveRDS(big2, tempfile())", ctl.signal);
+    await Bun.sleep(1500);
+    ctl.abort();
+    expect((await p).status).toBe("aborted");
+    expect((await host.session.evalText("rm(big2); cat(1 + 1)")).trim()).toBe("2");
+    expect(Date.now() - t0).toBeLessThan(20_000);
+  }, 60_000);
+
   // IRkernel only takes interrupts as signals, not as Jupyter interrupt requests.
   test.skipIf(useShim)("cancel interrupts a running analysis", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
+    // Without mice the analysis finishes before the cancel arrives, so there is nothing to interrupt.
+    if ((await host.session.evalText("cat(requireNamespace('mice', quietly = TRUE))")).trim() !== "TRUE") {
+      console.warn("skipping: the cancel test needs the mice package");
+      return;
+    }
     await host.session.evalText("big <- airquality[rep(1:153, 400), ]; invisible(NULL)");
     const inst = await call("analysis.create", {
       analysis: "org.rsage.missing/missing",
