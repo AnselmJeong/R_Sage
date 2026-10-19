@@ -457,6 +457,19 @@ function Control({
         </label>
       );
     }
+    case "rows":
+      return (
+        <div className={`an-opt${cls}`}>
+          <div className="an-rows-label">
+            <span>{c.label}</span>
+            <Tags c={c} />
+          </div>
+          {desc}
+          {why}
+          <RowsField control={c} item={s.items ?? {}} value={value ?? []} dataset={dataset} disabled={disabled} onChange={onChange} />
+          {hint}
+        </div>
+      );
     case "list":
       return (
         <div className={`an-opt${cls}`}>
@@ -514,6 +527,81 @@ function Control({
       );
   }
   return null;
+}
+
+/**
+ * Rule rows: one line per rule with a picker or text box per field, a ✕ to
+ * remove it, and a button to add one. Field names head the columns once.
+ */
+function RowsField({
+  control: c,
+  item,
+  value,
+  dataset,
+  disabled,
+  onChange,
+}: {
+  control: Extract<AnalysisFormControl, { type: "rows" }>;
+  item: any;
+  value: Record<string, unknown>[];
+  dataset?: AnalysisDataset;
+  disabled: boolean;
+  onChange: (v: Record<string, unknown>[]) => void;
+}) {
+  const props = item.properties ?? {};
+  const blank = () => Object.fromEntries(c.fields.map((f) => [f.key, props[f.key]?.default ?? (f.type === "column" ? null : "")]));
+  const set = (i: number, key: string, v: unknown) => onChange(value.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
+  const grid = { gridTemplateColumns: `${c.fields.map((f) => (f.type === "select" ? "52px" : "minmax(0, 1fr)")).join(" ")} 18px` };
+  return (
+    <div className="an-rows">
+      {value.length > 0 && (
+        <div className="an-rows-grid an-rows-head muted small" style={grid}>
+          {c.fields.map((f) => (
+            <span key={f.key}>{f.label}</span>
+          ))}
+          <span />
+        </div>
+      )}
+      {value.map((row, i) => (
+        <div key={i} className="an-rows-grid" style={grid}>
+          {c.fields.map((f) => {
+            const v = row[f.key];
+            if (f.type === "column") {
+              const cols = (dataset?.columns ?? []).filter((x) => accepts(f.types, x.type));
+              return (
+                <select key={f.key} disabled={disabled} value={(v as string) ?? ""} title={f.label} onChange={(e) => set(i, f.key, e.target.value || null)}>
+                  <option value="">{f.emptyLabel ?? "(선택)"}</option>
+                  {cols.map((x) => (
+                    <option key={x.name} value={x.name}>
+                      {x.name}
+                    </option>
+                  ))}
+                  {typeof v === "string" && v && !cols.some((x) => x.name === v) && <option value={v}>{v} (없음)</option>}
+                </select>
+              );
+            }
+            if (f.type === "select")
+              return (
+                <select key={f.key} disabled={disabled} value={(v as string) ?? ""} title={f.label} onChange={(e) => set(i, f.key, e.target.value)}>
+                  {(props[f.key]?.enum ?? []).map((o: string) => (
+                    <option key={o} value={o}>
+                      {f.labels?.[o] ?? o}
+                    </option>
+                  ))}
+                </select>
+              );
+            return <TextInput key={f.key} value={(v as string) ?? ""} placeholder={f.placeholder} onCommit={(t) => set(i, f.key, t)} />;
+          })}
+          <button className="an-rows-del" disabled={disabled} title="이 규칙 지우기" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button className="btn btn-small an-rows-add" disabled={disabled} onClick={() => onChange([...value, blank()])}>
+        + {c.addLabel ?? "추가"}
+      </button>
+    </div>
+  );
 }
 
 /** Text that is saved when the user stops typing (on blur or Enter), not on every key. */

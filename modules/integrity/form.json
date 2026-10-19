@@ -1,0 +1,659 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "스프레드시트로 받은 데이터를 분석하기 전에 무결성과 정제 상태를 점검합니다. 변수명과 빈 행 같은 구조, 숫자·날짜·코드의 형식, 이상치와 직접 정한 규칙, 결측과 중복, 텍스트 표기를 차례로 보고, 점검 요약 표에 문제와 해결 방법을 모읍니다. 변수 진단·이상치·범주 진단과 보고서는 dlookr로 계산합니다.",
+    "links": [
+      {
+        "label": "dlookr 홈페이지",
+        "url": "https://choonghyunryu.github.io/dlookr/"
+      },
+      {
+        "label": "dlookr 데이터 진단 안내",
+        "url": "https://choonghyunryu.github.io/dlookr/articles/diagonosis.html"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "데이터 전체를 한눈에 진단하기",
+        "description": "행·열 수, 중복 행, 결측, 변수 형식 개요와 변수마다 형식·결측·고유값 수를 표로 봅니다.",
+        "fn": [
+          "dlookr::overview",
+          "dlookr::diagnose"
+        ],
+        "enable": {
+          "overview": true,
+          "diagnose": true
+        }
+      },
+      {
+        "title": "수치 변수 진단하기",
+        "description": "최솟값·사분위수·최댓값과 0·음수·이상치 개수. 나올 수 없는 값(나이 -5)이 바로 보입니다.",
+        "fn": [
+          "dlookr::diagnose_numeric"
+        ],
+        "enable": {
+          "values.numeric": true
+        }
+      },
+      {
+        "title": "이상치 찾고 그려 보기",
+        "description": "변수마다 이상치 개수와 이상치를 뺀 평균, 상자그림과 이상치가 있는 행 번호.",
+        "fn": [
+          "dlookr::diagnose_outlier",
+          "dlookr::plot_outlier"
+        ],
+        "enable": {
+          "values.outliers": true,
+          "values.outlierPlot": true,
+          "values.outlierRows": true
+        }
+      },
+      {
+        "title": "범주 변수 진단하기",
+        "description": "범주 값마다 행 수와 비율, 드물게 나오는 값(오타 의심).",
+        "fn": [
+          "dlookr::diagnose_category"
+        ],
+        "enable": {
+          "text.categories": true,
+          "values.rareLevels": true
+        }
+      },
+      {
+        "title": "결측을 파레토 그림으로 보기",
+        "description": "결측 비율이 큰 변수부터 막대로, 누적 비율을 선으로. dlookr의 결측 등급(좋음~제거 고려)으로 색칠합니다.",
+        "fn": [
+          "dlookr::plot_na_pareto"
+        ],
+        "enable": {
+          "missing.pareto": true,
+          "missing.hidden": true
+        }
+      },
+      {
+        "title": "진단 보고서 파일 만들기",
+        "description": "dlookr의 HTML 데이터 진단 보고서를 파일로 저장합니다. 동료에게 보내거나 원본 담당자에게 확인을 요청할 때 씁니다.",
+        "fn": [
+          "dlookr::diagnose_web_report",
+          "dlookr::diagnose_paged_report"
+        ],
+        "enable": {
+          "report.enabled": true
+        }
+      },
+      {
+        "title": "스프레드시트 형식 오류 찾기",
+        "description": "숫자 열에 섞인 '1,000원'·'N/A', 섞인 날짜 형식, 앞자리 0이 지워진 코드, 변수명 문제, 빈 행.",
+        "enable": {
+          "format.numberText": true,
+          "format.dates": true,
+          "format.leadingZeros": true,
+          "structure.names": true,
+          "structure.emptyRows": true
+        }
+      },
+      {
+        "title": "규칙으로 값 검증하기",
+        "description": "허용 범위(나이 0~120), 허용 값(성별 남·여), 선후 관계(주문일 ≤ 배송일)를 정하면 어긴 행을 찾습니다.",
+        "enable": {
+          "values.numeric": true
+        },
+        "needs": "'값의 범위와 규칙'에서 규칙을 추가하세요.",
+        "needsFilled": [
+          "values.ranges"
+        ]
+      },
+      {
+        "title": "키와 필수값 점검하기",
+        "description": "회원번호처럼 하나뿐이어야 할 키의 중복과 빈 값, 필수 변수의 빈 칸을 찾습니다.",
+        "enable": {
+          "duplicates.keys": true,
+          "duplicates.rows": true
+        },
+        "needs": "키 변수를 넣으세요.",
+        "needsFilled": [
+          "keys"
+        ]
+      },
+      {
+        "title": "텍스트 표기 통일하기",
+        "description": "앞뒤 공백, 대소문자만 다른 값, 철자가 비슷한 값, 동의어(한국·대한민국·KOREA)를 찾습니다.",
+        "enable": {
+          "text.whitespace": true,
+          "text.variants": true,
+          "text.similar": true
+        }
+      },
+      {
+        "title": "정리한 데이터 만들기",
+        "description": "찾은 문제를 고친 사본을 R 세션에 저장합니다. 원본은 바뀌지 않고, 무엇을 몇 개 바꿨는지 표로 남습니다.",
+        "enable": {
+          "clean.enabled": true
+        }
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variables",
+      "bind": "variables",
+      "label": "점검할 변수",
+      "hint": "비워 두면 모든 변수를 점검합니다."
+    },
+    {
+      "type": "variables",
+      "bind": "keys",
+      "label": "키 변수",
+      "hint": "함께 한 행을 가리키는 변수(회원번호, 주문번호). 중복과 빈 값을 봅니다."
+    },
+    {
+      "type": "variables",
+      "bind": "required",
+      "label": "필수 변수",
+      "hint": "모든 행에 있어야 하는 변수(ID, 이메일)."
+    }
+  ],
+  "sections": [
+    {
+      "title": "요약",
+      "open": true,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "overview",
+          "label": "데이터 개요",
+          "description": "행·열 수, 중복 행, 결측 있는 행, 변수 형식의 개수.",
+          "fn": "dlookr::overview"
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnose",
+          "label": "변수 진단",
+          "description": "변수마다 R이 읽은 형식, 결측 수와 비율, 서로 다른 값의 수.",
+          "fn": "dlookr::diagnose"
+        },
+        {
+          "type": "number",
+          "bind": "maxExamples",
+          "label": "문제마다 보여 줄 예",
+          "unit": "개"
+        }
+      ]
+    },
+    {
+      "title": "구조",
+      "description": "데이터의 틀: 변수명, 빈 행과 빈 열.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "structure.names",
+          "label": "변수명 점검",
+          "description": "중복, 대소문자·공백만 다른 이름, 앞뒤 공백, 특수문자·깨진 글자, 숫자로 시작, 표기 방식이 섞인 이름.",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "structure.nameStyle",
+              "label": "표기 방식 기준",
+              "labels": {
+                "auto": "다수 방식에 맞춤",
+                "snake": "snake_case",
+                "camel": "camelCase",
+                "any": "보지 않음"
+              }
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "structure.emptyRows",
+          "label": "완전히 빈 행",
+          "description": "모든 칸이 빈 행. 시트 중간의 빈 행은 표가 둘이라는 표시일 수 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "structure.emptyColumns",
+          "label": "빈 열",
+          "description": "값이 하나도 없는 열."
+        },
+        {
+          "type": "checkbox",
+          "bind": "structure.constant",
+          "label": "값이 하나뿐인 열",
+          "description": "모든 행이 같은 값이라 정보가 없는 열."
+        }
+      ]
+    },
+    {
+      "title": "형식",
+      "description": "각 열에 맞는 형식의 값이 들어갔는지.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "format.numberText",
+          "label": "숫자 열에 섞인 글자",
+          "description": "금액·수량 열의 '1,000원', 'N/A', '공란'. 이런 값 하나 때문에 열 전체가 문자로 읽힙니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "format.dates",
+          "label": "날짜 형식",
+          "description": "한 열에 섞인 2026-10-19, 2026/10/19, 19-Oct-2026, 없는 날짜, 월/일 순서가 섞인 값, 엑셀 날짜 일련번호."
+        },
+        {
+          "type": "checkbox",
+          "bind": "format.leadingZeros",
+          "label": "앞자리 0 누락",
+          "description": "사번·고객ID·우편번호의 자릿수가 섞여 있으면 01234가 1234로 바뀐 것일 수 있습니다.",
+          "hint": "숫자로 저장된 코드는 키 변수이거나 이름이 ID·코드·번호인 열만 봅니다."
+        }
+      ]
+    },
+    {
+      "title": "값의 범위와 규칙",
+      "description": "상식이나 업무 규칙에서 벗어난 값.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "values.numeric",
+          "label": "수치 변수 진단",
+          "description": "최솟값·사분위수·최댓값, 0·음수·이상치 개수.",
+          "fn": "dlookr::diagnose_numeric"
+        },
+        {
+          "type": "checkbox",
+          "bind": "values.outliers",
+          "label": "이상치 진단",
+          "description": "변수마다 IQR 기준 이상치 개수와 비율, 이상치를 뺀 평균.",
+          "fn": "dlookr::diagnose_outlier",
+          "controls": [
+            {
+              "type": "checkbox",
+              "bind": "values.outlierPlot",
+              "label": "이상치 그림",
+              "description": "상자그림 위에 값을 점으로, 이상치는 빨간색으로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "values.outlierRows",
+              "label": "이상치가 있는 행",
+              "description": "행 번호와 값. 원본에서 찾아 확인할 때 씁니다."
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "values.rareLevels",
+          "label": "드문 범주 값",
+          "description": "범주가 몇 개뿐인 변수에서 드물게 나오는 값(오타 의심).",
+          "controls": [
+            {
+              "type": "number",
+              "bind": "values.rareShare",
+              "label": "드문 값 기준",
+              "unit": "% 미만"
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "label": "규칙",
+          "description": "규칙을 추가하면 어긴 행을 찾습니다. 날짜는 YYYY-MM-DD로 씁니다.",
+          "controls": [
+            {
+              "type": "rows",
+              "bind": "values.ranges",
+              "label": "허용 범위",
+              "description": "값이 최소와 최대 사이에 있어야 합니다. 한쪽은 비워도 됩니다.",
+              "addLabel": "범위 추가",
+              "fields": [
+                {
+                  "key": "variable",
+                  "label": "변수",
+                  "type": "column",
+                  "types": [
+                    "numeric",
+                    "date",
+                    "character",
+                    "factor"
+                  ]
+                },
+                {
+                  "key": "min",
+                  "label": "최소",
+                  "type": "text",
+                  "placeholder": "0"
+                },
+                {
+                  "key": "max",
+                  "label": "최대",
+                  "type": "text",
+                  "placeholder": "120"
+                }
+              ]
+            },
+            {
+              "type": "rows",
+              "bind": "values.allowed",
+              "label": "허용 값",
+              "description": "이 값들만 들어갈 수 있습니다(쉼표나 |로 구분).",
+              "addLabel": "허용 값 추가",
+              "fields": [
+                {
+                  "key": "variable",
+                  "label": "변수",
+                  "type": "column"
+                },
+                {
+                  "key": "values",
+                  "label": "허용 값",
+                  "type": "text",
+                  "placeholder": "남, 여"
+                }
+              ]
+            },
+            {
+              "type": "rows",
+              "bind": "values.order",
+              "label": "선후 관계",
+              "description": "두 열 사이에 성립해야 하는 관계(시작일 ≤ 종료일).",
+              "addLabel": "관계 추가",
+              "fields": [
+                {
+                  "key": "first",
+                  "label": "앞",
+                  "type": "column",
+                  "types": [
+                    "numeric",
+                    "date",
+                    "character",
+                    "factor"
+                  ]
+                },
+                {
+                  "key": "op",
+                  "label": "관계",
+                  "type": "select",
+                  "labels": {
+                    "<": "<",
+                    "<=": "≤",
+                    "==": "=",
+                    "!=": "≠",
+                    ">=": "≥",
+                    ">": ">"
+                  }
+                },
+                {
+                  "key": "second",
+                  "label": "뒤",
+                  "type": "column",
+                  "types": [
+                    "numeric",
+                    "date",
+                    "character",
+                    "factor"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "결측과 중복",
+      "description": "빠진 값과 두 번 들어간 값.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "missing.summary",
+          "label": "결측치 (NA)",
+          "description": "점검 요약에 결측 수를 넣습니다. 결측 패턴과 대체는 '결측 데이터' 분석에서 봅니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "missing.pareto",
+          "label": "결측 파레토 그림",
+          "description": "결측 비율이 큰 변수부터, dlookr의 결측 등급으로 색칠.",
+          "fn": "dlookr::plot_na_pareto"
+        },
+        {
+          "type": "checkbox",
+          "bind": "missing.hidden",
+          "label": "결측을 뜻하는 값",
+          "description": "NA가 아닌 결측: 빈 문자열, 'N/A'·'없음' 같은 글자, 열의 끝값인 -99·999.",
+          "controls": [
+            {
+              "type": "list",
+              "bind": "missing.codes",
+              "label": "결측 코드",
+              "hint": "쉼표로 구분합니다."
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "duplicates.rows",
+          "label": "중복 행",
+          "description": "모든 열의 값이 같은 행."
+        },
+        {
+          "type": "checkbox",
+          "bind": "duplicates.keys",
+          "label": "키 중복",
+          "description": "키 변수가 같은 행과 키가 빈 행.",
+          "enabledWhen": {
+            "bind": "keys",
+            "filled": true
+          },
+          "disabledHint": "키 변수를 넣으면 쓸 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title": "텍스트",
+      "description": "텍스트 값이 같은 방식으로 쓰였는지.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "text.whitespace",
+          "label": "공백 오류",
+          "description": "앞뒤 공백, 겹친 공백, 보이지 않는 공백(웹·한글 문서에서 복사한 값)."
+        },
+        {
+          "type": "checkbox",
+          "bind": "text.variants",
+          "label": "대소문자·공백만 다른 값",
+          "description": "'Seoul', ' seoul', 'SEOUL'처럼 같은 값으로 보이는 표기."
+        },
+        {
+          "type": "checkbox",
+          "bind": "text.similar",
+          "label": "철자가 비슷한 값",
+          "description": "한두 글자만 다른 값('Busan', 'Busna'). 오타를 찾습니다.",
+          "controls": [
+            {
+              "type": "number",
+              "bind": "text.maxDistance",
+              "label": "다른 글자 수",
+              "unit": "개까지"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "text.categories",
+          "label": "범주 변수 진단",
+          "description": "텍스트 변수마다 많이 나온 값과 행 수, 비율.",
+          "fn": "dlookr::diagnose_category",
+          "controls": [
+            {
+              "type": "number",
+              "bind": "text.topLevels",
+              "label": "변수마다 보여 줄 값",
+              "unit": "개"
+            }
+          ]
+        },
+        {
+          "type": "rows",
+          "bind": "text.synonyms",
+          "label": "동의어",
+          "description": "같은 대상을 다르게 쓴 값과 대표 표기. 변수를 비우면 모든 텍스트 변수에 적용합니다.",
+          "addLabel": "동의어 추가",
+          "fields": [
+            {
+              "key": "variable",
+              "label": "변수",
+              "type": "column",
+              "types": [
+                "character",
+                "factor"
+              ],
+              "emptyLabel": "(모든 텍스트 변수)"
+            },
+            {
+              "key": "values",
+              "label": "같은 뜻의 값",
+              "type": "text",
+              "placeholder": "한국, 대한민국, KOREA"
+            },
+            {
+              "key": "to",
+              "label": "대표 표기",
+              "type": "text",
+              "placeholder": "대한민국"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "정리한 데이터 만들기",
+      "description": "점검에서 찾은 문제를 고친 사본을 만듭니다. 원본 데이터는 바뀌지 않습니다.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "clean.enabled",
+          "label": "정리한 데이터 만들기",
+          "description": "아래에서 고른 정리를 한 사본을 R 세션에 저장하고, 바꾼 내용을 표로 보여 줍니다.",
+          "controls": [
+            {
+              "type": "checkbox",
+              "bind": "clean.trim",
+              "label": "공백 정리",
+              "description": "앞뒤 공백을 지우고 겹친·보이지 않는 공백을 공백 하나로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.hiddenMissing",
+              "label": "결측 코드를 NA로",
+              "description": "빈 문자열과 결측 코드를 NA로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.synonyms",
+              "label": "동의어 통일",
+              "description": "동의어 규칙의 대표 표기로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.variants",
+              "label": "표기 통일",
+              "description": "대소문자·공백만 다른 값을 가장 흔한 표기로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.numbers",
+              "label": "숫자로 바꾸기",
+              "description": "숫자 열에 섞인 쉼표·단위를 지우고 숫자로. 숫자가 아닌 값은 NA."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.dates",
+              "label": "날짜로 바꾸기",
+              "description": "여러 형식의 날짜 텍스트를 Date로. 읽히지 않는 값은 NA."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.padZeros",
+              "label": "앞자리 0 채우기",
+              "description": "코드를 가장 긴 자릿수에 맞춰 0을 채운 텍스트로."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.ruleViolations",
+              "label": "규칙 위반 값을 NA로",
+              "description": "허용 범위·허용 값 규칙을 어긴 값을 NA로. 원본을 확인한 뒤에 켭니다."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.emptyRows",
+              "label": "빈 행 지우기",
+              "description": "모든 칸이 빈 행을 지웁니다."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.duplicates",
+              "label": "중복 행 지우기",
+              "description": "같은 행은 첫 행만 남깁니다.",
+              "fn": "dplyr::distinct"
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.emptyColumns",
+              "label": "빈 열 지우기",
+              "description": "값이 없는 열을 지웁니다."
+            },
+            {
+              "type": "checkbox",
+              "bind": "clean.names",
+              "label": "변수명 정리",
+              "description": "공백을 _로, 특수문자를 빼고, 중복 이름에 번호를 붙입니다."
+            },
+            {
+              "type": "text",
+              "bind": "clean.saveAs",
+              "label": "저장할 이름",
+              "placeholder": "data_clean",
+              "hint": "비우면 저장하지 않습니다."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "진단 보고서",
+      "description": "dlookr가 만드는 HTML 보고서 파일.",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "report.enabled",
+          "label": "진단 보고서 저장",
+          "description": "데이터 진단 보고서를 HTML 파일로 저장합니다. 따로 R을 띄워 만들어서 수십 초 걸립니다.",
+          "fn": "dlookr::diagnose_web_report",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "report.format",
+              "label": "형식",
+              "labels": {
+                "web": "웹 보고서 (탭으로 나뉨)",
+                "paged": "인쇄용 페이지 보고서"
+              }
+            },
+            {
+              "type": "text",
+              "bind": "report.file",
+              "label": "파일",
+              "placeholder": "data-diagnosis.html",
+              "hint": "작업 폴더 기준 경로입니다."
+            }
+          ],
+          "requires": [
+            "rmarkdown"
+          ]
+        }
+      ]
+    }
+  ]
+}
