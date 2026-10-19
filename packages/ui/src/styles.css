@@ -3952,6 +3952,7 @@ label.check {
   display: flex;
   align-items: center;
   gap: 8px;
+}
 /* Analysis form: rule rows (e.g. "나이 0 ~ 120") */
 .an-rows-label {
   display: flex;
