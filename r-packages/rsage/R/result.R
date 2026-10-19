@@ -203,11 +203,18 @@ result_sections <- function(x) {
 
 # ---------- writing for the app ----------
 
+# ragg like the plot pane: it finds a system font for Korean (and other) text,
+# where png() can draw boxes on macOS.
+png_device <- function() {
+  if (requireNamespace("ragg", quietly = TRUE)) ragg::agg_png else grDevices::png
+}
+
 save_plot <- function(p, file, dpi = 144) {
+  dev <- png_device()
   if (inherits(p$plot, "ggplot")) {
-    ggplot2::ggsave(file, p$plot, width = p$width, height = p$height, dpi = dpi, device = grDevices::png)
+    ggplot2::ggsave(file, p$plot, width = p$width, height = p$height, dpi = dpi, device = dev)
   } else {
-    grDevices::png(file, width = p$width, height = p$height, units = "in", res = dpi)
+    dev(file, width = p$width, height = p$height, units = "in", res = dpi)
     on.exit(grDevices::dev.off())
     p$plot()
   }
