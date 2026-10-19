@@ -10,6 +10,7 @@ import { host } from "../host/client";
 import { useStore } from "../store";
 import { deleteAnalysis, findDef, insertIntoDocument, prepareModule, refreshDatasets, useAnalyses } from "../analysis";
 import { installPackages } from "../packages";
+import { openFile } from "../editor/files";
 import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } from "./AnalysisVariables";
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
 
@@ -673,6 +674,11 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
         .map((n, i) => (
           <div key={i} className="an-note muted">
             {n.text}
+            {n.file && (
+              <button className="btn btn-small an-note-open" onClick={() => void openFile(n.file!)}>
+                열기
+              </button>
+            )}
           </div>
         ))}
       <div className="muted small an-prov">

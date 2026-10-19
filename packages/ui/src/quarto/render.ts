@@ -61,6 +61,17 @@ export function showPreview() {
   p.api.setActive();
 }
 
+/** Shows an existing HTML or PDF file in the Preview panel; files outside the project open in the default app. */
+export async function previewFile(path: string) {
+  wire();
+  const url = await host.call("preview.url", { path }).catch(() => undefined);
+  if (!url) return void host.call("shell.openExternal", { path }).catch(() => {});
+  const st = useRender.getState();
+  if (st.running && st.renderId) await host.call("quarto.stop", { renderId: st.renderId }).catch(() => {});
+  useRender.setState((s) => ({ running: false, log: "", file: undefined, renderId: undefined, error: undefined, output: path, url, stamp: s.stamp + 1 }));
+  showPreview();
+}
+
 export async function renderDocument(path: string, to?: RenderFormat | "") {
   wire();
   const st = useRender.getState();

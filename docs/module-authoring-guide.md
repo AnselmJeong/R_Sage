@@ -215,7 +215,7 @@ analyse <- function(data, options = list()) {
 | --- | --- | --- |
 | `rs_table(id, title, data, labels, notes, description, section)` | 표 | `data`는 반올림하지 않은 data.frame. `labels`는 열 id → 보이는 이름 |
 | `rs_plot(id, title, plot, size, alt, description, section)` | 그림 | `plot`은 ggplot 또는 그리는 함수. `size`는 `rs_figure_size()`, `alt`는 대체 텍스트 |
-| `rs_note(text, level, code)` | 알림 | `level`은 `"info"` 또는 `"warning"`. `code`는 고정된 영어 식별자 |
+| `rs_note(text, level, code, file)` | 알림 | `level`은 `"info"` 또는 `"warning"`. `code`는 고정된 영어 식별자. 파일을 만들었으면 `file`에 절대 경로를 주면 앱이 "열기" 버튼을 단다 (HTML·PDF는 미리보기 창) |
 | `rs_result(analysis, title, tables, plots, notes, options, data_info, packages, exports, sections)` | 결과 전체 | `packages`는 버전을 기록할 백엔드 |
 
 `id`는 바뀌지 않는 영어 식별자다. 보고서의 인라인 R(`rsage::rs_value(res, "mcar", 1, "p.value")`)과 사용자가 정한 그림 크기가 id에 묶인다.

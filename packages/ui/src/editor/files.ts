@@ -83,6 +83,16 @@ function scheduleBackup(path: string) {
 }
 
 export async function openFile(path: string, at?: { line: number; column?: number }) {
+  // HTML and PDF files are shown rendered; the preview's "소스 보기" opens the HTML text.
+  if (!at && /\.(html?|pdf)$/i.test(path)) {
+    const { previewFile } = await import("../quarto/render");
+    return previewFile(path);
+  }
+  return openInEditor(path, at);
+}
+
+/** Opens the file as text in an editor tab. */
+export async function openInEditor(path: string, at?: { line: number; column?: number }) {
   if (!dock) return;
   try {
     await ensureModel(path);

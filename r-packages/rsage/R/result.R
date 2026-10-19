@@ -45,8 +45,9 @@ rs_plot <- function(id, title, plot, size = NULL, width = NULL, height = NULL, a
 #'
 #' @param level "info" for context, "warning" for something the reader must weigh.
 #' @param code Stable machine-readable code, e.g. "insufficient_n".
-rs_note <- function(text, level = c("info", "warning"), code = NULL) {
-  structure(list(text = text, level = match.arg(level), code = code), class = "rsage_note")
+#' @param file Absolute path of a file the analysis wrote; the app offers to open it.
+rs_note <- function(text, level = c("info", "warning"), code = NULL, file = NULL) {
+  structure(list(text = text, level = match.arg(level), code = code, file = file), class = "rsage_note")
 }
 
 #' Build a module result
@@ -258,7 +259,7 @@ rs_write <- function(result, dir, run_id = NULL) {
     title = result$title,
     tables = unname(lapply(result$tables, table_json)),
     plots = unname(plots),
-    notes = lapply(result$notes, function(n) list(level = n$level, code = n$code, text = n$text)),
+    notes = lapply(result$notes, function(n) list(level = n$level, code = n$code, text = n$text, file = n$file)),
     options = result$options,
     dataInfo = result$data_info,
     exports = as.list(names(result$exports)),

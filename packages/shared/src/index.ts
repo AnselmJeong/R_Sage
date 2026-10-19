@@ -539,7 +539,7 @@ export interface AnalysisResult {
   }[];
   /** Order of the result sections; tables and plots are shown grouped by their section. */
   sections?: string[];
-  notes: { level: "info" | "warning"; code?: string; text: string }[];
+  notes: { level: "info" | "warning"; code?: string; text: string; /** A file the analysis wrote, which the app offers to open. */ file?: string }[];
   dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
   exports: string[];
   provenance: { r?: string; packages?: Record<string, string>; created?: string };
