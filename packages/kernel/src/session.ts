@@ -217,6 +217,14 @@ export class KernelSession extends EventEmitter {
         break;
       case "stream":
         this.emit("output", { kind: "stream", executionId, name: c.name, text: c.text } satisfies OutputEvent);
+        // Ark keeps going after an error in the user's .Rprofile, but its message reads like a failed start.
+        if (/Error while sourcing R profile/.test(c.text ?? "") && this.profileNoted !== this.info.generation) {
+          this.profileNoted = this.info.generation;
+          const text =
+            "\n[R Sage] .Rprofile을 실행하다 오류가 나서 그 줄부터 뒤의 내용은 적용되지 않았습니다. " +
+            "R 세션은 정상적으로 시작되었습니다. 위 오류를 일으킨 줄을 고치거나 지우면 이 메시지는 나오지 않습니다.\n";
+          this.emit("output", { kind: "stream", executionId, name: "stdout", text } satisfies OutputEvent);
+        }
         break;
       case "execute_result":
         this.emit("output", { kind: "result", executionId, data: c.data } satisfies OutputEvent);
@@ -430,6 +438,9 @@ export class KernelSession extends EventEmitter {
   inputReply(value: string) {
     this.client?.send("stdin", "input_reply", { value });
   }
+
+  /** Generation whose .Rprofile error has already been explained in the console. */
+  private profileNoted = -1;
 
   async interrupt() {
     if (!this.client) return;
