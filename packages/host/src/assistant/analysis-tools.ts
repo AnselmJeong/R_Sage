@@ -144,8 +144,8 @@ export async function runAnalysisTool(
             output: `No data frame named ${dataset} in the R session. ${available.length ? `Data frames: ${available.map((d) => d.name).join(", ")}.` : "The session has no data frames."}`,
             isError: true,
           };
-        // An analysis that leaves an object in the user's session goes through the R approval.
-        if (full?.impute?.enabled && full.impute.saveAs && !env.autoRunR()) {
+        // An analysis that leaves an object in the user's session or writes a file goes through the R approval.
+        if (leavesOutput(full) && !env.autoRunR()) {
           const ok = await env.approve(item);
           if (!ok) return { output: "The user declined to run this analysis.", isError: true };
         }
@@ -175,4 +175,15 @@ export async function runAnalysisTool(
     return { output: e.message ?? String(e), isError: true };
   }
   return { output: `Unknown tool ${name}`, isError: true };
+}
+
+/**
+ * Whether options turn on something that outlives the run: an option group
+ * with `enabled` and a `saveAs` object name (imputation, cleaned data) or a
+ * `file` to write (a report).
+ */
+export function leavesOutput(options: any): boolean {
+  if (!options || typeof options !== "object" || Array.isArray(options)) return false;
+  if (options.enabled === true && ((typeof options.saveAs === "string" && options.saveAs) || (typeof options.file === "string" && options.file))) return true;
+  return Object.values(options).some(leavesOutput);
 }

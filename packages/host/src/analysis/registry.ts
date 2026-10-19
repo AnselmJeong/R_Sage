@@ -155,6 +155,10 @@ export function formProblems(form: AnalysisForm, schema: any): string[] {
       check(c.visibleWhen?.bind, `${where} > ${c.label} visibleWhen`);
       check(c.enabledWhen?.bind, `${where} > ${c.label} enabledWhen`);
       if (c.type === "checkbox" && c.controls) walk(c.controls, `${where} > ${c.label}`);
+      if (c.type === "rows") {
+        const item = c.bind.split(".").reduce((s: any, k) => s?.properties?.[k], schema)?.items;
+        for (const f of c.fields) if (!item?.properties?.[f.key]) out.push(`${where} > ${c.label} field "${f.key}" is not in the option's item schema`);
+      }
     }
   };
   walk(form.roles ?? [], "roles");
@@ -163,7 +167,7 @@ export function formProblems(form: AnalysisForm, schema: any): string[] {
   return out;
 }
 
-/** Column names the options point at: role boxes and column pickers. */
+/** Column names the options point at: role boxes, column pickers and column fields of rule rows. */
 export function columnsUsed(form: AnalysisForm, options: any): string[] {
   const binds: string[] = [];
   const walk = (controls: AnalysisFormControl[]) => {
@@ -172,15 +176,19 @@ export function columnsUsed(form: AnalysisForm, options: any): string[] {
       else {
         if (c.type === "variables" || c.type === "variable" || c.type === "column") binds.push(c.bind);
         if (c.type === "checkbox" && c.controls) walk(c.controls);
+        if (c.type === "rows") for (const f of c.fields) if (f.type === "column") binds.push(`${c.bind}[].${f.key}`);
       }
     }
   };
   walk(form.roles ?? []);
   for (const sec of form.sections ?? []) walk(sec.controls);
   const out = new Set<string>();
-  for (const b of binds) {
-    const v = b.split(".").reduce((o: any, k) => o?.[k], options);
-    for (const n of Array.isArray(v) ? v : [v]) if (typeof n === "string" && n) out.add(n);
-  }
+  const at = (o: any, path: string): any[] => {
+    const [head, ...rest] = path.split("[].");
+    const v = head!.split(".").reduce((x: any, k) => x?.[k], o);
+    if (!rest.length) return Array.isArray(v) ? v : [v];
+    return Array.isArray(v) ? v.flatMap((row) => at(row, rest.join("[]."))) : [];
+  };
+  for (const b of binds) for (const n of at(options, b)) if (typeof n === "string" && n) out.add(n);
   return [...out];
 }

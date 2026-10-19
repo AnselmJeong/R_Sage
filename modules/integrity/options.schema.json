@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Columns to check. Empty means every column."
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Key columns that together must identify a row (customer ID, order number). Checked for duplicates, blanks and lost leading zeros."
+    },
+    "required": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Columns that must be filled in every row (ID, email). Blank cells are listed."
+    },
+    "overview": {
+      "type": "boolean",
+      "default": true,
+      "description": "Data overview: rows, columns, duplicate and incomplete rows, column types (dlookr::overview)."
+    },
+    "diagnose": {
+      "type": "boolean",
+      "default": true,
+      "description": "Per-variable type, missing count and percentage, distinct values (dlookr::diagnose)."
+    },
+    "maxExamples": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5,
+      "description": "Example values or rows shown per problem."
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Structure checks.",
+      "properties": {
+        "names": {
+          "type": "boolean",
+          "default": true,
+          "description": "Column-name problems: duplicates, names differing only in case or spacing, names R renamed on import, automatic names for blank headers, leading/trailing spaces, special or garbled characters, names starting with a digit, mixed naming styles."
+        },
+        "nameStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "snake",
+            "camel",
+            "any"
+          ],
+          "default": "auto",
+          "description": "Naming style to expect for ASCII names: auto (the majority style), snake (snake_case), camel (camelCase) or any (don't check style)."
+        },
+        "emptyRows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rows where every cell is empty."
+        },
+        "emptyColumns": {
+          "type": "boolean",
+          "default": true,
+          "description": "Columns with no values."
+        },
+        "constant": {
+          "type": "boolean",
+          "default": true,
+          "description": "Columns with a single distinct value."
+        }
+      }
+    },
+    "format": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Type and format checks.",
+      "properties": {
+        "numberText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Text columns that are mostly numbers: values with thousands separators or units ('1,000원') and non-numbers ('N/A', '공란')."
+        },
+        "dates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Date columns stored as text with mixed layouts (2026-10-19, 2026/10/19, 19-Oct-2026), impossible dates, ambiguous day/month order, dates before 1900 or far in the future, Excel date serials."
+        },
+        "leadingZeros": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fixed-width codes (IDs, zip codes) with mixed widths, i.e. leading zeros lost when a spreadsheet read them as numbers."
+        }
+      }
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Value checks: outliers and rules.",
+      "properties": {
+        "numeric": {
+          "type": "boolean",
+          "default": true,
+          "description": "Numeric summary with counts of zeros, negatives and outliers (dlookr::diagnose_numeric)."
+        },
+        "outliers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Outlier count, ratio and mean with and without outliers per numeric variable, by the 1.5 x IQR rule (dlookr::diagnose_outlier)."
+        },
+        "outlierPlot": {
+          "type": "boolean",
+          "default": true,
+          "description": "Box plots with each value as a point, outliers in red, for variables with outliers."
+        },
+        "outlierRows": {
+          "type": "boolean",
+          "default": false,
+          "description": "Row numbers and values of outliers, farthest from the median first."
+        },
+        "rareLevels": {
+          "type": "boolean",
+          "default": true,
+          "description": "Values that are rare in a column with few categories (possible typos)."
+        },
+        "rareShare": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50,
+          "default": 1,
+          "description": "A category value is rare below this percentage of rows."
+        },
+        "ranges": {
+          "type": "array",
+          "default": [],
+          "description": "Range rules: each value of the variable must lie within [min, max].",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Numeric or date column."
+              },
+              "min": {
+                "type": "string",
+                "default": "",
+                "description": "Lowest allowed value (number or YYYY-MM-DD); empty for no lower bound."
+              },
+              "max": {
+                "type": "string",
+                "default": "",
+                "description": "Highest allowed value; empty for no upper bound."
+              }
+            }
+          }
+        },
+        "allowed": {
+          "type": "array",
+          "default": [],
+          "description": "Allowed-value (domain) rules.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column."
+              },
+              "values": {
+                "type": "string",
+                "default": "",
+                "description": "Allowed values separated by commas or |, e.g. '남, 여' or 'Y|N'."
+              }
+            }
+          }
+        },
+        "order": {
+          "type": "array",
+          "default": [],
+          "description": "Order rules between two columns, e.g. 주문일 <= 배송일, 시작일 <= 종료일. Dates and numbers stored as text are parsed.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "first": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column on the left."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "<",
+                  "<=",
+                  "==",
+                  "!=",
+                  ">=",
+                  ">"
+                ],
+                "default": "<=",
+                "description": "Comparison that must hold."
+              },
+              "second": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column on the right."
+              }
+            }
+          }
+        }
+      }
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Missing-value checks.",
+      "properties": {
+        "summary": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count NA values in the summary."
+        },
+        "pareto": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pareto chart of missing percentage per variable with dlookr's missing grades (plot_na_pareto)."
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": true,
+          "description": "Values that stand for missing without being NA: empty strings, text codes, numeric codes at the column's minimum or maximum."
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "NA",
+            "N/A",
+            "n/a",
+            "NaN",
+            "NULL",
+            "null",
+            "-",
+            ".",
+            "?",
+            "없음",
+            "미상",
+            "모름",
+            "공란",
+            "해당없음",
+            "-99",
+            "-999",
+            "999",
+            "9999"
+          ],
+          "description": "Codes that mean missing. Text codes match ignoring case; numeric codes count only when they are the column's minimum or maximum."
+        }
+      }
+    },
+    "duplicates": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Duplicate checks.",
+      "properties": {
+        "rows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rows identical in every checked column."
+        },
+        "keys": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rows sharing the same key (needs keys)."
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Text standardisation checks.",
+      "properties": {
+        "whitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Leading/trailing spaces, doubled spaces, invisible spaces (no-break, ideographic, zero-width), tabs and line breaks inside values."
+        },
+        "variants": {
+          "type": "boolean",
+          "default": true,
+          "description": "Values that differ only in case, spacing or punctuation ('Seoul', ' seoul', 'SEOUL')."
+        },
+        "similar": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pairs of values one or two edits apart ('Busan', 'Busna'); adjacent swaps count as one edit."
+        },
+        "maxDistance": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1,
+          "description": "Largest edit distance for similar spellings."
+        },
+        "categories": {
+          "type": "boolean",
+          "default": false,
+          "description": "Frequency table of the most common values per text variable (dlookr::diagnose_category)."
+        },
+        "topLevels": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Values per variable in the category table."
+        },
+        "synonyms": {
+          "type": "array",
+          "default": [],
+          "description": "Synonym rules.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column; empty for every text column."
+              },
+              "values": {
+                "type": "string",
+                "default": "",
+                "description": "Values with the same meaning, separated by commas, e.g. '한국, 대한민국, KOREA, 남한'. Matching ignores case and spacing."
+              },
+              "to": {
+                "type": "string",
+                "default": "",
+                "description": "The spelling to use; empty means the first value."
+              }
+            }
+          }
+        }
+      }
+    },
+    "clean": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Cleaned copy of the data (an export).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Make a cleaned copy of the data and save it in the R session. The original data frame is not changed."
+        },
+        "trim": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trim and collapse whitespace in text."
+        },
+        "hiddenMissing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Turn missing-value codes and empty strings into NA."
+        },
+        "synonyms": {
+          "type": "boolean",
+          "default": true,
+          "description": "Replace synonyms with their chosen spelling."
+        },
+        "variants": {
+          "type": "boolean",
+          "default": true,
+          "description": "Unify case/spacing variants to the most common spelling."
+        },
+        "numbers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Convert text columns that are mostly numbers to numeric (non-numbers become NA)."
+        },
+        "dates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Convert date text in any detected layout to Date (unparseable values become NA)."
+        },
+        "padZeros": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pad fixed-width codes with leading zeros to their longest width (stored as text)."
+        },
+        "ruleViolations": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set values that break range or allowed-value rules to NA."
+        },
+        "emptyRows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Drop empty rows."
+        },
+        "duplicates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Drop duplicate rows (keeps the first)."
+        },
+        "emptyColumns": {
+          "type": "boolean",
+          "default": false,
+          "description": "Drop empty columns."
+        },
+        "names": {
+          "type": "boolean",
+          "default": true,
+          "description": "Make column names safe: trim, spaces to _, drop special characters, unique."
+        },
+        "saveAs": {
+          "type": "string",
+          "default": "data_clean",
+          "pattern": "^([A-Za-z.][A-Za-z0-9._]*)?$",
+          "description": "Name of the cleaned data frame in the R session; empty to not save."
+        }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "dlookr diagnosis report.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write dlookr's HTML data diagnosis report to a file. Runs in a separate R process and takes tens of seconds (dlookr::diagnose_web_report)."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "web",
+            "paged"
+          ],
+          "default": "web",
+          "description": "web: interactive report with tabs (diagnose_web_report); paged: printable page layout (diagnose_paged_report, HTML)."
+        },
+        "file": {
+          "type": "string",
+          "default": "data-diagnosis.html",
+          "description": "Report file, relative to the working directory."
+        }
+      }
+    }
+  }
+}

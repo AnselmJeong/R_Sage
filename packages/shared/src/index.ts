@@ -415,8 +415,25 @@ export type AnalysisFormControl =
   | (AnalysisControlBase & { type: "checkbox"; controls?: AnalysisFormControl[] })
   | (AnalysisControlBase & { type: "number"; unit?: string })
   | (AnalysisControlBase & { type: "select"; labels?: Record<string, string> })
+  /**
+   * Rules the user adds one row at a time (e.g. "나이 0 ~ 120"). The option is
+   * an array of objects; `fields` are its keys, shown as columns of the row.
+   */
+  | (AnalysisControlBase & { type: "rows"; fields: AnalysisRowField[]; addLabel?: string })
   /** A labelled group of controls inside a section, like JASP's "Central tendency". */
   | { type: "group"; label: string; description?: string; controls: AnalysisFormControl[]; visibleWhen?: AnalysisCondition };
+
+/** One column of a `rows` control. A select takes its choices from the item schema's enum. */
+export interface AnalysisRowField {
+  key: string;
+  label: string;
+  type: "column" | "text" | "select";
+  types?: AnalysisVarType[];
+  placeholder?: string;
+  labels?: Record<string, string>;
+  /** A column field's choice for "none", when none means something (e.g. "every text variable"). */
+  emptyLabel?: string;
+}
 
 /**
  * Variable types a role box accepts (all when left out). numeric covers

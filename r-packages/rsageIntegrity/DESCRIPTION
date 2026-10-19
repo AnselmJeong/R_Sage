@@ -1,0 +1,19 @@
+Package: rsageIntegrity
+Title: Data Integrity Check Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Checks a data frame received as a spreadsheet before analysis:
+    column names, empty rows and columns, numbers stored as text, mixed date
+    formats, lost leading zeros, outliers, range, allowed-value and order
+    rules, hidden missing-value codes, duplicate rows and keys, whitespace
+    and spelling variants in text. Variable diagnosis, outlier statistics
+    and the HTML diagnosis report use 'dlookr'; the other checks are the
+    module's own. It can also return a cleaned copy of the data.
+    analyse() returns an 'rsage' result that prints in the console and
+    renders in Quarto documents.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), dlookr (>= 0.6.0), tibble, ggplot2, stats, utils
+Suggests: stringi, rmarkdown, testthat (>= 3.0.0)
+Config/testthat/edition: 3
