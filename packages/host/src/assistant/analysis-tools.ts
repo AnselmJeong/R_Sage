@@ -3,7 +3,7 @@
 // writing the R code itself; the analysis is saved like one made in the
 // GUI and opens in an analysis tab, where the user can adjust it.
 
-import type { AnalysisInstance, AnalysisResult, AssistantItem } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisInstance, AnalysisResult, AssistantItem } from "@rsage/shared";
 import type { AnalysisService } from "../analysis/service";
 import type { ToolResult, ToolSpec } from "./types";
 
@@ -15,6 +15,12 @@ export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "list_datasets",
+    description:
+      "List the data frames in the user's R session with their size and columns (name and R class). Use it to find the data set for run_analysis. When the user has not said which data to analyse and more than one data frame could fit, ask the user instead of choosing one.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "describe_analysis",
     description: "Get the options (JSON Schema with defaults) and usage guide of one analysis from list_analyses. Call before run_analysis.",
     parameters: { type: "object", properties: { analysis: { type: "string", description: "Analysis key from list_analyses" } }, required: ["analysis"] },
@@ -22,12 +28,15 @@ export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
   {
     name: "run_analysis",
     description:
-      "Run a built-in analysis on a data frame in the user's R session and return its result tables. Options not given take their defaults. The analysis is saved in the project and shown to the user in an analysis tab. If the options are invalid the error names each problem; fix them and call again. To change an analysis you ran before, pass its analysis_id.",
+      "Run a built-in analysis on a named data frame in the user's R session and return its result tables. Options not given take their defaults. The analysis is saved in the project and shown to the user in an analysis tab. If the options are invalid the error names each problem; fix them and call again. To change an analysis you ran before, pass its analysis_id.",
     parameters: {
       type: "object",
       properties: {
         analysis: { type: "string", description: "Analysis key from list_analyses" },
-        dataset: { type: "string", description: "Name of a data frame in the R global environment" },
+        dataset: {
+          type: "string",
+          description: "Name of the data frame to analyse, from list_datasets. Always name it explicitly; never guess between several candidates, ask the user.",
+        },
         options: { type: "object", description: "Options as described by describe_analysis" },
         title: { type: "string", description: "Short title for the analysis tab" },
         analysis_id: { type: "string", description: "Re-run an existing analysis with new options instead of creating one" },
@@ -56,15 +65,27 @@ export function formatResult(inst: AnalysisInstance, result: AnalysisResult | un
   const d = result.dataInfo;
   if (d.rows !== undefined) out.push(`Data: ${d.rows} rows × ${d.columns} columns`);
   for (const t of result.tables) {
-    out.push("", `## ${t.title}`, t.columns.map((c) => c.label).join("\t"));
+    out.push("", `## ${t.title}`);
+    if (t.description) out.push(`(How to read: ${t.description})`);
+    out.push(t.columns.map((c) => c.label).join("\t"));
     for (const r of t.rows.slice(0, maxRows)) out.push(t.columns.map((c) => cell(r[c.id])).join("\t"));
     if (t.rows.length > maxRows) out.push(`… ${t.rows.length - maxRows} more rows`);
     for (const n of t.notes) out.push(`Note: ${n}`);
   }
-  if (result.plots.length) out.push("", `Plots shown to the user: ${result.plots.map((p) => p.title).join("; ")}`);
+  if (result.plots.length) {
+    out.push("", "Plots shown to the user:");
+    for (const p of result.plots) out.push(`- ${p.title}${p.description ? `: ${p.description}` : ""}`);
+  }
   for (const n of result.notes) out.push(`${n.level === "warning" ? "Warning" : "Note"}: ${n.text}`);
   if (result.exports.length) out.push(`Saved in the R session: ${result.exports.join(", ")}`);
   return out.join("\n");
+}
+
+/** One data frame for the model: size and columns, cut short for wide data. */
+function datasetLine(d: AnalysisDataset, maxCols = 40): string {
+  const cols = d.columns.slice(0, maxCols).map((c) => `${c.name} <${c.type}>`);
+  if (d.columns.length > maxCols) cols.push(`… ${d.columns.length - maxCols} more`);
+  return `${d.name}: ${d.rows} rows × ${d.columns.length} columns; ${cols.join(", ")}`;
 }
 
 export interface AnalysisToolEnv {
@@ -98,6 +119,11 @@ export async function runAnalysisTool(
         if (!defs.length) return { output: "No analysis modules are installed." };
         return { output: defs.map((d) => `${d.key}: ${d.title}. ${d.summary}`).join("\n") };
       }
+      case "list_datasets": {
+        const ds = await svc.datasets();
+        if (!ds.length) return { output: "The R session has no data frames. Load the data first." };
+        return { output: ds.map((d) => datasetLine(d)).join("\n") };
+      }
       case "describe_analysis": {
         const { mod, def } = svc.def(String(input?.analysis ?? ""));
         const backends = mod.backends.map((b) => `${b.package} (${b.role})`).join(", ");
@@ -112,6 +138,12 @@ export async function runAnalysisTool(
         const options = input?.options ?? {};
         // Check before asking the user anything, so the model can fix its options first.
         const full = svc.checkOptions(def, options);
+        const available = await svc.datasets();
+        if (!available.some((d) => d.name === dataset))
+          return {
+            output: `No data frame named ${dataset} in the R session. ${available.length ? `Data frames: ${available.map((d) => d.name).join(", ")}.` : "The session has no data frames."}`,
+            isError: true,
+          };
         // An analysis that leaves an object in the user's session goes through the R approval.
         if (full?.impute?.enabled && full.impute.saveAs && !env.autoRunR()) {
           const ok = await env.approve(item);

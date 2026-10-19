@@ -1,41 +1,63 @@
 {
   "manifestVersion": 1,
   "id": "org.rsage.missing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "결측 데이터",
-  "description": "결측값이 얼마나, 어디에, 어떤 조합으로 있는지 보고, MCAR 여부를 검정하고, 다중대체합니다.",
+  "description": "결측값이 얼마나, 어디에, 어떤 조합으로 있는지 보고, 결측이 다른 변수와 관련 있는지 살피고, MCAR 여부를 검정하고, 다중대체와 그 진단까지 합니다.",
   "publisherId": "org.rsage",
   "moduleApi": ">=0.1.0 <0.2.0",
   "runtime": {
     "kind": "r-package",
     "package": "rsageMissing",
-    "packageVersion": "0.1.0",
+    "packageVersion": "0.2.0",
     "source": "rsageMissing",
     "rVersion": ">=4.2.0",
     "rsageRuntime": ">=0.1.0 <0.2.0",
     "execution": "shared-session",
     "backends": [
-      { "package": "naniar", "role": "탐색·요약·MCAR 검정·그림", "required": false },
-      { "package": "mice", "role": "다중대체, naniar가 없을 때의 대안", "required": false },
-      { "package": "UpSetR", "role": "결측 조합 그림", "required": false }
+      {
+        "package": "naniar",
+        "role": "탐색·요약·MCAR 검정·그림",
+        "required": false
+      },
+      {
+        "package": "mice",
+        "role": "다중대체, naniar가 없을 때의 대안",
+        "required": false
+      },
+      {
+        "package": "UpSetR",
+        "role": "결측 조합 그림",
+        "required": false
+      }
     ],
-    "requires": ["dplyr", "tibble", "ggplot2", "rlang", "jsonlite", "knitr"]
+    "requires": [
+      "dplyr",
+      "tibble",
+      "ggplot2",
+      "rlang",
+      "jsonlite",
+      "knitr"
+    ]
   },
   "analyses": [
     {
       "id": "missing",
       "title": "결측 데이터 분석",
-      "menu": ["결측 데이터"],
+      "menu": [
+        "결측 데이터"
+      ],
       "entrypoint": "analyse",
       "optionsSchema": "options.schema.json",
-      "optionsSchemaVersion": 1,
+      "optionsSchemaVersion": 2,
       "ui": "form.json",
       "resultSchemaVersion": 1,
       "requiresDataset": true,
       "assistant": {
-        "summary": "Missing-data analysis of a data frame: missing counts and percentages per variable (optionally by group), rows by number of missing values, missingness patterns, Little's MCAR test, missingness plots, and optional multiple imputation with mice.",
+        "summary": "Missing-data analysis of a data frame (naniar, mice): missing counts per variable and row (optionally by group), missingness map, UpSet plot of missing combinations, span plot for ordered data, missingness scatter plot and shadow-matrix comparison (is missingness related to other variables?), Little's MCAR test, and mice multiple imputation with convergence and density diagnostics plus a preview of imputed values.",
         "guide": "ai.md"
       }
     }
-  ]
+  ],
+  "homepage": "https://naniar.njtierney.com/"
 }

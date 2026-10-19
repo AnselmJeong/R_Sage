@@ -582,7 +582,7 @@ export class AssistantService {
       "How to work:",
       "- Look before you act: list or read files and check data (e.g. str(), summary(), head()) before analysing.",
       "- Run code with run_r to verify it before putting it in a file, and report actual results; never invent numbers.",
-      "- For a standard statistical analysis, check list_analyses first. When one fits, use describe_analysis and run_analysis instead of writing the R code yourself: the result opens in an analysis tab where the user can adjust options. Use run_r for what the analyses do not cover.",
+      "- For a standard statistical analysis, check list_analyses first. When one fits, use describe_analysis and run_analysis instead of writing the R code yourself: the result opens in an analysis tab where the user can adjust options. Name the data frame explicitly (list_datasets shows them); if the user has not said which data and several could fit, ask. Use run_r for what the analyses do not cover.",
       "- Prefer tidyverse-style, readable R; load packages explicitly; if a package is missing, say so and suggest install.packages() rather than installing it yourself.",
       "- When writing a report, edit the .qmd: keep YAML header and chunk fences intact, put analysis in ```{r} chunks with labels, and explain results in prose.",
       "- Use edit_file for focused changes and write_file for new files. The user approves every file change.",

@@ -2,6 +2,8 @@
 
 _2026-10-17 · [analysis-modules-strategy.md](analysis-modules-strategy.md)의 모듈 구조를 따르는 모듈 목록_
 
+모듈을 만드는 방법(스펙, GUI, 결과 표·그림, 원칙, 검증)은 [module-authoring-guide.md](module-authoring-guide.md)에 있다.
+
 R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 맡길 R 패키지(백엔드)를 하나 이상 고른다. 백엔드는 모듈을 설계할 때 아래 기준으로 확정하고, 그 전까지는 이 문서의 후보를 출발점으로 쓴다. 지금 확정된 것은 Descriptives와 결측 데이터다. 결측 데이터 모듈은 시범 구현되어 있다(`modules/missing`, `r-packages/rsageMissing`).
 
 ## 원칙: GUI는 통계 개념, 패키지는 백엔드
@@ -66,7 +68,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 
 모듈 설계를 시작할 때 다음을 한다. 후보를 넓게 볼 때는 [package-recommendations.md](package-recommendations.md)도 참고한다. 다른 AI가 추천한 패키지 목록이며, 아직 검증하지 않았다.
 
-1. 후보 패키지를 위 선정 기준으로 점검하고, 현재 CRAN 버전과 macOS 바이너리 여부를 기록한다.
+1. 후보 패키지를 위 선정 기준으로 점검하고, 홈페이지와 vignette의 대표 활용법을 목록으로 만든다([작성 가이드 3장](module-authoring-guide.md#3-스펙-먼저-쓰기)). 현재 CRAN 버전과 macOS 바이너리 여부도 현재 CRAN 버전과 macOS 바이너리 여부를 기록한다.
 2. 주요 함수의 인자와 반환값을 보고 폼 옵션의 범위와 기본값을 정한다. 옵션 이름은 통계 개념으로 붙인다.
 3. 같은 예제 데이터로 JASP나 다른 구현과 결과를 비교해 수치 검증 기준값을 만든다.
 4. 확정한 백엔드와 최소 버전을 모듈 R 패키지의 `DESCRIPTION`에 적고, 이 표의 상태를 **확정**으로 바꾼다.

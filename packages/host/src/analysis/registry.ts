@@ -6,7 +6,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
-import type { AnalysisDef, AnalysisModuleInfo } from "@rsage/shared";
+import type { AnalysisDef, AnalysisForm, AnalysisFormControl, AnalysisModuleInfo } from "@rsage/shared";
+import { fillDefaults } from "@rsage/shared";
 
 export interface LoadedModule extends AnalysisModuleInfo {
   dir: string;
@@ -103,6 +104,7 @@ export function loadModules(dir = modulesDir(), rpkg = rPackagesDir()): LoadedMo
           requiresDataset: a.requiresDataset !== false,
         };
       });
+      for (const a of analyses) for (const p of formProblems(a.form, a.schema)) console.warn(`[modules] ${a.key}: ${p}`);
       const requires = existsSync(join(rSource, "DESCRIPTION")) ? descriptionImports(rSource) : (m.runtime.requires ?? []);
       out.push({
         id: m.id,
@@ -122,4 +124,63 @@ export function loadModules(dir = modulesDir(), rpkg = rPackagesDir()): LoadedMo
     }
   }
   return out;
+}
+
+/**
+ * Places where a form refers to an option the schema doesn't have: control
+ * binds, conditions and showcase switches. Module tests should expect none.
+ */
+export function formProblems(form: AnalysisForm, schema: any): string[] {
+  const opts = fillDefaults(schema, {});
+  const has = (path: string) => {
+    let o: any = opts;
+    for (const k of path.split(".")) {
+      if (!o || typeof o !== "object" || !(k in o)) return false;
+      o = o[k];
+    }
+    return true;
+  };
+  const out: string[] = [];
+  const check = (path: string | undefined, where: string) => {
+    if (path !== undefined && !has(path)) out.push(`${where} refers to unknown option "${path}"`);
+  };
+  const walk = (controls: AnalysisFormControl[], where: string) => {
+    for (const c of controls) {
+      if (c.type === "group") {
+        check(c.visibleWhen?.bind, `${where} > ${c.label} visibleWhen`);
+        walk(c.controls, `${where} > ${c.label}`);
+        continue;
+      }
+      check(c.bind, `${where} > ${c.label}`);
+      check(c.visibleWhen?.bind, `${where} > ${c.label} visibleWhen`);
+      check(c.enabledWhen?.bind, `${where} > ${c.label} enabledWhen`);
+      if (c.type === "checkbox" && c.controls) walk(c.controls, `${where} > ${c.label}`);
+    }
+  };
+  walk(form.roles ?? [], "roles");
+  for (const sec of form.sections ?? []) walk(sec.controls, sec.title);
+  for (const sc of form.about?.showcase ?? []) for (const k of [...Object.keys(sc.enable), ...(sc.needsFilled ?? [])]) check(k, `showcase "${sc.title}"`);
+  return out;
+}
+
+/** Column names the options point at: role boxes and column pickers. */
+export function columnsUsed(form: AnalysisForm, options: any): string[] {
+  const binds: string[] = [];
+  const walk = (controls: AnalysisFormControl[]) => {
+    for (const c of controls) {
+      if (c.type === "group") walk(c.controls);
+      else {
+        if (c.type === "variables" || c.type === "variable" || c.type === "column") binds.push(c.bind);
+        if (c.type === "checkbox" && c.controls) walk(c.controls);
+      }
+    }
+  };
+  walk(form.roles ?? []);
+  for (const sec of form.sections ?? []) walk(sec.controls);
+  const out = new Set<string>();
+  for (const b of binds) {
+    const v = b.split(".").reduce((o: any, k) => o?.[k], options);
+    for (const n of Array.isArray(v) ? v : [v]) if (typeof n === "string" && n) out.add(n);
+  }
+  return [...out];
 }

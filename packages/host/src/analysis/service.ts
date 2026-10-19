@@ -12,7 +12,7 @@ import type { AnalysisDataset, AnalysisDef, AnalysisFigureSize, AnalysisInstance
 import { fillDefaults, validateOptions } from "@rsage/shared";
 import { readJson, writeFileAtomic } from "../config";
 import type { Project } from "../project";
-import { loadModules, rPackagesDir, type LoadedModule } from "./registry";
+import { columnsUsed, loadModules, rPackagesDir, type LoadedModule } from "./registry";
 import { prepareModule } from "./runtime";
 import { analysisCode, rString } from "./rcode";
 
@@ -118,6 +118,8 @@ export class AnalysisService {
         autoHeight: p.autoHeight ?? p.height,
         src,
         rds: existsSync(rds) ? rds : undefined,
+        description: p.description ?? undefined,
+        section: p.section ?? undefined,
       };
     });
     return {
@@ -128,8 +130,11 @@ export class AnalysisService {
         ...t,
         rows: (t.rows ?? []).map((r: any) => (Array.isArray(r) ? Object.fromEntries(t.columns.map((c: any, i: number) => [c.id, r[i] ?? null])) : r)),
         notes: t.notes ?? [],
+        description: t.description ?? undefined,
+        section: t.section ?? undefined,
       })),
       plots,
+      sections: raw.sections ?? [],
       notes: raw.notes ?? [],
       dataInfo: raw.dataInfo ?? {},
       exports: raw.exports ?? [],
@@ -324,7 +329,18 @@ export class AnalysisService {
       const req = join(dir, "request.json");
       writeFileAtomic(
         req,
-        JSON.stringify({ runId, package: mod.rPackage, entrypoint: mod.entrypoints[def.id], dataset: s.dataset, options: s.options, figures: s.figures ?? {}, outDir: dir, by }),
+        JSON.stringify({
+          runId,
+          package: mod.rPackage,
+          entrypoint: mod.entrypoints[def.id],
+          dataset: s.dataset,
+          options: s.options,
+          figures: s.figures ?? {},
+          // Columns the options name (roles and column pickers), kept in the input snapshot.
+          columns: columnsUsed(def.form, s.options),
+          outDir: dir,
+          by,
+        }),
       );
       const code = `local({\n.libPaths(unique(c(${rString(status.libPath!)}, .libPaths())))\n${unload}\nrsage::rs_run(${rString(req)})\n})`;
       const r = await this.deps.session.runPrivate(code, ctl.signal);
