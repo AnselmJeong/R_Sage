@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "org.rsage.integrity",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "데이터 점검",
   "description": "스프레드시트로 받은 데이터의 무결성과 정제 상태를 점검합니다. 변수명·빈 행, 숫자·날짜·코드 형식, 이상치와 범위·허용 값·선후 규칙, 결측 코드와 중복, 텍스트 표기를 보고, 문제를 고친 사본과 dlookr 진단 보고서를 만듭니다.",
   "publisherId": "org.rsage",
@@ -9,7 +9,7 @@
   "runtime": {
     "kind": "r-package",
     "package": "rsageIntegrity",
-    "packageVersion": "0.1.0",
+    "packageVersion": "0.1.1",
     "source": "rsageIntegrity",
     "rVersion": ">=4.2.0",
     "rsageRuntime": ">=0.1.0 <0.2.0",

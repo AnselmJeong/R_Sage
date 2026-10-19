@@ -166,3 +166,15 @@ test_that("the report runs outside the session when pandoc is there", {
   expect_true(file.exists(f))
   expect_false("package:dlookr" %in% search())
 })
+
+test_that("codings that mean the same thing are found without rules", {
+  d <- data.frame(성별 = rep(c("남", "남자", "M", "여", "여자"), 12), 동의 = rep(c("Y", "예", "N"), 20),
+                  지역 = rep(c("서울", "서울시", "부산"), 20), 이름 = rep(c("Kim", "Lee", "Park"), 20))
+  r <- analyse(d)
+  t <- table_of(r, "suspectSynonyms")
+  expect_equal(sort(t$meaning[t$variable == "성별"]), c("남성", "여성"))
+  expect_equal(t$meaning[t$variable == "동의"], "예")
+  expect_equal(t$reason[t$variable == "지역"], "앞부분이 같은 말")
+  expect_false("이름" %in% t$variable)
+  expect_equal(status(r, "같은 뜻으로"), "확인 필요")
+})

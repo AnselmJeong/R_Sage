@@ -102,6 +102,49 @@ swapped <- function(a, b) {
   length(i) == 2 && i[2] == i[1] + 1 && a[i[1]] == b[i[2]] && a[i[2]] == b[i[1]]
 }
 
+# Codings that mean the same thing and turn up mixed in one column when
+# several people fill a sheet. Keys are folded (see fold()).
+KNOWN_CODES <- list(
+  "남성" = c("남", "남자", "남성", "m", "male", "man", "\u7537"),
+  "여성" = c("여", "여자", "여성", "f", "female", "woman", "\u5973"),
+  "예" = c("y", "yes", "예", "네", "응", "o", "true", "있음"),
+  "아니오" = c("n", "no", "아니오", "아니요", "아니", "x", "false", "없음"),
+  "대한민국" = c("한국", "대한민국", "남한", "korea", "southkorea", "republicofkorea", "kor", "kr", "rok"),
+  "미국" = c("미국", "usa", "us", "unitedstates", "america")
+)
+
+# Values in one column that likely mean the same thing without a rule: known
+# codings (남, 남자, M) and, in columns with few categories, a Korean word
+# and the same word with a short ending (서울, 서울시; 여, 여자).
+suspect_synonyms <- function(d, max_ex) {
+  rows <- list()
+  for (n in word_cols(d)) {
+    t <- trim(as.character(as_text(d[[n]])))
+    t <- t[!is.na(t) & nzchar(t)]
+    key <- fold(t)
+    seen <- character()
+    for (g in names(KNOWN_CODES)) {
+      hit <- key %in% KNOWN_CODES[[g]]
+      if (length(unique(key[hit])) < 2) next
+      tab <- sort(table(t[hit]), decreasing = TRUE)
+      rows[[length(rows) + 1]] <- data.frame(variable = n, meaning = g, values = top_values(t[hit], max_ex),
+                                             reason = "흔히 같은 뜻으로 쓰는 코드", suggestion = names(tab)[1])
+      seen <- c(seen, unique(key[hit]))
+    }
+    u <- setdiff(unique(key), seen)
+    if (length(unique(key)) > 30) next
+    for (a in u) for (b in u) {
+      if (a == b || !grepl("^[\uAC00-\uD7A3]+$", a) || !startsWith(b, a) || nchar(b) - nchar(a) > 2) next
+      hit <- key %in% c(a, b)
+      tab <- sort(table(t[hit]), decreasing = TRUE)
+      rows[[length(rows) + 1]] <- data.frame(variable = n, meaning = "", values = top_values(t[hit], max_ex),
+                                             reason = "앞부분이 같은 말", suggestion = names(tab)[1])
+    }
+  }
+  if (!length(rows)) return(NULL)
+  do.call(rbind, rows)
+}
+
 # Synonym rules: in a variable (or every text variable), these values mean
 # the same thing and should read `to`. Values match ignoring case and
 # spacing, so "KOREA" also catches "Korea" and " korea".
@@ -165,6 +208,16 @@ text_checks <- function(d, o, max_ex) {
         notes = "편집 거리: 한 값을 다른 값으로 바꾸는 데 필요한 글자 추가·삭제·교체 횟수(대소문자·공백 무시).",
         section = "텍스트",
         description = "한쪽이 훨씬 드물면 그쪽이 오타일 가능성이 큽니다. 'Kim'과 'Kin'처럼 둘 다 맞는 값일 수도 있으니 확인 후 고칩니다.")))
+  }
+  if (isTRUE(s$suspectSynonyms)) {
+    t <- suspect_synonyms(d, max_ex)
+    out <- c(out, list(
+      finding(G_TEXT, "같은 뜻으로 보이는 다른 값", if (is.null(t)) 0 else nrow(t), t$variable,
+              "정말 같은 뜻이면 동의어 규칙에 넣어 한 표기로 통일합니다. '정리한 데이터 만들기'가 규칙대로 바꿉니다."),
+      if (!is.null(t)) rsage::rs_table("suspectSynonyms", "같은 뜻으로 보이는 다른 값", t,
+        labels = c(variable = "변수", meaning = "뜻", values = "값 (행 수)", reason = "근거", suggestion = "제안 (가장 흔한 표기)"),
+        notes = "규칙 없이 찾은 후보입니다. 같은 뜻인지는 코드북으로 확인합니다.", section = "텍스트",
+        description = "남·남자·M처럼 철자는 다르지만 같은 대상을 가리키는 값이 한 열에 섞여 있으면 집계가 여러 범주로 흩어집니다. 여러 사람이 나눠 입력한 시트에서 흔합니다.")))
   }
   if (length(rule_rows(s$synonyms))) {
     t <- synonym_checks(d, s$synonyms)

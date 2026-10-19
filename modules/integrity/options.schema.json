@@ -323,6 +323,11 @@
           "default": true,
           "description": "Values that differ only in case, spacing or punctuation ('Seoul', ' seoul', 'SEOUL')."
         },
+        "suspectSynonyms": {
+          "type": "boolean",
+          "default": true,
+          "description": "Values in one column that probably mean the same thing, found without rules: known codings (남, 남자, M; Y, 예, O; 한국, KOREA) and, in columns with up to 30 categories, a Korean word and the same word with a short ending (서울, 서울시)."
+        },
         "similar": {
           "type": "boolean",
           "default": false,

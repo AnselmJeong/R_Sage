@@ -7,6 +7,7 @@ Use this analysis when the user has just read in a spreadsheet or CSV, asks whet
   - `values.order`: `[{first, op, second}]` with op one of < <= == != >= >, e.g. order date <= delivery date.
   - `text.synonyms`: `[{variable, values, to}]`; variable null applies to every text column; matching ignores case and spacing.
 - `missing.codes`: text codes match ignoring case; numeric codes (-99, 999) are only flagged when they are the column's minimum or maximum. Adjust the list when the codebook names other codes.
+- `text.suspectSynonyms` (on by default) lists values that probably mean the same thing without any rule (남/남자/M, Y/예/O, 한국/KOREA, 서울/서울시). They are candidates: confirm with the user before turning them into `text.synonyms` rules.
 - `text.similar` (edit-distance typo search) is off by default because it can flag real, different names; turn it on when the user asks about typos.
 - `clean.enabled` saves a cleaned copy as `clean.saveAs` (default `data_clean`) in the user's R session; say so. The original data frame never changes. Leave `clean.ruleViolations` off unless the user agrees that rule-breaking values should become NA. `clean.duplicates` drops exact duplicate rows only.
 - `report.enabled` writes dlookr's HTML diagnosis report to `report.file` (relative to the working directory) in a separate R process; it takes tens of seconds and needs rmarkdown and pandoc.

@@ -117,11 +117,12 @@
       },
       {
         "title": "텍스트 표기 통일하기",
-        "description": "앞뒤 공백, 대소문자만 다른 값, 철자가 비슷한 값, 동의어(한국·대한민국·KOREA)를 찾습니다.",
+        "description": "앞뒤 공백, 대소문자만 다른 값, 같은 뜻의 다른 코드(남·남자·M), 철자가 비슷한 값, 동의어(한국·대한민국·KOREA)를 찾습니다.",
         "enable": {
           "text.whitespace": true,
           "text.variants": true,
-          "text.similar": true
+          "text.similar": true,
+          "text.suspectSynonyms": true
         }
       },
       {
@@ -464,6 +465,12 @@
           "bind": "text.variants",
           "label": "대소문자·공백만 다른 값",
           "description": "'Seoul', ' seoul', 'SEOUL'처럼 같은 값으로 보이는 표기."
+        },
+        {
+          "type": "checkbox",
+          "bind": "text.suspectSynonyms",
+          "label": "같은 뜻으로 보이는 다른 값",
+          "description": "규칙 없이 찾습니다: 남·남자·M, Y·예·O, 한국·KOREA처럼 흔히 섞이는 코드와, 서울·서울시처럼 끝만 다른 말."
         },
         {
           "type": "checkbox",
