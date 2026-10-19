@@ -159,6 +159,10 @@ async function formatModel(path: string, model: monaco.editor.ITextModel) {
     useStore.getState().notify(`코드 정리를 건너뛰고 저장합니다: ${(e as Error).message}`, "error");
     return;
   }
+  if (r.error && !r.failed) {
+    useStore.getState().notify(`코드 정리를 건너뛰고 저장합니다: ${r.error}`, "error");
+    return;
+  }
   if (r.failed && !/\.(qmd|rmd)$/i.test(path)) return; // a syntax error: save as typed
   if (r.failed) useStore.getState().notify(`R 청크 ${r.failed}개는 문법 오류가 있어 정리하지 않았습니다.`);
   if (r.text === before || model.getValue() !== before) return;

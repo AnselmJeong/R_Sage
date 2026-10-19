@@ -4,7 +4,7 @@
 // Air is looked up on the machine and otherwise downloaded once into the app
 // folder, so formatting works without the user installing anything.
 
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { qmdRChunks } from "@rsage/shared";
@@ -71,16 +71,41 @@ export function installAir(): Promise<string> {
     if (!bin) throw new Error("내려받은 Air에 실행 파일이 없습니다.");
     const dest = installedAir();
     mkdirSync(dirname(dest), { recursive: true });
-    await Bun.write(dest, Bun.file(bin));
-    chmodSync(dest, 0o755);
+    // Copy next to the destination, then rename, so no one runs a half-written file.
+    const part = `${dest}.download`;
+    await Bun.write(part, Bun.file(bin));
+    chmodSync(part, 0o755);
+    renameSync(part, dest);
     return dest;
   })().finally(() => (installing = undefined));
   return installing;
 }
 
+/**
+ * Finds Air, downloading it on first use, and checks that it runs. The first
+ * run of a freshly downloaded binary can fail while macOS still scans it, so
+ * that check is retried for a few seconds before giving up.
+ */
+let verified: string | undefined;
+
+export async function ensureAir(): Promise<string> {
+  const air = findAir() ?? (await installAir());
+  if (air === verified) return air;
+  for (let i = 0; ; i++) {
+    try {
+      const p = Bun.spawn([air, "--version"], { stdout: "ignore", stderr: "ignore" });
+      if ((await p.exited) === 0) return (verified = air);
+    } catch (e) {
+      if (i >= 5) throw e;
+    }
+    if (i >= 5) throw new Error("Air를 실행하지 못했습니다.");
+    await Bun.sleep(500 * (i + 1));
+  }
+}
+
 /** Formats R code. `path` is where the code lives, so Air finds the project's air.toml. */
 export async function formatR(code: string, path: string): Promise<string> {
-  const air = findAir() ?? (await installAir());
+  const air = await ensureAir();
   const p = Bun.spawn([air, "format", "--stdin-file-path", path.replace(/\.(qmd|rmd)$/i, ".R")], {
     cwd: dirname(path),
     stdin: new TextEncoder().encode(code),
@@ -101,6 +126,13 @@ export interface FormatResult {
 
 /** Formats a whole .R file, or the R chunks of a .qmd/.Rmd. */
 export async function formatDocument(path: string, text: string): Promise<FormatResult> {
+  // Install and check Air first, so a failed download or launch is reported as
+  // such rather than as chunks with syntax errors.
+  try {
+    await ensureAir();
+  } catch (e) {
+    return { text, failed: 0, error: (e as Error).message };
+  }
   if (!/\.(qmd|rmd)$/i.test(path)) {
     try {
       return { text: await formatR(text, path), failed: 0 };

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import type { ProjectSettings } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { EDITOR_FONTS, useEditorPrefs } from "../editor/prefs";
+import { EDITOR_FONTS, useEditorPrefs, type EditorPrefs } from "../editor/prefs";
 
 export const useSettings = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -13,14 +13,21 @@ export function SettingsDialog() {
   const rList = useStore((s) => s.rList);
   const [draft, setDraft] = useState<ProjectSettings>({});
   const [libPaths, setLibPaths] = useState<string[] | null>(null);
+  // Editor options preview live; 취소 puts back what they were when the dialog opened.
+  const editorBefore = useRef<EditorPrefs>();
 
   useEffect(() => {
     if (!open) return;
+    editorBefore.current = { ...useEditorPrefs.getState() };
     setDraft(project?.settings ?? {});
     host.call("session.libPaths").then(setLibPaths).catch(() => setLibPaths(null));
   }, [open, project]);
   if (!open) return null;
   const close = () => useSettings.setState({ open: false });
+  const cancel = () => {
+    if (editorBefore.current) useEditorPrefs.setState(editorBefore.current);
+    close();
+  };
 
   const save = async () => {
     if (!project) return close();
@@ -34,7 +41,7 @@ export function SettingsDialog() {
   };
 
   return (
-    <div className="dialog-backdrop">
+    <div className="dialog-backdrop" onKeyDown={(e) => e.key === "Escape" && cancel()}>
       <div className="dialog settings">
         <h3>설정</h3>
         <EditorSettings />
@@ -72,20 +79,12 @@ export function SettingsDialog() {
           </>
         )}
         <div className="dialog-actions">
-          {project ? (
-            <>
-              <button className="btn" onClick={close}>
-                취소
-              </button>
-              <button className="btn btn-primary" onClick={save}>
-                저장
-              </button>
-            </>
-          ) : (
-            <button className="btn btn-primary" onClick={close}>
-              닫기
-            </button>
-          )}
+          <button className="btn" onClick={cancel}>
+            취소
+          </button>
+          <button className="btn btn-primary" onClick={save}>
+            저장
+          </button>
         </div>
       </div>
     </div>

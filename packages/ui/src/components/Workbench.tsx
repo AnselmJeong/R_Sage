@@ -10,6 +10,7 @@ import {
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { registerCommand, runCommand } from "../commands";
+import { monaco } from "../editor/monaco";
 import {
   activeEditor,
   basename,
@@ -375,7 +376,16 @@ function registerAppCommands() {
       },
     }),
   ];
-  return () => offs.forEach((o) => o());
+  // Monaco can take ⌘, before the window sees it (inside visual-mode chunks), so
+  // every editor also binds it to the settings dialog.
+  const settingsKey = [
+    monaco.editor.registerCommand("rsage.openSettings", () => void runCommand("project.settings")),
+    monaco.editor.addKeybindingRule({ keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.Comma, command: "rsage.openSettings" }),
+  ];
+  return () => {
+    offs.forEach((o) => o());
+    settingsKey.forEach((d) => d.dispose());
+  };
 }
 
 export function Workbench() {
