@@ -233,7 +233,7 @@ function registerAppCommands() {
     registerCommand({ id: "file.open", title: "파일 열기", category: "파일", key: "Mod+O", run: () => openFileDialog() }),
     registerCommand({ id: "project.open", title: "폴더 열기", category: "프로젝트", run: () => openFolderDialog() }),
     registerCommand({ id: "project.new", title: "새 프로젝트", category: "프로젝트", run: () => newProjectDialog() }),
-    registerCommand({ id: "project.settings", title: "프로젝트 설정", category: "프로젝트", key: "Mod+,", run: () => useSettings.setState({ open: true }) }),
+    registerCommand({ id: "project.settings", title: "설정", category: "R Sage", key: "Mod+,", run: () => useSettings.setState({ open: true }) }),
     registerCommand({
       id: "project.close",
       title: "프로젝트 닫기",

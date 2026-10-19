@@ -5,6 +5,7 @@ import type { DockviewApi } from "dockview";
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { confirmDialog } from "../components/Dialogs";
+import { useEditorPrefs } from "./prefs";
 import {
   languageFor,
   lspDidChange,
@@ -128,6 +129,7 @@ export async function saveFile(path: string, force = false): Promise<boolean> {
   const model = getModel(path);
   const f = useStore.getState().openFiles[path];
   if (!model || !f) return false;
+  if (!force && useEditorPrefs.getState().formatOnSave && /\.(r|qmd|rmd)$/i.test(path)) await formatModel(path, model);
   const res = await host.call("fs.write", { path, content: model.getValue(), expectedMtimeMs: f.mtimeMs, force });
   if (!res.ok) {
     const overwrite = await confirmDialog({
@@ -145,6 +147,30 @@ export async function saveFile(path: string, force = false): Promise<boolean> {
   updateTitle(path);
   lspDidSave(model);
   return true;
+}
+
+/** Formats R code with Air before saving, as one undoable edit that touches only the changed lines. */
+async function formatModel(path: string, model: monaco.editor.ITextModel) {
+  const before = model.getValue();
+  let r: { text: string; failed: number; error?: string };
+  try {
+    r = await host.call("format.document", { path, text: before });
+  } catch (e) {
+    useStore.getState().notify(`코드 정리를 건너뛰고 저장합니다: ${(e as Error).message}`, "error");
+    return;
+  }
+  if (r.failed && !/\.(qmd|rmd)$/i.test(path)) return; // a syntax error: save as typed
+  if (r.failed) useStore.getState().notify(`R 청크 ${r.failed}개는 문법 오류가 있어 정리하지 않았습니다.`);
+  if (r.text === before || model.getValue() !== before) return;
+  const next = r.text;
+  let top = 0;
+  while (top < before.length && top < next.length && before[top] === next[top]) top++;
+  let end = 0;
+  while (end < before.length - top && end < next.length - top && before[before.length - 1 - end] === next[next.length - 1 - end]) end++;
+  const from = model.getPositionAt(top);
+  const to = model.getPositionAt(before.length - end);
+  const range = new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column);
+  model.pushEditOperations([], [{ range, text: next.slice(top, next.length - end) }], () => null);
 }
 
 export async function saveAll() {

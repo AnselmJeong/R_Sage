@@ -39,6 +39,7 @@ import { renderParams, savePlot } from "./plots";
 import { PreviewServer, QuartoService } from "./quarto";
 import { columnValuesCode, parseColumnValues } from "./dataviewer";
 import { AnalysisService } from "./analysis/service";
+import { airVersion, formatDocument, installAir } from "./format";
 
 export const APP_VERSION = "0.1.0";
 
@@ -535,6 +536,13 @@ export class Host {
       },
       "packages.outdated": async () => outdatedPackages(await this.currentRHome(), this.project?.root),
       "packages.searchCran": async ({ query, limit }) => searchCran(await this.currentRHome(), query, limit),
+
+      "format.document": ({ path, text }) => formatDocument(path, text),
+      "format.status": async () => ({ air: await airVersion() }),
+      "format.installAir": async () => {
+        await installAir();
+        return { air: await airVersion() };
+      },
       "shell.openExternal": ({ path }) => this.openExternal(path),
 
       "analysis.modules": () =>

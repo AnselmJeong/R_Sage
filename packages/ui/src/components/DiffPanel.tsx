@@ -7,6 +7,7 @@ import { host } from "../host/client";
 import { languageFor, monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
 import { useGit, type DiffParams } from "../git";
+import { editorFontOptions } from "../editor/prefs";
 
 export function DiffPanel(props: IDockviewPanelProps<DiffParams>) {
   const { path, origPath, mode, hash } = props.params;
@@ -21,7 +22,7 @@ export function DiffPanel(props: IDockviewPanelProps<DiffParams>) {
       originalEditable: false,
       automaticLayout: true,
       renderSideBySide: true,
-      fontSize: 13,
+      ...editorFontOptions(),
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
     });

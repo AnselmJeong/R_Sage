@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import "dockview/dist/styles/dockview.css";
 import "katex/dist/katex.min.css";
+import "./assets/fonts/fonts.css";
 import "./styles.css";
 import { connectHost } from "./host/client";
 import { initStore } from "./store";
