@@ -74,15 +74,40 @@ export async function utf8LocaleEnv(): Promise<Record<string, string>> {
   const current = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG;
   if (current && /utf-?8/i.test(current)) return {};
   if (process.platform === "darwin") {
-    let locale = "en_US";
+    let wanted = "en_US";
     try {
       const p = Bun.spawn(["defaults", "read", "-g", "AppleLocale"], { stdout: "pipe", stderr: "ignore" });
       const out = (await new Response(p.stdout).text()).trim().replace(/@.*$/, "");
-      if (/^[a-z]{2}_[A-Z]{2}$/.test(out)) locale = out;
+      if (/^[a-z]{2}_[A-Z]{2}$/.test(out)) wanted = out;
     } catch {}
-    return { LANG: `${locale}.UTF-8` };
+    return { LANG: pickUtf8Locale(wanted, await installedLocales()) };
   }
   return { LANG: "C.UTF-8" };
+}
+
+async function installedLocales(): Promise<string[]> {
+  try {
+    const p = Bun.spawn(["locale", "-a"], { stdout: "pipe", stderr: "ignore" });
+    return (await new Response(p.stdout).text()).split("\n").map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A UTF-8 locale that exists on this system. Region settings such as "en_KR"
+ * (English in Korea) have no locale of their own; R would silently fall back
+ * to C and show Korean as <U+D55C>. Then use another region of the same
+ * language, then en_US.
+ */
+export function pickUtf8Locale(wanted: string, installed: string[]): string {
+  const has = (l: string) => !installed.length || installed.some((x) => x.toLowerCase() === l.toLowerCase());
+  const exact = `${wanted}.UTF-8`;
+  if (has(exact)) return exact;
+  const lang = wanted.split("_")[0]!;
+  const sameLang = installed.find((x) => x.startsWith(`${lang}_`) && /\.utf-?8$/i.test(x));
+  if (sameLang) return lang === "en" && has("en_US.UTF-8") ? "en_US.UTF-8" : sameLang;
+  return has("en_US.UTF-8") ? "en_US.UTF-8" : "C.UTF-8";
 }
 
 export interface LaunchOptions {

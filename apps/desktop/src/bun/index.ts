@@ -6,11 +6,14 @@
 
 import { join } from "node:path";
 import Electrobun, { ApplicationMenu, BrowserView, BrowserWindow, PATHS, Utils, type RPCSchema } from "electrobun/main";
-import { connectUi, Host } from "@rsage/host";
+import { connectUi, Host, utf8LocaleEnv } from "@rsage/host";
 import type { WireMessage } from "@rsage/shared";
 
 // Bundled Ark lives in the app's Resources; findArk() checks this first.
 process.env.RSAGE_ARK_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "ark", "ark");
+// Opened from Finder, the app has no LANG: give every R it starts (console, Quarto,
+// package checks) a UTF-8 locale so Korean is not shown as <U+D55C>.
+Object.assign(process.env, await utf8LocaleEnv());
 process.env.RSAGE_MODULES_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "modules");
 process.env.RSAGE_RPKG_PATH ??= join(PATHS.RESOURCES_FOLDER, "app", "r-packages");
 
