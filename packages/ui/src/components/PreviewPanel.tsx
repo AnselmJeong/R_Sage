@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { host } from "../host/client";
+import { openInEditor } from "../editor/files";
 import { loadQuartoInfo, renderDocument, stopRender, useRender } from "../quarto/render";
 
 /** The rendered document, with the render log below it. */
@@ -36,6 +37,11 @@ export function PreviewPanel() {
               다시 렌더링
             </button>
           )
+        )}
+        {r.output && !r.running && !r.file && /\.html?$/i.test(r.output) && (
+          <button className="btn btn-small" onClick={() => void openInEditor(r.output!)} title="HTML 소스를 편집기에서 엽니다">
+            소스 보기
+          </button>
         )}
         {r.output && !r.running && (
           <button className="btn btn-small" onClick={() => host.call("shell.openExternal", { path: r.output! })}>

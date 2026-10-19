@@ -27,7 +27,8 @@ rs_run <- function(path) {
     }
     fun <- getExportedValue(req$package, req$entrypoint)
     options <- normalize_json(req$options)
-    used <- unique(c(unlist(req$columns), unlist(options$variables), unlist(options$group)))
+    # Modules read every column when no variables are chosen, so the snapshot does too.
+    used <- if (length(unlist(options$variables))) unique(c(unlist(req$columns), unlist(options$variables), unlist(options$group)))
     used <- used[used %in% names(data)]
     snapshot <- file.path(out, "input.rds")
     saveRDS(if (length(used)) data[used] else data, snapshot)

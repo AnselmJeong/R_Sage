@@ -3952,4 +3952,55 @@ label.check {
   display: flex;
   align-items: center;
   gap: 8px;
+/* Analysis form: rule rows (e.g. "나이 0 ~ 120") */
+.an-rows-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.an-rows {
+  margin: 4px 0 2px;
+}
+.an-rows-label ~ .an-desc,
+.an-rows-label ~ .an-needs {
+  margin-left: 0;
+}
+.an-rows-grid {
+  display: grid;
+  gap: 4px;
+  align-items: center;
+  margin: 3px 0;
+}
+.an-rows-grid select,
+.an-rows-grid input {
+  min-width: 0;
+  width: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 4px;
+  font: inherit;
+  font-size: 12px;
+}
+.an-rows-head {
+  margin-bottom: 0;
+}
+.an-rows-del {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0;
+}
+.an-rows-del:hover {
+  color: var(--err);
+}
+.an-rows-add {
+  margin-top: 2px;
+}
+
+.an-note-open {
+  margin-left: 8px;
 }

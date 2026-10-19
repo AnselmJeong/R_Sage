@@ -3,7 +3,7 @@
 
 import { create } from "zustand";
 import type { Editor } from "@tiptap/react";
-import { editorsByPath, openFile } from "./files";
+import { editorsByPath, openInEditor } from "./files";
 
 export const visualEditors = new Map<string, Editor>();
 
@@ -18,7 +18,7 @@ export function isVisual(path: string) {
 
 /** Open a file and show a place in it: a top-level block in the visual view, otherwise a line. */
 export async function reveal(path: string, at: { line: number; column?: number; block?: number; length?: number }) {
-  await openFile(path);
+  await openInEditor(path);
   const ve = visualEditors.get(path);
   if (isVisual(path) && ve && !ve.isDestroyed) {
     if (at.block !== undefined && at.block < ve.state.doc.childCount) {

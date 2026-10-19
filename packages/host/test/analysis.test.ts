@@ -8,9 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverR, findArk } from "@rsage/kernel";
 import { fillDefaults, validateOptions } from "@rsage/shared";
-import { loadModules, descriptionImports, formProblems } from "../src/analysis/registry";
+import { loadModules, descriptionImports, formProblems, columnsUsed } from "../src/analysis/registry";
 import { analysisCode, toR } from "../src/analysis/rcode";
-import { formatResult, runAnalysisTool } from "../src/assistant/analysis-tools";
+import { formatResult, leavesOutput, runAnalysisTool } from "../src/assistant/analysis-tools";
 
 const missing = loadModules().find((m) => m.id === "org.rsage.missing")!;
 const def = missing.analyses[0]!;
@@ -34,6 +34,42 @@ describe("module registry", () => {
 
   test("R imports come from DESCRIPTION without base packages", () => {
     expect(descriptionImports(missing.rSource)).toEqual(["rsage", "dplyr", "tibble", "ggplot2", "rlang"]);
+  });
+});
+
+const integrity = loadModules().find((m) => m.id === "org.rsage.integrity")!;
+const idef = integrity.analyses[0]!;
+
+describe("data integrity module", () => {
+  test("loads with dlookr required and a consistent form", () => {
+    expect(idef.key).toBe("org.rsage.integrity/integrity");
+    expect(integrity.requires).toContain("dlookr");
+    expect(formProblems(idef.form, idef.schema)).toEqual([]);
+    expect(validateOptions(idef.schema, fillDefaults(idef.schema, {}))).toEqual([]);
+    expect(idef.form.about?.showcase?.length).toBeGreaterThan(5);
+  });
+
+  test("rule rows: field checks, defaults, validation and the columns they use", () => {
+    const bad = { formVersion: 2, sections: [{ title: "x", controls: [{ type: "rows", bind: "values.ranges", label: "범위", fields: [{ key: "lo", label: "lo", type: "text" }] }] }] } as any;
+    expect(formProblems(bad, idef.schema)).toEqual(['x > 범위 field "lo" is not in the option\'s item schema']);
+    const o = fillDefaults(idef.schema, {
+      keys: ["id"],
+      values: { ranges: [{ variable: "age", min: "0", max: "120" }], order: [{ first: "start", op: "<=", second: "end" }] },
+      text: { synonyms: [{ variable: null, values: "a, b", to: "a" }] },
+    });
+    expect(o.values.allowed).toEqual([]);
+    expect(validateOptions(idef.schema, o)).toEqual([]);
+    expect(validateOptions(idef.schema, { ...o, values: { ...o.values, order: [{ first: "a", op: "=>", second: "b" }] } }).map((i) => i.path)).toEqual(["values.order[0].op"]);
+    expect(columnsUsed(idef.form, o).sort()).toEqual(["age", "end", "id", "start"]);
+  });
+
+  test("saving cleaned data or writing a report needs the user's approval", () => {
+    const o = fillDefaults(idef.schema, {});
+    expect(leavesOutput(o)).toBe(false);
+    expect(leavesOutput({ ...o, clean: { ...o.clean, enabled: true } })).toBe(true);
+    expect(leavesOutput({ ...o, clean: { ...o.clean, enabled: true, saveAs: "" } })).toBe(false);
+    expect(leavesOutput({ ...o, report: { ...o.report, enabled: true } })).toBe(true);
+    expect(leavesOutput(fillDefaults(def.schema, { impute: { enabled: true, saveAs: "imp" } }))).toBe(true);
   });
 });
 
@@ -185,12 +221,53 @@ live("missing-data analysis in a live session", async () => {
     expect(again.output).toContain("Little");
   }, 120_000);
 
+  test("opening the same analysis again brings back the earlier one", async () => {
+    const make = (options?: any) => call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", options });
+    const a = await make();
+    expect((await make()).id).toBe(a.id);
+    // Still the same one after it has run.
+    expect((await call("analysis.run", { id: a.id })).lastRun.status).toBe("ok");
+    expect((await make()).id).toBe(a.id);
+    // Different options, or changed ones, make a new analysis.
+    const b = await make({ plots: { matrix: false } });
+    expect(b.id).not.toBe(a.id);
+    await call("analysis.update", { id: a.id, options: { plots: { matrix: false } } });
+    const c = await make();
+    expect(c.id).not.toBe(a.id);
+    for (const id of [a.id, b.id, c.id]) await call("analysis.delete", { id });
+  }, 60_000);
+
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
     const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "no_such_df" });
     const done = await call("analysis.run", { id: inst.id });
     expect(done.lastRun.error.code).toBe("dataset_missing");
   }, 60_000);
+
+  test("the integrity check runs on a messy data frame", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.integrity" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText(
+      'sheet <- data.frame(id = c("01234", "1234", "01234", "00007"), 금액 = c("1,000원", "2000", "N/A", "300"), 성별 = c("남", "X", " 남", "여"), check.names = FALSE); invisible(NULL)',
+    );
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.integrity/integrity",
+      dataset: "sheet",
+      options: { keys: ["id"], values: { allowed: [{ variable: "성별", values: "남, 여" }] }, clean: { enabled: true, saveAs: "sheet_clean" } },
+    });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    expect(done.result.tables[0].id).toBe("summary");
+    const rules = done.result.tables.find((t: any) => t.id === "rules");
+    expect(rules.rows[0].n).toBe(1);
+    expect(done.result.tables.find((t: any) => t.id === "duplicateKeys").rows[0].copies).toBe(2);
+    expect((await host.session.evalText("cat(class(sheet_clean$금액), sum(is.na(sheet_clean$금액)))")).trim()).toBe("numeric 1");
+    expect((await host.session.evalText('cat("package:dlookr" %in% search())')).trim()).toBe("FALSE");
+    expect(formatResult(done, done.result)).toContain("점검 요약");
+  }, 240_000);
 
   // R ignores an interrupt that lands inside C code such as saveRDS; it must be retried.
   test.skipIf(useShim)("a private run stops even when interrupted inside C code", async () => {

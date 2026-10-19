@@ -1,0 +1,60 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.integrity",
+  "version": "0.1.1",
+  "title": "데이터 점검",
+  "description": "스프레드시트로 받은 데이터의 무결성과 정제 상태를 점검합니다. 변수명·빈 행, 숫자·날짜·코드 형식, 이상치와 범위·허용 값·선후 규칙, 결측 코드와 중복, 텍스트 표기를 보고, 문제를 고친 사본과 dlookr 진단 보고서를 만듭니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsageIntegrity",
+    "packageVersion": "0.1.1",
+    "source": "rsageIntegrity",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [
+      {
+        "package": "dlookr",
+        "role": "변수·수치·범주·이상치 진단, 진단 보고서",
+        "required": true
+      },
+      {
+        "package": "rmarkdown",
+        "role": "진단 보고서 파일",
+        "required": false
+      },
+      {
+        "package": "stringi",
+        "role": "전각 문자를 맞춰 표기 비교",
+        "required": false
+      }
+    ],
+    "requires": [
+      "dlookr",
+      "tibble",
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "integrity",
+      "title": "데이터 점검",
+      "menu": [
+        "데이터 점검"
+      ],
+      "entrypoint": "analyse",
+      "optionsSchema": "options.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Data integrity and cleaning check of a data frame received as a spreadsheet (dlookr plus the module's own checks): a summary table of problems with fixes; column-name problems, empty rows/columns, constant columns; numbers stored as text, mixed date formats, lost leading zeros in codes; numeric diagnosis, IQR outliers with plot and rows; range, allowed-value and order rules; NA, hidden missing codes, empty required fields, duplicate rows and keys; whitespace, case variants, similar spellings, synonyms, category frequencies; optionally a cleaned copy saved to the session and dlookr's HTML diagnosis report.",
+        "guide": "ai.md"
+      }
+    }
+  ],
+  "homepage": "https://choonghyunryu.github.io/dlookr/"
+}
