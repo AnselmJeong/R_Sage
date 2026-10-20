@@ -13,6 +13,8 @@ import { installPackages } from "../packages";
 import { openFile } from "../editor/files";
 import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } from "./AnalysisVariables";
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
+import { LevelSelect, ModelPicker, ModelsField, TermChoice } from "./AnalysisModels";
+import { syncModels } from "../analysisModels";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
@@ -104,7 +106,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     }, 450);
   };
 
-  const setOptions = (options: any) => commit({ ...draft, options });
+  const setOptions = (options: any) => commit({ ...draft, options: syncModels(def.form, options) });
   const turnOn = (sc: AnalysisShowcase) => {
     let o = draft.options;
     for (const [k, v] of Object.entries(sc.enable)) o = setPath(o, k, v);
@@ -140,7 +142,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
       if (cur.every((n) => have.has(n))) continue;
       options = setPath(options, r.bind, r.type === "variables" ? cur.filter((n) => have.has(n)) : null);
     }
-    commit({ dataset: name, options });
+    commit({ dataset: name, options: syncModels(def.form, options) });
   };
   const reason =
     pick && pick.name === draft.dataset ? `자동 선택: ${pick.reason}` : inst.createdBy === "assistant" && draft.dataset === inst.dataset ? "어시스턴트가 지정한 데이터" : null;
@@ -287,7 +289,7 @@ function RuntimeBanner({ moduleId }: { moduleId: string }) {
 /** What the analysis can do: the backend package's showcased uses, each one click away. */
 function About({ about, options, onTurnOn }: { about: NonNullable<AnalysisForm["about"]>; options: any; onTurnOn: (sc: AnalysisShowcase) => void }) {
   const [open, setOpen] = useState(false);
-  const isOn = (sc: AnalysisShowcase) => Object.entries(sc.enable).every(([k, v]) => getPath(options, k) === v);
+  const isOn = (sc: AnalysisShowcase) => !sc.planned && Object.entries(sc.enable).every(([k, v]) => getPath(options, k) === v);
   const n = about.showcase?.length ?? 0;
   return (
     <div className={`an-about ${open ? "open" : ""}`}>
@@ -314,9 +316,15 @@ function About({ about, options, onTurnOn }: { about: NonNullable<AnalysisForm["
                   )}
                   {on && sc.needs && (sc.needsFilled ?? []).some((b) => !holds({ bind: b, filled: true }, options)) && <span className="small an-needs">{sc.needs}</span>}
                 </div>
-                <button className="btn btn-small" disabled={on} onClick={() => onTurnOn(sc)}>
-                  {on ? "켜짐" : "켜기"}
-                </button>
+                {sc.planned ? (
+                  <span className="an-planned small" title="다음 버전에서 씁니다">
+                    예정
+                  </span>
+                ) : (
+                  <button className="btn btn-small" disabled={on} onClick={() => onTurnOn(sc)}>
+                    {on ? "켜짐" : "켜기"}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -364,6 +372,7 @@ function Controls({
           );
         if (isRole(c)) return null;
         const off = disabled || !holds(c.enabledWhen, options);
+        if (c.type === "models") return <ModelsField key={c.bind} control={c} options={options} disabled={off} onOptions={onOptions} />;
         return (
           <Control
             key={c.bind}
@@ -438,8 +447,25 @@ function Control({
           {children}
         </div>
       );
+    case "model":
+      return <ModelPicker control={c} options={options} disabled={disabled} onChange={onChange} />;
+    case "termChoice":
+      return <TermChoice control={c} options={options} disabled={disabled} onChange={onChange} />;
+    case "level":
+      return (
+        <div className={`an-opt${cls}`}>
+          <label className="an-field an-inline">
+            <span>{c.label}</span>
+            <span className="an-colpick">
+              <LevelSelect dataset={dataset} column={getPath(options, c.column) as string | null} value={(value as string) ?? null} disabled={disabled} emptyLabel={c.emptyLabel} onChange={onChange} />
+            </span>
+          </label>
+          {desc}
+        </div>
+      );
     case "column": {
-      const cols = (dataset?.columns ?? []).filter((x) => accepts(c.types, x.type));
+      const only = c.from ? new Set(c.from.flatMap((b) => [getPath(options, b)].flat().filter(Boolean) as string[])) : null;
+      const cols = (dataset?.columns ?? []).filter((x) => accepts(c.types, x.type) && (!only || only.has(x.name)));
       const col = dataset?.columns.find((x) => x.name === value);
       return (
         <label className={`an-field an-inline${cls}`}>
@@ -447,7 +473,7 @@ function Control({
           <span className="an-colpick">
             {col && <VarIcon type={col.type} />}
             <select disabled={disabled} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
-              <option value="">(선택)</option>
+              <option value="">{c.emptyLabel ?? "(선택)"}</option>
               {cols.map((x) => (
                 <option key={x.name} value={x.name}>
                   {x.name} · {KIND_LABEL[varKind(x.type)]}
@@ -512,12 +538,14 @@ function Control({
           </span>
         </label>
       );
-    case "select":
+    case "select": {
+      const by = c.choicesBy ? c.choicesBy.values[String(getPath(options, c.choicesBy.bind))] : undefined;
+      const choices: string[] = by ? (s.enum ?? []).filter((v: string) => by.includes(v)) : (s.enum ?? []);
       return (
         <label className={`an-field${cls}`}>
           <span>{c.label}</span>
-          <select disabled={disabled} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
-            {(s.enum ?? []).map((v: string) => (
+          <select disabled={disabled || choices.length < 2} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+            {choices.map((v: string) => (
               <option key={v} value={v}>
                 {c.labels?.[v] ?? v}
               </option>
@@ -527,6 +555,7 @@ function Control({
           {hint}
         </label>
       );
+    }
   }
   return null;
 }
@@ -551,9 +580,9 @@ function RowsField({
   onChange: (v: Record<string, unknown>[]) => void;
 }) {
   const props = item.properties ?? {};
-  const blank = () => Object.fromEntries(c.fields.map((f) => [f.key, props[f.key]?.default ?? (f.type === "column" ? null : "")]));
+  const blank = () => Object.fromEntries(c.fields.map((f) => [f.key, props[f.key]?.default ?? (f.type === "column" || f.type === "level" ? null : "")]));
   const set = (i: number, key: string, v: unknown) => onChange(value.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
-  const grid = { gridTemplateColumns: `${c.fields.map((f) => (f.type === "select" ? "52px" : "minmax(0, 1fr)")).join(" ")} 18px` };
+  const grid = { gridTemplateColumns: `${c.fields.map((f) => (f.type === "select" ? "64px" : "minmax(0, 1fr)")).join(" ")} 18px` };
   return (
     <div className="an-rows">
       {value.length > 0 && (
@@ -582,6 +611,19 @@ function RowsField({
                 </select>
               );
             }
+            if (f.type === "level")
+              return (
+                <LevelSelect
+                  key={f.key}
+                  dataset={dataset}
+                  column={f.column ? (row[f.column] as string | null) : null}
+                  value={(v as string) ?? null}
+                  disabled={disabled}
+                  title={f.label}
+                  emptyLabel={f.emptyLabel}
+                  onChange={(t) => set(i, f.key, t)}
+                />
+              );
             if (f.type === "select")
               return (
                 <select key={f.key} disabled={disabled} value={(v as string) ?? ""} title={f.label} onChange={(e) => set(i, f.key, e.target.value)}>

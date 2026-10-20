@@ -1,0 +1,879 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "결과변수 하나를 설명변수들로 설명하는 모형을 여러 개 만들어 같은 표본에서 비교합니다. 결과가 숫자면 선형 회귀, 예/아니오면 로지스틱 회귀, 개수면 Poisson·음이항 회귀입니다. easystats(parameters, performance, modelbased)가 소개하는 대표 활용법을 그대로 켤 수 있습니다.",
+    "links": [
+      {
+        "label": "parameters (계수)",
+        "url": "https://easystats.github.io/parameters/"
+      },
+      {
+        "label": "performance (적합도·진단)",
+        "url": "https://easystats.github.io/performance/"
+      },
+      {
+        "label": "modelbased (효과 해석)",
+        "url": "https://easystats.github.io/modelbased/"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "회귀계수와 불확실성 보기",
+        "description": "계수, 신뢰구간, 검정과 계수 그림. 로지스틱은 오즈비, 개수 회귀는 개수비로도 봅니다.",
+        "fn": [
+          "parameters::model_parameters"
+        ],
+        "enable": {
+          "output.coefficients": true,
+          "output.exponentiate": true,
+          "plots.coefficients": true
+        }
+      },
+      {
+        "title": "단위가 다른 변수의 효과를 나란히 보기",
+        "description": "설명변수를 표준화해 다시 적합한 계수로, 1 표준편차 변화의 효과를 같은 잣대에서 비교합니다.",
+        "fn": [
+          "parameters::standardize_parameters"
+        ],
+        "enable": {
+          "output.standardized": true
+        }
+      },
+      {
+        "title": "블록을 더할 때 설명력이 늘어나는지 보기",
+        "description": "위계적 회귀: 모형 1에 항을 더한 모형 2, 3을 만들고 ΔR²와 F(또는 가능도비) 검정으로 비교합니다.",
+        "fn": [
+          "stats::anova",
+          "performance::compare_performance"
+        ],
+        "enable": {
+          "comparison.enabled": true,
+          "output.fit": true
+        },
+        "needs": "'모형과 항'에서 + 모형 추가로 모형을 둘 이상 만드세요."
+      },
+      {
+        "title": "범주 변수 전체의 기여 검정하기",
+        "description": "더미 계수 하나하나가 아니라 범주 변수 전체가 필요한지를 항 검정(계층적, Type II·III)으로 봅니다.",
+        "fn": [
+          "stats::drop1",
+          "car::Anova"
+        ],
+        "enable": {
+          "inference.termTests": "hierarchical"
+        }
+      },
+      {
+        "title": "잔차와 공선성 확인하기",
+        "description": "잔차-적합값, Q-Q, 산포-위치 그림과 VIF. 모형 가정이 크게 어긋나는지 봅니다.",
+        "fn": [
+          "performance::check_model",
+          "performance::check_collinearity"
+        ],
+        "enable": {
+          "diagnostics.residuals": true,
+          "diagnostics.collinearity": true
+        }
+      },
+      {
+        "title": "영향이 큰 관측치 찾기",
+        "description": "Cook 거리와 레버리지가 큰 행을 표로 보여 줍니다. 행을 지우지는 않습니다.",
+        "fn": [
+          "stats::cooks.distance",
+          "stats::hatvalues"
+        ],
+        "enable": {
+          "diagnostics.influence": true
+        }
+      },
+      {
+        "title": "개수 자료의 과산포와 0 과다 확인하기",
+        "description": "Poisson 모형의 분산이 평균보다 큰지, 0이 기대보다 많은지 검사합니다. 과산포면 음이항으로 바꿔 비교합니다.",
+        "fn": [
+          "performance::check_overdispersion",
+          "performance::check_zeroinflation"
+        ],
+        "enable": {
+          "diagnostics.dispersion": true,
+          "diagnostics.zeros": true
+        }
+      },
+      {
+        "title": "예측 확률이 실제와 맞는지 보기",
+        "description": "로지스틱 모형의 예측 확률을 10개 구간으로 나눠 실제 사건 비율과 비교하고 Brier 점수를 봅니다.",
+        "fn": [
+          "performance::performance_hosmer"
+        ],
+        "enable": {
+          "diagnostics.calibration": true
+        }
+      },
+      {
+        "title": "보정 평균·예측 확률과 범주 차이 보기",
+        "description": "다른 변수를 고정하거나 평균한 상태에서 범주별 평균(확률)과 쌍별 차이를 봅니다.",
+        "fn": [
+          "modelbased::estimate_means",
+          "modelbased::estimate_contrasts"
+        ],
+        "enable": {
+          "effects.enabled": true,
+          "effects.kind": "means"
+        },
+        "needs": "'효과 해석'에서 초점 변수를 고르세요.",
+        "needsFilled": [
+          "effects.focal"
+        ]
+      },
+      {
+        "title": "조절변수에 따라 달라지는 기울기 보기",
+        "description": "상호작용 모형에서 연속 변수의 기울기가 다른 변수의 값(범주)마다 어떻게 다른지 봅니다.",
+        "fn": [
+          "modelbased::estimate_slopes"
+        ],
+        "enable": {
+          "effects.enabled": true,
+          "effects.kind": "slopes"
+        },
+        "needs": "초점 변수(연속)와 조절변수를 고르고, 모형에 두 변수의 상호작용을 넣으세요.",
+        "needsFilled": [
+          "effects.focal",
+          "effects.moderator"
+        ]
+      },
+      {
+        "title": "단계적으로 항 줄이기",
+        "description": "정한 범위 안에서 AIC(BIC)가 가장 작아지도록 항을 빼고 더합니다. 탐색용이며 선택 후 p값은 낙관적입니다.",
+        "fn": [
+          "MASS::stepAIC"
+        ],
+        "enable": {
+          "selection.method": "stepwise"
+        }
+      },
+      {
+        "title": "계수 축소와 희소 모형 (LASSO·elastic net)",
+        "description": "glmnet으로 교차검증한 벌점 회귀.",
+        "fn": [
+          "glmnet::cv.glmnet"
+        ],
+        "enable": {},
+        "planned": true
+      },
+      {
+        "title": "선택 결과가 얼마나 안정적인지 보기",
+        "description": "재표집을 반복해 각 항이 얼마나 자주 선택되는지 봅니다.",
+        "fn": [
+          "rsample::bootstraps"
+        ],
+        "enable": {},
+        "planned": true
+      },
+      {
+        "title": "분리된 이항 자료 분석하기",
+        "description": "편향 감소 로지스틱(Firth 방식)으로 완전 분리에서도 유한한 계수를 구합니다.",
+        "fn": [
+          "brglm2::brglmFit"
+        ],
+        "enable": {},
+        "planned": true
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variable",
+      "bind": "outcome.variable",
+      "label": "결과변수",
+      "description": "설명하려는 변수 하나."
+    },
+    {
+      "type": "variables",
+      "bind": "predictors.continuous",
+      "label": "연속 설명변수",
+      "types": [
+        "numeric",
+        "logical"
+      ]
+    },
+    {
+      "type": "variables",
+      "bind": "predictors.categorical",
+      "label": "범주 설명변수",
+      "types": [
+        "factor",
+        "ordered",
+        "character",
+        "logical",
+        "numeric"
+      ],
+      "description": "숫자 코드라도 범주로 다룰 변수는 여기에 넣습니다."
+    }
+  ],
+  "sections": [
+    {
+      "title": "모형 종류",
+      "open": true,
+      "controls": [
+        {
+          "type": "select",
+          "bind": "model.family",
+          "label": "결과의 종류",
+          "labels": {
+            "gaussian": "숫자 (선형 회귀)",
+            "binomial": "예/아니오 (로지스틱)",
+            "poisson": "개수 (Poisson)",
+            "negative_binomial": "개수, 과산포 (음이항)",
+            "gamma": "양수, 오른쪽 꼬리 (Gamma)",
+            "quasibinomial": "비율, 과산포 (quasi-binomial)",
+            "quasipoisson": "개수, 과산포 (quasi-Poisson)"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "model.link",
+          "label": "링크",
+          "labels": {
+            "default": "기본",
+            "identity": "항등",
+            "logit": "logit",
+            "probit": "probit",
+            "cloglog": "cloglog",
+            "log": "log",
+            "inverse": "역수"
+          },
+          "choicesBy": {
+            "bind": "model.family",
+            "values": {
+              "gaussian": [
+                "default"
+              ],
+              "binomial": [
+                "default",
+                "probit",
+                "cloglog"
+              ],
+              "poisson": [
+                "default"
+              ],
+              "negative_binomial": [
+                "default"
+              ],
+              "gamma": [
+                "default",
+                "inverse",
+                "identity"
+              ],
+              "quasibinomial": [
+                "default"
+              ],
+              "quasipoisson": [
+                "default"
+              ]
+            }
+          },
+          "description": "기본은 logit(이항), log(개수·Gamma), 항등(선형)입니다."
+        },
+        {
+          "type": "group",
+          "label": "이항 결과",
+          "visibleWhen": {
+            "bind": "model.family",
+            "in": [
+              "binomial",
+              "quasibinomial"
+            ]
+          },
+          "controls": [
+            {
+              "type": "select",
+              "bind": "outcome.encoding",
+              "label": "자료 모양",
+              "labels": {
+                "individual": "한 행이 한 사례",
+                "grouped": "한 행에 성공 수와 시행 수"
+              }
+            },
+            {
+              "type": "level",
+              "bind": "outcome.event",
+              "label": "사건으로 볼 값",
+              "column": "outcome.variable",
+              "emptyLabel": "(0/1이면 1)",
+              "description": "모형은 이 값이 나올 확률을 설명합니다.",
+              "visibleWhen": {
+                "bind": "outcome.encoding",
+                "equals": "individual"
+              }
+            },
+            {
+              "type": "column",
+              "bind": "outcome.trials",
+              "label": "시행 수",
+              "types": [
+                "numeric"
+              ],
+              "visibleWhen": {
+                "bind": "outcome.encoding",
+                "equals": "grouped"
+              }
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "label": "노출량 (비율로 보기)",
+          "visibleWhen": {
+            "bind": "model.family",
+            "in": [
+              "poisson",
+              "negative_binomial",
+              "quasipoisson"
+            ]
+          },
+          "controls": [
+            {
+              "type": "select",
+              "bind": "offset.mode",
+              "label": "offset",
+              "labels": {
+                "none": "없음",
+                "exposure": "노출량 (log 해서 넣음)",
+                "offset": "offset 열 그대로"
+              },
+              "description": "관찰 기간·인구처럼 노출량이 다르면 넣어서 단위 노출당 비율을 모형화합니다."
+            },
+            {
+              "type": "column",
+              "bind": "offset.variable",
+              "label": "노출량 열",
+              "types": [
+                "numeric"
+              ],
+              "enabledWhen": {
+                "bind": "offset.mode",
+                "in": [
+                  "exposure",
+                  "offset"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "label": "가중치",
+          "visibleWhen": {
+            "bind": "model.family",
+            "equals": "gaussian"
+          },
+          "controls": [
+            {
+              "type": "select",
+              "bind": "weights.mode",
+              "label": "가중치",
+              "labels": {
+                "none": "없음",
+                "precision": "정밀도 가중치"
+              }
+            },
+            {
+              "type": "column",
+              "bind": "weights.variable",
+              "label": "가중치 열",
+              "types": [
+                "numeric"
+              ],
+              "enabledWhen": {
+                "bind": "weights.mode",
+                "equals": "precision"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "모형과 항",
+      "open": true,
+      "description": "모형마다 넣을 항을 고릅니다. 상호작용을 넣으면 그 주효과도 함께 들어갑니다. 모든 모형은 같은 행으로 적합합니다.",
+      "controls": [
+        {
+          "type": "models",
+          "bind": "models",
+          "label": "모형",
+          "terms": "terms",
+          "predictors": [
+            "predictors.continuous",
+            "predictors.categorical"
+          ],
+          "outcome": "outcome.variable",
+          "maxOrder": 3
+        },
+        {
+          "type": "select",
+          "bind": "missing.sampleScope",
+          "label": "결측 처리",
+          "labels": {
+            "shared": "모든 모형에 같은 행 (비교 가능)",
+            "per_model": "모형마다 쓸 수 있는 행 (비교 불가)"
+          }
+        }
+      ]
+    },
+    {
+      "title": "범주와 변환",
+      "controls": [
+        {
+          "type": "rows",
+          "bind": "coding.factors",
+          "label": "범주 변수의 기준",
+          "addLabel": "범주 변수 설정",
+          "description": "기준 범주는 다른 범주와 비교하는 기준입니다. 효과 코딩은 전체 평균과 비교합니다 (Type III 검정에 필요).",
+          "fields": [
+            {
+              "key": "variable",
+              "label": "변수",
+              "type": "column",
+              "types": [
+                "factor",
+                "ordered",
+                "character",
+                "logical",
+                "numeric"
+              ]
+            },
+            {
+              "key": "reference",
+              "label": "기준 범주",
+              "type": "level",
+              "column": "variable",
+              "emptyLabel": "(첫 범주)"
+            },
+            {
+              "key": "contrast",
+              "label": "코딩",
+              "type": "select",
+              "labels": {
+                "treatment": "더미",
+                "sum": "효과"
+              }
+            }
+          ]
+        },
+        {
+          "type": "rows",
+          "bind": "coding.transforms",
+          "label": "연속 변수 변환",
+          "addLabel": "변환 추가",
+          "description": "중심화하면 상호작용이 있을 때 주효과 계수가 '평균에서의 효과'가 됩니다. 로그는 0 이하 값이 있으면 막습니다.",
+          "fields": [
+            {
+              "key": "variable",
+              "label": "변수",
+              "type": "column",
+              "types": [
+                "numeric"
+              ]
+            },
+            {
+              "key": "transform",
+              "label": "변환",
+              "type": "select",
+              "labels": {
+                "none": "그대로",
+                "log": "log"
+              }
+            },
+            {
+              "key": "center",
+              "label": "중심화",
+              "type": "select",
+              "labels": {
+                "none": "안 함",
+                "mean": "평균",
+                "value": "값"
+              }
+            },
+            {
+              "key": "centerValue",
+              "label": "기준값",
+              "type": "text",
+              "placeholder": "값"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "계수와 검정",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "output.coefficients",
+          "label": "회귀계수",
+          "fn": "parameters::model_parameters",
+          "controls": [
+            {
+              "type": "checkbox",
+              "bind": "output.exponentiate",
+              "label": "exp(b): 오즈비·개수비",
+              "description": "로짓·로그 링크일 때만 보입니다."
+            },
+            {
+              "type": "checkbox",
+              "bind": "plots.coefficients",
+              "label": "계수 그림"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "output.standardized",
+          "label": "표준화 계수",
+          "fn": "parameters::standardize_parameters"
+        },
+        {
+          "type": "checkbox",
+          "bind": "output.fit",
+          "label": "적합도 (R², 이탈도, AIC·BIC)",
+          "fn": "performance::model_performance"
+        },
+        {
+          "type": "number",
+          "bind": "inference.ciLevel",
+          "label": "신뢰수준"
+        },
+        {
+          "type": "select",
+          "bind": "inference.ciMethod",
+          "label": "GLM 신뢰구간",
+          "labels": {
+            "wald": "Wald",
+            "profile": "프로파일 가능도"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "inference.termTests",
+          "label": "항 검정",
+          "labels": {
+            "hierarchical": "계층적 (항을 뺀 모형과 비교)",
+            "type1": "Type I (순서대로)",
+            "type2": "Type II",
+            "type3": "Type III",
+            "none": "안 함"
+          },
+          "description": "범주 변수 전체, 상호작용 전체가 필요한지 검정합니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "output.partialR2",
+          "label": "ΔR²·부분 R² (선형)",
+          "visibleWhen": {
+            "bind": "model.family",
+            "equals": "gaussian"
+          }
+        }
+      ]
+    },
+    {
+      "title": "모형 비교",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "comparison.enabled",
+          "label": "모형 비교",
+          "fn": "performance::compare_performance",
+          "description": "AIC·BIC 차이와, 앞 모형에 항을 더한 모형마다 차이 검정(선형 F, GLM 가능도비)을 합니다. 모형이 둘 이상일 때 씁니다."
+        }
+      ]
+    },
+    {
+      "title": "효과 해석",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "effects.enabled",
+          "label": "보정 효과",
+          "fn": "modelbased::estimate_means",
+          "requires": [
+            "modelbased"
+          ],
+          "controls": [
+            {
+              "type": "select",
+              "bind": "effects.kind",
+              "label": "무엇을",
+              "labels": {
+                "means": "평균·예측 확률",
+                "slopes": "기울기",
+                "contrasts": "범주 간 차이"
+              }
+            },
+            {
+              "type": "model",
+              "bind": "effects.modelId",
+              "label": "모형",
+              "models": "models",
+              "emptyLabel": "마지막 모형"
+            },
+            {
+              "type": "column",
+              "bind": "effects.focal",
+              "label": "초점 변수",
+              "from": [
+                "predictors.continuous",
+                "predictors.categorical"
+              ]
+            },
+            {
+              "type": "column",
+              "bind": "effects.moderator",
+              "label": "조절변수",
+              "from": [
+                "predictors.continuous",
+                "predictors.categorical"
+              ],
+              "emptyLabel": "(없음)"
+            },
+            {
+              "type": "select",
+              "bind": "effects.marginalization",
+              "label": "다른 변수는",
+              "labels": {
+                "empirical": "표본 전체에서 평균",
+                "reference_grid": "대표값에 고정"
+              }
+            },
+            {
+              "type": "select",
+              "bind": "effects.scale",
+              "label": "척도",
+              "labels": {
+                "response": "결과 척도 (확률·개수)",
+                "link": "링크 척도"
+              }
+            },
+            {
+              "type": "select",
+              "bind": "effects.adjust",
+              "label": "다중 비교 보정",
+              "labels": {
+                "holm": "Holm",
+                "bonferroni": "Bonferroni",
+                "none": "안 함"
+              },
+              "visibleWhen": {
+                "bind": "effects.kind",
+                "equals": "contrasts"
+              }
+            },
+            {
+              "type": "rows",
+              "bind": "effects.at",
+              "label": "값을 정해 보기",
+              "addLabel": "값 추가",
+              "fields": [
+                {
+                  "key": "variable",
+                  "label": "변수",
+                  "type": "column"
+                },
+                {
+                  "key": "values",
+                  "label": "값 (쉼표로)",
+                  "type": "text",
+                  "placeholder": "예: 20, 40, 60"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "진단",
+      "controls": [
+        {
+          "type": "model",
+          "bind": "diagnostics.modelId",
+          "label": "진단할 모형",
+          "models": "models",
+          "emptyLabel": "마지막 모형"
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.residuals",
+          "label": "잔차 그림",
+          "fn": "performance::check_model"
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.collinearity",
+          "label": "공선성 (VIF)",
+          "fn": "performance::check_collinearity"
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.influence",
+          "label": "영향 관측치",
+          "fn": "stats::cooks.distance",
+          "controls": [
+            {
+              "type": "column",
+              "bind": "diagnostics.rowLabel",
+              "label": "행 이름 열",
+              "emptyLabel": "(행 번호)"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.dispersion",
+          "label": "과산포",
+          "fn": "performance::check_overdispersion",
+          "enabledWhen": {
+            "bind": "model.family",
+            "in": [
+              "binomial",
+              "poisson"
+            ]
+          },
+          "disabledHint": "이항·Poisson 모형에서 씁니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.zeros",
+          "label": "0 과다",
+          "fn": "performance::check_zeroinflation",
+          "enabledWhen": {
+            "bind": "model.family",
+            "in": [
+              "poisson",
+              "negative_binomial"
+            ]
+          },
+          "disabledHint": "개수 모형에서 씁니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "diagnostics.calibration",
+          "label": "보정도와 Brier 점수",
+          "enabledWhen": {
+            "bind": "model.family",
+            "equals": "binomial"
+          },
+          "disabledHint": "로지스틱 모형에서 씁니다."
+        }
+      ]
+    },
+    {
+      "title": "변수 선택",
+      "description": "탐색용입니다. 선택한 모형의 p값과 신뢰구간은 선택 과정을 반영하지 않습니다.",
+      "controls": [
+        {
+          "type": "select",
+          "bind": "selection.method",
+          "label": "방법",
+          "labels": {
+            "none": "안 함",
+            "stepwise": "단계적 (AIC·BIC)"
+          },
+          "fn": "MASS::stepAIC",
+          "requires": [
+            "MASS"
+          ]
+        },
+        {
+          "type": "model",
+          "bind": "selection.sourceModelId",
+          "label": "시작 모형",
+          "models": "models",
+          "emptyLabel": "마지막 모형",
+          "enabledWhen": {
+            "bind": "selection.method",
+            "equals": "stepwise"
+          }
+        },
+        {
+          "type": "termChoice",
+          "bind": "selection.candidateTermIds",
+          "label": "움직일 수 있는 항",
+          "terms": "terms",
+          "emptyLabel": "고르지 않으면 시작 모형의 항 모두",
+          "enabledWhen": {
+            "bind": "selection.method",
+            "equals": "stepwise"
+          }
+        },
+        {
+          "type": "termChoice",
+          "bind": "selection.forcedTermIds",
+          "label": "항상 넣을 항",
+          "terms": "terms",
+          "enabledWhen": {
+            "bind": "selection.method",
+            "equals": "stepwise"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "selection.direction",
+          "label": "방향",
+          "labels": {
+            "both": "양방향",
+            "backward": "후진",
+            "forward": "전진"
+          },
+          "enabledWhen": {
+            "bind": "selection.method",
+            "equals": "stepwise"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "selection.criterion",
+          "label": "기준",
+          "labels": {
+            "AIC": "AIC",
+            "BIC": "BIC"
+          },
+          "enabledWhen": {
+            "bind": "selection.method",
+            "equals": "stepwise"
+          }
+        }
+      ]
+    },
+    {
+      "title": "R 세션에 저장",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "export.models.enabled",
+          "label": "적합한 모형",
+          "description": "모형 이름별 리스트로 저장합니다. 콘솔에서 summary()나 predict()에 씁니다.",
+          "controls": [
+            {
+              "type": "text",
+              "bind": "export.models.saveAs",
+              "label": "이름"
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "export.augmented.enabled",
+          "label": "적합값·잔차를 붙인 데이터",
+          "controls": [
+            {
+              "type": "text",
+              "bind": "export.augmented.saveAs",
+              "label": "이름"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

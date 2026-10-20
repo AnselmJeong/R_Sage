@@ -1,6 +1,8 @@
 # 회귀와 일반화선형모형 모듈 명세 (`org.rsage.regression`)
 
-_2026-10-19 · 설계안 · 구현 전_
+_2026-10-19 · 설계안 · 2026-10-20 1.0 구현_
+
+**구현 상태 (2026-10-20).** 1.0을 `modules/regression`과 `r-packages/rsageRegression`으로 구현했다. 분석 메뉴의 "회귀" 아래 선형 회귀, 로지스틱 회귀, 개수 회귀, 일반화선형모형 네 명령이 같은 analysis를 모형 종류만 다르게 연다. 모형 편집은 공통 폼의 `models`(모형 카드·항 칩), `model`, `termChoice`, `level` 컨트롤로 했다. 1.1(정규화, 안정성, 편향 감소, 다항·스플라인 항, HC3·군집 강건 SE)은 showcase에 "예정"으로만 보인다. 모형마다 다른 family·link는 옵션과 R에서 받지만 화면에서는 공통 설정만 고른다. `comparison.pairs`를 비우면 앞 모형에 항을 더한 다음 모형을 앞 모형과 차례로 검정한다. 아래 본문은 설계 당시의 요구사항이다.
 
 [모듈 작성 가이드](../module-authoring-guide.md)의 스펙 형식을 따른다. [모듈 목록](../analysis-modules-catalog.md), [공통 구조](../analysis-modules-strategy.md), 현재 공통 폼·결과 타입과 결측/데이터 점검 모듈을 확인했다. 이 문서는 구현 요구사항이며, 기능이 이미 제공된다는 뜻이 아니다.
 

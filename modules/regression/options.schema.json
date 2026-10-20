@@ -1,0 +1,753 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "variable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Outcome column. Numeric for gaussian/gamma; two values (or 0/1, TRUE/FALSE) for binomial; non-negative integer counts for poisson/negative_binomial; successes for grouped binomial."
+        },
+        "event": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Binomial: the outcome value counted as the event (modelled probability). Required unless the outcome is 0/1 or logical."
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "individual",
+            "grouped"
+          ],
+          "default": "individual",
+          "description": "Binomial: one row per case (individual) or successes out of trials per row (grouped)."
+        },
+        "trials": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Grouped binomial: column with the number of trials."
+        }
+      },
+      "default": {},
+      "description": "The outcome."
+    },
+    "predictors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "continuous": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Numeric predictors."
+        },
+        "categorical": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Categorical predictors (factor, character, logical); each becomes dummy (or sum-coded) columns."
+        }
+      },
+      "default": {},
+      "description": "Predictors. Terms are built from these."
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": [
+            "gaussian",
+            "binomial",
+            "poisson",
+            "negative_binomial",
+            "gamma",
+            "quasibinomial",
+            "quasipoisson"
+          ],
+          "default": "gaussian",
+          "description": "Model family shared by all models (a model may override it): gaussian = linear regression, binomial = logistic/probit, poisson and negative_binomial = counts, gamma = positive skewed, quasi* = overdispersed without likelihood."
+        },
+        "link": {
+          "type": "string",
+          "enum": [
+            "default",
+            "identity",
+            "logit",
+            "probit",
+            "cloglog",
+            "log",
+            "inverse"
+          ],
+          "default": "default",
+          "description": "Link function; default is the family's canonical link (gamma: log)."
+        },
+        "estimation": {
+          "type": "string",
+          "enum": [
+            "maximum_likelihood"
+          ],
+          "default": "maximum_likelihood",
+          "description": "Estimation. Bias-reduced logistic is planned."
+        }
+      },
+      "default": {},
+      "description": "Family and link."
+    },
+    "coding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "factors": {
+          "type": "array",
+          "default": [],
+          "description": "Per categorical predictor: reference level and coding (treatment = dummy vs reference; sum = effect coding).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "contrast": {
+                "type": "string",
+                "enum": [
+                  "treatment",
+                  "sum"
+                ],
+                "default": "treatment"
+              }
+            }
+          }
+        },
+        "transforms": {
+          "type": "array",
+          "default": [],
+          "description": "Per continuous predictor: log transform and/or centring (mean or a given value).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "transform": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "log"
+                ],
+                "default": "none"
+              },
+              "center": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "mean",
+                  "value"
+                ],
+                "default": "none"
+              },
+              "centerValue": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "default": null
+              }
+            }
+          }
+        }
+      },
+      "default": {},
+      "description": "Coding of predictors."
+    },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "main",
+              "interaction"
+            ]
+          },
+          "variable": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ]
+      },
+      "default": [],
+      "description": "Structured terms: main effects {id, kind:'main', variable} and interactions {id, kind:'interaction', components:[main term ids]} (2- or 3-way). Empty: one main term per predictor. Never formula text."
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "termIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "intercept": {
+            "type": "boolean",
+            "default": true
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "gaussian",
+              "binomial",
+              "poisson",
+              "negative_binomial",
+              "gamma",
+              "quasibinomial",
+              "quasipoisson",
+              null
+            ]
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "maximum_likelihood",
+              null
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "termIds"
+        ]
+      },
+      "minItems": 1,
+      "default": [
+        {
+          "id": "m1",
+          "label": "모형 1",
+          "termIds": [],
+          "intercept": true
+        }
+      ],
+      "description": "Candidate models, each a list of term ids. Strong hierarchy is required. All models are fitted on one shared complete-case sample."
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coefficients": {
+          "type": "boolean",
+          "default": true,
+          "description": "Coefficient table with CIs."
+        },
+        "exponentiate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add exp(b): odds ratios (logit), rate/mean ratios (log link)."
+        },
+        "standardized": {
+          "type": "boolean",
+          "default": false,
+          "description": "Standardized coefficients (refit with predictors scaled)."
+        },
+        "fit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fit table: R², adjusted R², RMSE, sigma (linear); deviance, Tjur/McFadden R² (GLM); logLik, AIC, AICc, BIC."
+        },
+        "partialR2": {
+          "type": "boolean",
+          "default": false,
+          "description": "Linear models: ΔR² and partial R² in the term tests."
+        }
+      },
+      "default": {},
+      "description": "What to report."
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coefficients": {
+          "type": "boolean",
+          "default": true,
+          "description": "Coefficient (forest) plot."
+        }
+      },
+      "default": {},
+      "description": "Plots."
+    },
+    "inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ciLevel": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 0.999,
+          "default": 0.95,
+          "description": "Confidence level."
+        },
+        "ciMethod": {
+          "type": "string",
+          "enum": [
+            "wald",
+            "profile"
+          ],
+          "default": "wald",
+          "description": "GLM confidence intervals: Wald or profile likelihood. Linear models use t."
+        },
+        "termTests": {
+          "type": "string",
+          "enum": [
+            "hierarchical",
+            "type1",
+            "type2",
+            "type3",
+            "none"
+          ],
+          "default": "hierarchical",
+          "description": "Term tests: hierarchical drop tests (default), Type I (sequential), Type II/III (car::Anova), or none."
+        }
+      },
+      "default": {},
+      "description": "Inference."
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compare the models: information criteria and nested-model tests."
+        },
+        "pairs": {
+          "type": "array",
+          "default": [],
+          "description": "Pairs {reduced, full} of model ids to test. Empty: each model against the previous one when nested.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reduced": {
+                "type": "string"
+              },
+              "full": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "default": {},
+      "description": "Model comparison."
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Adjusted effects with modelbased: means, slopes or contrasts."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "means",
+            "slopes",
+            "contrasts"
+          ],
+          "default": "means",
+          "description": "means = predicted means per level/value of focal; slopes = slope of numeric focal (by moderator); contrasts = pairwise differences between focal levels."
+        },
+        "modelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Model to interpret; null = the last model."
+        },
+        "focal": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Focal predictor."
+        },
+        "moderator": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Optional moderator predictor: effects of focal at each level/value of it."
+        },
+        "marginalization": {
+          "type": "string",
+          "enum": [
+            "empirical",
+            "reference_grid"
+          ],
+          "default": "empirical",
+          "description": "Average over the sample (empirical) or at typical values (reference_grid)."
+        },
+        "scale": {
+          "type": "string",
+          "enum": [
+            "response",
+            "link"
+          ],
+          "default": "response",
+          "description": "Report on the response scale (probabilities, counts) or the link scale."
+        },
+        "adjust": {
+          "type": "string",
+          "enum": [
+            "holm",
+            "bonferroni",
+            "none"
+          ],
+          "default": "holm",
+          "description": "Multiplicity adjustment for contrasts."
+        },
+        "at": {
+          "type": "array",
+          "default": [],
+          "description": "Values to evaluate at: {variable, values} with values comma-separated, on the original scale.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "variable": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "values": {
+                "type": "string",
+                "default": ""
+              }
+            }
+          }
+        }
+      },
+      "default": {},
+      "description": "Adjusted effects."
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Model to diagnose; null = the last model."
+        },
+        "residuals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Residual vs fitted, Q-Q and scale-location plots."
+        },
+        "collinearity": {
+          "type": "boolean",
+          "default": true,
+          "description": "VIF / GVIF."
+        },
+        "influence": {
+          "type": "boolean",
+          "default": false,
+          "description": "Cook's distance and leverage: flagged rows (no row is removed)."
+        },
+        "dispersion": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overdispersion check (Poisson, binomial)."
+        },
+        "zeros": {
+          "type": "boolean",
+          "default": false,
+          "description": "Zero-inflation check (counts)."
+        },
+        "calibration": {
+          "type": "boolean",
+          "default": false,
+          "description": "Binary outcome: calibration by deciles and Brier score."
+        },
+        "rowLabel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Column used to label flagged rows."
+        }
+      },
+      "default": {},
+      "description": "Diagnostics."
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "none",
+            "stepwise"
+          ],
+          "default": "none",
+          "description": "Stepwise search (MASS::stepAIC) inside the given scope. Exploratory; p-values after selection are optimistic."
+        },
+        "sourceModelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Starting model; null = the last model."
+        },
+        "candidateTermIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Terms that may enter or leave. Empty: the starting model's terms."
+        },
+        "forcedTermIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Terms that always stay."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "both",
+            "backward",
+            "forward"
+          ],
+          "default": "both",
+          "description": "Search direction."
+        },
+        "criterion": {
+          "type": "string",
+          "enum": [
+            "AIC",
+            "BIC"
+          ],
+          "default": "AIC",
+          "description": "Criterion."
+        },
+        "maxSteps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 100,
+          "description": "Maximum steps."
+        }
+      },
+      "default": {},
+      "description": "Stepwise selection."
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sampleScope": {
+          "type": "string",
+          "enum": [
+            "shared",
+            "per_model"
+          ],
+          "default": "shared",
+          "description": "shared: every model uses the complete cases of all variables in any model (comparable). per_model: each model its own complete cases (not comparable)."
+        }
+      },
+      "default": {},
+      "description": "Missing data."
+    },
+    "offset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "exposure",
+            "offset"
+          ],
+          "default": "none",
+          "description": "exposure: log(column) enters as an offset (rates per exposure); offset: the column as is."
+        },
+        "variable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Exposure or offset column."
+        },
+        "unit": {
+          "type": "string",
+          "default": "노출 1단위",
+          "description": "Name of one exposure unit, for labels."
+        }
+      },
+      "default": {},
+      "description": "Offset (count models)."
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "precision"
+          ],
+          "default": "none",
+          "description": "precision: inverse-variance style weights in linear models."
+        },
+        "variable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Weight column."
+        }
+      },
+      "default": {},
+      "description": "Weights."
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Save the fitted models to the R session as a named list."
+            },
+            "saveAs": {
+              "type": "string",
+              "pattern": "^[A-Za-z.][A-Za-z0-9._]*$",
+              "default": "regression_models"
+            }
+          },
+          "default": {}
+        },
+        "augmented": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Save the analysis rows with fitted values, residuals, leverage and Cook's distance."
+            },
+            "saveAs": {
+              "type": "string",
+              "pattern": "^[A-Za-z.][A-Za-z0-9._]*$",
+              "default": "regression_diagnostics"
+            }
+          },
+          "default": {}
+        }
+      },
+      "default": {},
+      "description": "Save to the R session."
+    }
+  }
+}

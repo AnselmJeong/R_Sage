@@ -37,6 +37,39 @@ describe("module registry", () => {
   });
 });
 
+const regression = loadModules().find((m) => m.id === "org.rsage.regression")!;
+const rdef = regression.analyses[0]!;
+
+describe("regression module", () => {
+  test("loads with four menu commands under 회귀 and a consistent form", () => {
+    expect(rdef.key).toBe("org.rsage.regression/regression");
+    expect(regression.requires).toEqual(expect.arrayContaining(["parameters", "performance", "insight", "ggplot2"]));
+    expect(formProblems(rdef.form, rdef.schema)).toEqual([]);
+    expect(validateOptions(rdef.schema, fillDefaults(rdef.schema, {}))).toEqual([]);
+    expect(rdef.entries.map((e) => e.menu)).toEqual([
+      ["회귀", "선형 회귀"],
+      ["회귀", "로지스틱 회귀"],
+      ["회귀", "개수 회귀"],
+      ["회귀", "일반화선형모형"],
+    ]);
+    expect(rdef.entries[1]!.preset).toEqual({ model: { family: "binomial" } });
+    expect(rdef.form.about?.showcase?.some((s) => s.planned)).toBe(true);
+  });
+
+  test("terms and models are structured options, checked by the schema", () => {
+    const o = fillDefaults(rdef.schema, {
+      terms: [
+        { id: "m:x", kind: "main", variable: "x" },
+        { id: "m:g", kind: "main", variable: "g" },
+        { id: "i1", kind: "interaction", components: ["m:x", "m:g"] },
+      ],
+      models: [{ id: "m1", label: "M", termIds: ["m:x", "m:g", "i1"], intercept: true }],
+    });
+    expect(validateOptions(rdef.schema, o)).toEqual([]);
+    expect(validateOptions(rdef.schema, { ...o, terms: [{ id: "t", kind: "formula", variable: "x" }] }).length).toBeGreaterThan(0);
+  });
+});
+
 const integrity = loadModules().find((m) => m.id === "org.rsage.integrity")!;
 const idef = integrity.analyses[0]!;
 
@@ -270,6 +303,39 @@ live("missing-data analysis in a live session", async () => {
     expect((await host.session.evalText("cat(class(sheet_clean$금액), sum(is.na(sheet_clean$금액)))")).trim()).toBe("numeric 1");
     expect((await host.session.evalText('cat("package:dlookr" %in% search())')).trim()).toBe("FALSE");
     expect(formatResult(done, done.result)).toContain("점검 요약");
+  }, 240_000);
+
+  test("a regression with two nested models runs on mtcars", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.regression" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText("cars <- mtcars; invisible(NULL)");
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.regression/regression",
+      dataset: "cars",
+      options: {
+        outcome: { variable: "mpg" },
+        predictors: { continuous: ["wt", "hp"] },
+        terms: [
+          { id: "m:wt", kind: "main", variable: "wt" },
+          { id: "m:hp", kind: "main", variable: "hp" },
+        ],
+        models: [
+          { id: "m1", label: "무게", termIds: ["m:wt"] },
+          { id: "m2", label: "무게+마력", termIds: ["m:wt", "m:hp"] },
+        ],
+        comparison: { enabled: true },
+      },
+    });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    const tests = done.result.tables.find((t: any) => t.id === "modelTests");
+    expect(tests.rows[0].test).toBe("F");
+    expect(tests.rows[0].p).toBeCloseTo(0.0014512, 6);
+    expect(done.result.plots.some((p: any) => p.id === "coefficients")).toBe(true);
+    await call("analysis.delete", { id: inst.id });
   }, 240_000);
 
   // R ignores an interrupt that lands inside C code such as saveRDS; it must be retried.
