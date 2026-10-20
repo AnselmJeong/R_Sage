@@ -4009,3 +4009,123 @@ label.check {
 .tb-dropdown .menu-item.tb-indent {
   padding-left: 22px;
 }
+
+/* Model cards (regression): terms as chips. */
+.an-models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0;
+}
+.an-model {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.an-model-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.an-model-name {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.an-model-name:hover,
+.an-model-name:focus {
+  border-color: var(--border);
+  background: var(--bg);
+}
+.an-icon-btn {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.an-icon-btn:hover:not(:disabled) {
+  color: var(--fg);
+}
+.an-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.an-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.an-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  padding: 1px 4px 1px 7px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+.an-chip.int {
+  border-style: dashed;
+}
+.an-chip button {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+}
+.an-chip button:hover:not(:disabled) {
+  color: var(--err);
+}
+.an-chip.toggle {
+  cursor: pointer;
+  padding: 1px 7px;
+  color: var(--fg-muted);
+}
+.an-chip.toggle.on {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-3));
+}
+.an-chip-add {
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--accent);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 1px 4px;
+  max-width: 100%;
+}
+.an-formula {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  word-break: break-all;
+}
+.an-planned {
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.an-chips select.an-chip-add {
+  width: auto;
+  flex: 0 0 auto;
+}

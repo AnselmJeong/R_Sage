@@ -165,9 +165,18 @@ export function formProblems(form: AnalysisForm, schema: any): string[] {
       check(c.visibleWhen?.bind, `${where} > ${c.label} visibleWhen`);
       check(c.enabledWhen?.bind, `${where} > ${c.label} enabledWhen`);
       if (c.type === "checkbox" && c.controls) walk(c.controls, `${where} > ${c.label}`);
+      if (c.type === "models") for (const b of [c.terms, ...c.predictors, c.outcome]) check(b, `${where} > ${c.label}`);
+      if (c.type === "model") check(c.models, `${where} > ${c.label}`);
+      if (c.type === "termChoice") check(c.terms, `${where} > ${c.label}`);
+      if (c.type === "level") check(c.column, `${where} > ${c.label}`);
+      if (c.type === "column") for (const b of c.from ?? []) check(b, `${where} > ${c.label}`);
+      if (c.type === "select" && c.choicesBy) check(c.choicesBy.bind, `${where} > ${c.label} choicesBy`);
       if (c.type === "rows") {
         const item = c.bind.split(".").reduce((s: any, k) => s?.properties?.[k], schema)?.items;
-        for (const f of c.fields) if (!item?.properties?.[f.key]) out.push(`${where} > ${c.label} field "${f.key}" is not in the option's item schema`);
+        for (const f of c.fields) {
+          if (!item?.properties?.[f.key]) out.push(`${where} > ${c.label} field "${f.key}" is not in the option's item schema`);
+          if (f.type === "level" && (!f.column || !c.fields.some((g) => g.key === f.column))) out.push(`${where} > ${c.label} field "${f.key}" needs a column field`);
+        }
       }
     }
   };

@@ -1,0 +1,22 @@
+Package: rsageRegression
+Title: Regression and Generalised Linear Model Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Fits one outcome with linear regression or a generalised linear
+    model (logistic, probit, Poisson, negative binomial, Gamma, quasi
+    families) from structured terms and models, so interactions and model
+    comparisons never pass through free-text formulas. Reports coefficients
+    with confidence intervals, standardised effects, hierarchical term
+    tests, fit indices and nested model tests on one fixed sample,
+    adjusted means, slopes and contrasts, residual, collinearity,
+    influence, dispersion and calibration diagnostics, and stepwise AIC or
+    BIC search. Fitting uses 'stats' and 'MASS'; tables use 'parameters'
+    and 'performance'; adjusted effects use 'modelbased'.
+    analyse() returns an 'rsage' result that prints in the console and
+    renders in Quarto documents.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), parameters, performance, insight, ggplot2, stats, utils
+Suggests: MASS, car, modelbased, marginaleffects, detectseparation, testthat (>= 3.0.0)
+Config/testthat/edition: 3

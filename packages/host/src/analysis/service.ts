@@ -174,12 +174,20 @@ export class AnalysisService {
     const { def } = this.def(p.analysis);
     // Opening the same analysis on the same data again from the menu, with
     // nothing changed, brings back the earlier one, run or not, instead of
-    // piling up copies. A new analysis is made once options differ.
+    // piling up copies. A new analysis is made once options or the menu
+    // entry (its title) differ.
     if (p.reuse) {
       const want = JSON.stringify(sortKeys(this.checkOptions(def, p.options)));
       const same = this.list()
         .reverse()
-        .find((i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && !i.figures && JSON.stringify(sortKeys(i.options)) === want);
+        .find(
+          (i) =>
+            i.analysis === def.key &&
+            i.dataset === (p.dataset ?? "") &&
+            i.title === (p.title || def.title) &&
+            !i.figures &&
+            JSON.stringify(sortKeys(i.options)) === want,
+        );
       if (same) return this.save(this.read(same.id)!);
     }
     const now = new Date().toISOString();
@@ -279,6 +287,23 @@ export class AnalysisService {
         for (let i = 0; i + 1 < f.length; i += 2) columns.push({ name: f[i]!, type: f[i + 1]! });
         return { name: name!, rows: Number(rows), columns };
       });
+  }
+
+  /** Values of one column, for level pickers: factor levels, else the sorted distinct values (at most 200). */
+  async levels(dataset: string, column: string): Promise<{ values: string[]; truncated: boolean }> {
+    await this.deps.ensureSession();
+    const code = `local({
+      x <- get0(${rString(dataset)}, envir = globalenv(), inherits = FALSE)
+      if (is.data.frame(x) && ${rString(column)} %in% names(x)) {
+        v <- x[[${rString(column)}]]
+        u <- if (is.factor(v)) levels(droplevels(v)) else as.character(sort(unique(stats::na.omit(v))))
+        cat(length(u) > 200, utils::head(gsub("[\\r\\n]", " ", u), 200), sep = "${REC}")
+      }
+    })`;
+    const out = (await this.deps.session.evalText(code, 15_000)).replace(/\n$/, "");
+    if (!out) return { values: [], truncated: false };
+    const [more, ...values] = out.split(REC);
+    return { values, truncated: more === "TRUE" };
   }
 
   /** Checks the module's R packages, installing the app's own ones when needed. */

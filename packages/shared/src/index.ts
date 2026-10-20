@@ -421,13 +421,31 @@ export type AnalysisFormControl =
   | (AnalysisControlBase & { type: "variables"; types?: AnalysisVarType[] })
   /** A role box in the variable transfer block (one variable). */
   | (AnalysisControlBase & { type: "variable"; optional?: boolean; types?: AnalysisVarType[] })
-  /** A compact column picker inside an option section (e.g. the x axis of a plot). */
-  | (AnalysisControlBase & { type: "column"; types?: AnalysisVarType[] })
+  /**
+   * A compact column picker inside an option section (e.g. the x axis of a plot).
+   * `from`: only the columns named in these options (e.g. the chosen predictors).
+   * `emptyLabel`: the choice for none, when none means something.
+   */
+  | (AnalysisControlBase & { type: "column"; types?: AnalysisVarType[]; from?: string[]; emptyLabel?: string })
+  /** One value of the column named in the option `column` (e.g. the outcome's event level). */
+  | (AnalysisControlBase & { type: "level"; column: string; emptyLabel?: string })
+  /**
+   * Model cards built from structured terms: `bind` holds the models
+   * ({id, label, termIds, intercept}), `terms` the term list ({id, kind,
+   * variable | components}). Main terms follow the variables in `predictors`;
+   * interactions keep strong hierarchy.
+   */
+  | (AnalysisControlBase & { type: "models"; terms: string; predictors: string[]; outcome?: string; maxOrder?: number })
+  /** One of the models in the option `models`, by id; null is `emptyLabel` (e.g. "마지막 모형"). */
+  | (AnalysisControlBase & { type: "model"; models: string; emptyLabel?: string })
+  /** Several terms of the option `terms`, by id, as chips. */
+  | (AnalysisControlBase & { type: "termChoice"; terms: string; emptyLabel?: string })
   | (AnalysisControlBase & { type: "list" | "text"; placeholder?: string })
   /** A checkbox; `controls` are its sub-options, indented and greyed out while it is off. */
   | (AnalysisControlBase & { type: "checkbox"; controls?: AnalysisFormControl[] })
   | (AnalysisControlBase & { type: "number"; unit?: string })
-  | (AnalysisControlBase & { type: "select"; labels?: Record<string, string> })
+  /** `choicesBy`: the enum values to offer for each value of another option (e.g. links per family). */
+  | (AnalysisControlBase & { type: "select"; labels?: Record<string, string>; choicesBy?: { bind: string; values: Record<string, string[]> } })
   /**
    * Rules the user adds one row at a time (e.g. "나이 0 ~ 120"). The option is
    * an array of objects; `fields` are its keys, shown as columns of the row.
@@ -440,7 +458,9 @@ export type AnalysisFormControl =
 export interface AnalysisRowField {
   key: string;
   label: string;
-  type: "column" | "text" | "select";
+  /** level: one value of the column picked in this row's `column` field. */
+  type: "column" | "text" | "select" | "level";
+  column?: string;
   types?: AnalysisVarType[];
   placeholder?: string;
   labels?: Record<string, string>;
@@ -455,10 +475,11 @@ export interface AnalysisRowField {
  */
 export type AnalysisVarType = "numeric" | "factor" | "ordered" | "character" | "logical" | "date";
 
-/** A condition on another option: equal to a value, or (filled) not empty. */
+/** A condition on another option: equal to a value, one of several (`in`), or (filled) not empty. */
 export interface AnalysisCondition {
   bind: string;
   equals?: unknown;
+  in?: unknown[];
   filled?: boolean;
 }
 
@@ -480,6 +501,8 @@ export interface AnalysisShowcase {
   needs?: string;
   /** Options that must be filled before it works; `needs` shows while any is empty. */
   needsFilled?: string[];
+  /** Not in this version yet: shown as 예정, with no switch. `enable` is then empty. */
+  planned?: boolean;
 }
 
 export interface AnalysisForm {
@@ -763,6 +786,8 @@ export interface HostMethods {
   "analysis.prepare": { params: { moduleId: string }; result: AnalysisRuntimeStatus };
   /** Data frames in the session's global environment. */
   "analysis.datasets": { params: {}; result: AnalysisDataset[] };
+  /** A column's values (factor levels, else sorted distinct values) for level pickers. */
+  "analysis.levels": { params: { dataset: string; column: string }; result: { values: string[]; truncated: boolean } };
   "analysis.list": { params: {}; result: AnalysisInstance[] };
   "analysis.get": { params: { id: string }; result: AnalysisInstance | null };
   /** reuse: bring back an analysis of the same kind, data and options instead of making another (menu opens). */

@@ -549,6 +549,7 @@ export class Host {
         this.analyses.loadedModules().map(({ dir: _d, entrypoints: _e, rSource: _r, ...m }) => m),
       "analysis.prepare": ({ moduleId }) => this.analyses.prepare(moduleId, true),
       "analysis.datasets": () => this.analyses.datasets(),
+      "analysis.levels": (p) => this.analyses.levels(p.dataset, p.column),
       "analysis.list": () => this.analyses.list(),
       "analysis.get": ({ id }) => this.analyses.get(id),
       "analysis.create": (p) => this.analyses.create(p),

@@ -17,10 +17,11 @@ const DRAG = "application/x-rsage-vars";
 export const isRole = (c: AnalysisFormControl): c is RoleControl => c.type === "variables" || c.type === "variable";
 
 /** Whether a condition on the options holds. */
-export function holds(cond: { bind: string; equals?: unknown; filled?: boolean } | undefined, options: any): boolean {
+export function holds(cond: { bind: string; equals?: unknown; in?: unknown[]; filled?: boolean } | undefined, options: any): boolean {
   if (!cond) return true;
   const v = getPath(options, cond.bind);
   if (cond.filled) return Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "";
+  if (cond.in) return cond.in.includes(v);
   return v === cond.equals;
 }
 

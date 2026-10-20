@@ -45,7 +45,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | --- | --- | --- | --- | --- |
 | 1 | `org.rsage.descriptives` | 기술통계, 빈도표, 기본 그래프 | stats (공통 중간 단계만으로 충분) | 확정 |
 | 2 | `org.rsage.ttests` | 독립·대응·단일표본 t 검정, Mann–Whitney, Wilcoxon | stats | 후보 |
-| 3 | `org.rsage.regression` | 상관, 선형·로지스틱 회귀 | stats, car(VIF) | 후보 |
+| 3 | `org.rsage.regression` | 선형·로지스틱·개수 회귀와 GLM (메뉴: 회귀 › 선형 회귀, 로지스틱 회귀, 개수 회귀, 일반화선형모형). 명세 [modules/regression.md](modules/regression.md) | stats, parameters, performance, modelbased, MASS, car | 1.0 구현 (1.1 예정) |
 | 4 | `org.rsage.anova` | 일원·이원·반복측정 분산분석, Kruskal–Wallis, Friedman, 사후검정 | stats, afex, emmeans, car | 후보 |
 | 5 | `org.rsage.frequencies` | 교차표, 카이제곱, Fisher 정확검정 | stats | 후보 |
 | 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체), UpSetR(조합 그림) | 확정 (시범 구현) |

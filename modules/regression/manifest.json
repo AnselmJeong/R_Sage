@@ -1,0 +1,117 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.regression",
+  "version": "0.1.0",
+  "title": "회귀",
+  "description": "선형 회귀, 로지스틱 회귀, 개수 회귀(Poisson·음이항)와 일반화선형모형. 여러 모형을 같은 표본으로 적합해 계수·항 검정·적합도·모형 비교·보정 효과·진단·단계적 선택을 봅니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsageRegression",
+    "packageVersion": "0.1.0",
+    "source": "rsageRegression",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [
+      {
+        "package": "MASS",
+        "role": "음이항 회귀, 단계적 선택",
+        "required": false
+      },
+      {
+        "package": "car",
+        "role": "Type II·III 항 검정, GVIF",
+        "required": false
+      },
+      {
+        "package": "modelbased",
+        "role": "보정 평균·기울기·대비",
+        "required": false
+      },
+      {
+        "package": "marginaleffects",
+        "role": "modelbased의 계산 엔진",
+        "required": false
+      },
+      {
+        "package": "detectseparation",
+        "role": "로지스틱 분리 진단",
+        "required": false
+      }
+    ],
+    "requires": [
+      "parameters",
+      "performance",
+      "insight",
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "regression",
+      "title": "회귀와 GLM",
+      "menu": [
+        "회귀",
+        "일반화선형모형"
+      ],
+      "entries": [
+        {
+          "menu": [
+            "회귀",
+            "선형 회귀"
+          ],
+          "title": "선형 회귀",
+          "preset": {
+            "model": {
+              "family": "gaussian"
+            }
+          }
+        },
+        {
+          "menu": [
+            "회귀",
+            "로지스틱 회귀"
+          ],
+          "title": "로지스틱 회귀",
+          "preset": {
+            "model": {
+              "family": "binomial"
+            }
+          }
+        },
+        {
+          "menu": [
+            "회귀",
+            "개수 회귀"
+          ],
+          "title": "개수 회귀",
+          "preset": {
+            "model": {
+              "family": "poisson"
+            }
+          }
+        },
+        {
+          "menu": [
+            "회귀",
+            "일반화선형모형"
+          ],
+          "title": "일반화선형모형"
+        }
+      ],
+      "entrypoint": "analyse",
+      "optionsSchema": "options.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Regression for one outcome: linear (gaussian), logistic/probit (binomial, individual or grouped), Poisson, negative binomial, Gamma and quasi GLMs. Several candidate models built from structured terms (main effects, 2-3 way interactions with strong hierarchy) are fitted on one shared complete-case sample. Reports coefficients with CIs and exp(b) (odds/rate ratios), standardized coefficients, hierarchical or Type I/II/III term tests, fit (R², deviance, AIC/BIC), information-criteria comparison and nested F/LR tests, adjusted means/slopes/contrasts (modelbased), residual, collinearity, influence, overdispersion, zero-inflation and calibration diagnostics, and AIC/BIC stepwise search.",
+        "guide": "ai.md"
+      }
+    }
+  ],
+  "homepage": "https://easystats.github.io/parameters/"
+}
