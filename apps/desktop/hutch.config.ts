@@ -9,8 +9,9 @@ export default {
     // Cottontail shell, where `bun` is Cottontail and `bun x` is unavailable.
     ui: ["bun", "run", "--cwd", "../../packages/ui", "build:electrobun"],
     ark: ["bun", "../../scripts/fetch-ark.ts"],
-    dev: "hutch electrobun prepare && hutch run ark && hutch run ui && hutch electrobun dev",
-    build: "hutch electrobun prepare && hutch run ark && hutch run ui && hutch electrobun build --env=stable",
-    "build:canary": "hutch electrobun prepare && hutch run ark && hutch run ui && hutch electrobun build --env=canary",
+    air: ["bun", "../../scripts/fetch-air.ts"],
+    dev: "hutch electrobun prepare && hutch run ark && hutch run air && hutch run ui && hutch electrobun dev",
+    build: "hutch electrobun prepare && hutch run ark && hutch run air && hutch run ui && hutch electrobun build --env=stable",
+    "build:canary": "hutch electrobun prepare && hutch run ark && hutch run air && hutch run ui && hutch electrobun build --env=canary",
   },
 };
