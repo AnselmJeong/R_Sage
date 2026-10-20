@@ -6,10 +6,28 @@ import { useStore } from "../store";
 import { runCommand } from "../commands";
 import { activeEditor, saveFile } from "../editor/files";
 import { newDocument, newProjectDialog, openFileDialog, openFolderDialog, openProject } from "../project";
-import type { AnalysisInstance } from "@rsage/shared";
+import type { AnalysisInstance, AnalysisModuleInfo } from "@rsage/shared";
 import { newAnalysis, openAnalysisTab, useAnalyses } from "../analysis";
 
-type Item = { label: string; hint?: string; run: () => void } | "-" | { heading: string };
+type Item = { label: string; hint?: string; indent?: boolean; run: () => void } | "-" | { heading: string };
+
+/** Category order in the 분석 menu, as in JASP's toolbar; other categories follow in module order. */
+const CATEGORIES = ["데이터 준비", "기술통계", "T 검정", "분산분석", "회귀", "빈도", "요인분석"];
+
+/** Commands grouped under their category (the first element of each menu path). */
+function analysisMenu(modules: AnalysisModuleInfo[]): Item[] {
+  const groups = new Map<string, Item[]>();
+  for (const m of modules)
+    for (const a of m.analyses)
+      for (const e of a.entries) {
+        const [cat, ...rest] = e.menu.length > 1 ? e.menu : ["기타", ...e.menu];
+        if (!groups.has(cat!)) groups.set(cat!, []);
+        groups.get(cat!)!.push({ label: rest.join(" › "), indent: true, run: () => void newAnalysis(a.key, e) });
+      }
+  const rank = (c: string) => (CATEGORIES.includes(c) ? CATEGORIES.indexOf(c) : CATEGORIES.length);
+  const cats = [...groups.keys()].sort((x, y) => rank(x) - rank(y));
+  return cats.flatMap((c, i) => [...(i ? (["-"] as Item[]) : []), { heading: c }, ...groups.get(c)!]);
+}
 
 function Menu({ label, icon, items }: { label: string; icon: JSX.Element; items: () => Item[] }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +62,7 @@ function Menu({ label, icon, items }: { label: string; icon: JSX.Element; items:
             ) : (
               <div
                 key={i}
-                className="menu-item"
+                className={`menu-item ${it.indent ? "tb-indent" : ""}`}
                 onClick={() => {
                   setOpen(false);
                   it.run();
@@ -123,7 +141,7 @@ export function TopBar() {
         icon={Icon.chart}
         items={() => {
           const saved = Object.values(instances).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-          const items: Item[] = modules.flatMap((m) => m.analyses.map((a) => ({ label: a.menu.join(" › "), run: () => void newAnalysis(a.key) })));
+          const items = analysisMenu(modules);
           if (!items.length) items.push({ heading: "설치된 분석 모듈이 없습니다" });
           if (saved.length) items.push("-", { heading: "이 프로젝트의 분석" }, ...saved.slice(0, 10).map((i) => ({ label: i.title, hint: analysisHint(i), run: () => openAnalysisTab(i.id) })));
           return items;
