@@ -399,8 +399,10 @@ export function Workbench() {
   // One palette command per installed analysis.
   const modules = useAnalyses((s) => s.modules);
   useEffect(() => {
-    const offs = analysisDefs().map((d) =>
-      registerCommand({ id: `analysis.new.${d.key}`, title: `새 분석: ${d.title}`, category: "분석", run: () => void newAnalysis(d.key) }),
+    const offs = analysisDefs().flatMap((d) =>
+      d.entries.map((e, i) =>
+        registerCommand({ id: `analysis.new.${d.key}${i ? `.${i}` : ""}`, title: `새 분석: ${e.menu.join(" › ")}`, category: "분석", run: () => void newAnalysis(d.key, e) }),
+      ),
     );
     return () => offs.forEach((o) => o());
   }, [modules]);

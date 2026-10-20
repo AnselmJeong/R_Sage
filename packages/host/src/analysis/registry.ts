@@ -7,7 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
 import type { AnalysisDef, AnalysisForm, AnalysisFormControl, AnalysisModuleInfo } from "@rsage/shared";
-import { fillDefaults } from "@rsage/shared";
+import { fillDefaults, validateOptions } from "@rsage/shared";
 
 export interface LoadedModule extends AnalysisModuleInfo {
   dir: string;
@@ -96,7 +96,12 @@ export function loadModules(dir = modulesDir(), rpkg = rPackagesDir()): LoadedMo
           moduleId: m.id,
           id: a.id,
           title: a.title,
-          menu: a.menu ?? [a.title],
+          menu: a.entries?.[0]?.menu ?? a.menu ?? [a.title],
+          entries: (a.entries ?? [{ menu: a.menu ?? [a.title] }]).map((e: any) => ({
+            menu: e.menu,
+            title: e.title ?? a.title,
+            preset: e.preset,
+          })),
           schema: JSON.parse(readFileSync(join(mdir, a.optionsSchema), "utf8")),
           form: JSON.parse(readFileSync(join(mdir, a.ui), "utf8")),
           summary: a.assistant?.summary ?? a.title,
@@ -104,7 +109,12 @@ export function loadModules(dir = modulesDir(), rpkg = rPackagesDir()): LoadedMo
           requiresDataset: a.requiresDataset !== false,
         };
       });
-      for (const a of analyses) for (const p of formProblems(a.form, a.schema)) console.warn(`[modules] ${a.key}: ${p}`);
+      for (const a of analyses) {
+        for (const p of formProblems(a.form, a.schema)) console.warn(`[modules] ${a.key}: ${p}`);
+        for (const e of a.entries)
+          for (const i of e.preset ? validateOptions(a.schema, fillDefaults(a.schema, e.preset)) : [])
+            console.warn(`[modules] ${a.key} menu ${e.menu.join(" › ")}: preset ${i.path}: ${i.message}`);
+      }
       const requires = existsSync(join(rSource, "DESCRIPTION")) ? descriptionImports(rSource) : (m.runtime.requires ?? []);
       out.push({
         id: m.id,

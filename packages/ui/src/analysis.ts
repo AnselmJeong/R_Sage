@@ -3,7 +3,7 @@
 // the analysis tabs in the editor area.
 
 import { create } from "zustand";
-import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisModuleInfo, AnalysisRuntimeStatus } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisModuleInfo, AnalysisRuntimeStatus, AnalysisMenuEntry } from "@rsage/shared";
 import { host } from "./host/client";
 import { useStore } from "./store";
 import { getDockApi, getModel, editorsByPath } from "./editor/files";
@@ -84,13 +84,13 @@ export function openAnalysisTab(id: string) {
   });
 }
 
-/** New analysis of the given kind, on the data set the user most likely means. */
-export async function newAnalysis(key: string) {
+/** New analysis of the given kind (a menu entry may preset options), on the data set the user most likely means. */
+export async function newAnalysis(key: string, entry?: AnalysisMenuEntry) {
   if (!useStore.getState().project) return useStore.getState().notify("분석은 프로젝트 폴더를 연 뒤에 저장됩니다. 먼저 폴더를 여세요.", "error");
   try {
     await refreshDatasets();
     const pick = suggestDataset(useAnalyses.getState().datasets);
-    const inst = await host.call("analysis.create", { analysis: key, dataset: pick?.name ?? "" });
+    const inst = await host.call("analysis.create", { analysis: key, dataset: pick?.name ?? "", options: entry?.preset, title: entry?.title, reuse: true });
     useAnalyses.setState((s) => ({ instances: { ...s.instances, [inst.id]: inst }, picks: pick ? { ...s.picks, [inst.id]: pick } : s.picks }));
     openAnalysisTab(inst.id);
   } catch (e) {

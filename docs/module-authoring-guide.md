@@ -54,7 +54,10 @@ r-packages/<rsageName>/         R 패키지: 계산과 결과
 | `title`, `description` | 분석 메뉴와 모듈 목록에 보이는 이름과 설명 (한국어) |
 | `runtime.package`, `runtime.source` | R 패키지 이름과 `r-packages/` 아래 폴더 이름 |
 | `runtime.backends` | 백엔드 패키지마다 `{ package, role, required }`. `role`은 사용자에게 보이는 한국어 설명 |
-| `analyses[]` | 분석마다 `id`, `title`, `menu`(분석 메뉴 경로), `entrypoint`(보통 `analyse`), `optionsSchema`, `ui`, `requiresDataset`, `assistant.summary`(영어 한 문단), `assistant.guide` |
+| `analyses[]` | 분석마다 `id`, `title`, `menu`(분석 메뉴 경로 `[분류, 명령]`), `entrypoint`(보통 `analyse`), `optionsSchema`, `ui`, `requiresDataset`, `assistant.summary`(영어 한 문단), `assistant.guide` |
+| `analyses[].entries` | 선택. 한 분석을 메뉴의 여러 명령으로 보일 때 `[{ menu, title, preset }]`. `preset`은 그 명령으로 열 때 미리 정하는 옵션이다 (예: 회귀 › 로지스틱 회귀 = `model.family: "binomial"`). 없으면 `menu` 하나가 명령이 된다 |
+
+분석 메뉴는 JASP처럼 분류(`menu`의 첫 칸) 아래에 명령을 모은다. 분류 순서는 데이터 준비 → 기술통계 → T 검정 → 분산분석 → 회귀 → 빈도 → 요인분석이고, 그 밖의 분류는 뒤에 붙는다. 데이터 점검과 결측 데이터는 "데이터 준비"에 있다. 같은 분석·데이터·옵션으로 다시 열면 새로 만들지 않고 이전 분석을 연다.
 
 `optionsSchemaVersion`은 옵션의 의미가 바뀌면 올린다. 옵션을 **추가**만 하면 저장된 분석이 그대로 동작하므로, 기존 옵션 이름은 바꾸지 않는다.
 

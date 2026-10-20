@@ -45,6 +45,7 @@
       "id": "missing",
       "title": "결측 데이터 분석",
       "menu": [
+        "데이터 준비",
         "결측 데이터"
       ],
       "entrypoint": "analyse",

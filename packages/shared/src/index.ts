@@ -352,6 +352,16 @@ export interface Conversation extends ConversationSummary {
 
 // ---------- analysis modules ----------
 
+/** A menu command that opens an analysis, e.g. 회귀 › 로지스틱 회귀 with family = binomial. */
+export interface AnalysisMenuEntry {
+  /** [category, command]; the category groups commands in the 분석 menu. */
+  menu: string[];
+  /** Title of analyses opened from this entry. */
+  title: string;
+  /** Options the entry sets before the user changes anything. */
+  preset?: any;
+}
+
 /** One analysis a module offers (e.g. org.rsage.missing/missing). */
 export interface AnalysisDef {
   /** "<moduleId>/<analysisId>" */
@@ -359,7 +369,10 @@ export interface AnalysisDef {
   moduleId: string;
   id: string;
   title: string;
+  /** Path of the first menu entry: [category, command]. */
   menu: string[];
+  /** Places the analysis appears in the 분석 menu, each possibly with preset options (JASP-style: category › command). */
+  entries: AnalysisMenuEntry[];
   /** JSON Schema of the options (a small subset: object, array, string, integer, number, boolean, enum, null). */
   schema: any;
   /** Form layout (form.json). */
@@ -752,7 +765,8 @@ export interface HostMethods {
   "analysis.datasets": { params: {}; result: AnalysisDataset[] };
   "analysis.list": { params: {}; result: AnalysisInstance[] };
   "analysis.get": { params: { id: string }; result: AnalysisInstance | null };
-  "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string }; result: AnalysisInstance };
+  /** reuse: bring back an analysis of the same kind, data and options instead of making another (menu opens). */
+  "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string; reuse?: boolean }; result: AnalysisInstance };
   /** figures replaces all user figure sizes; a plot id mapped to null goes back to automatic. */
   "analysis.update": {
     params: { id: string; dataset?: string; options?: any; title?: string; figures?: Record<string, AnalysisFigureSize | null> };

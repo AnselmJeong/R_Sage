@@ -42,6 +42,7 @@
       "id": "integrity",
       "title": "데이터 점검",
       "menu": [
+        "데이터 준비",
         "데이터 점검"
       ],
       "entrypoint": "analyse",

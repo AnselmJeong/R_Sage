@@ -47,6 +47,8 @@ describe("data integrity module", () => {
     expect(formProblems(idef.form, idef.schema)).toEqual([]);
     expect(validateOptions(idef.schema, fillDefaults(idef.schema, {}))).toEqual([]);
     expect(idef.form.about?.showcase?.length).toBeGreaterThan(5);
+    // Without entries the menu path is the one command, under its category.
+    expect(idef.entries).toEqual([{ menu: ["데이터 준비", "데이터 점검"], title: idef.title, preset: undefined }]);
   });
 
   test("rule rows: field checks, defaults, validation and the columns they use", () => {
@@ -222,16 +224,17 @@ live("missing-data analysis in a live session", async () => {
   }, 120_000);
 
   test("opening the same analysis again brings back the earlier one", async () => {
-    const make = (options?: any) => call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", options });
+    const make = (options?: any) => call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", options, reuse: true });
     const a = await make();
     expect((await make()).id).toBe(a.id);
     // Still the same one after it has run.
     expect((await call("analysis.run", { id: a.id })).lastRun.status).toBe("ok");
     expect((await make()).id).toBe(a.id);
-    // Different options, or changed ones, make a new analysis.
+    // Different options, or changed ones, make a new analysis; the same preset again reuses it.
     const b = await make({ plots: { matrix: false } });
     expect(b.id).not.toBe(a.id);
-    await call("analysis.update", { id: a.id, options: { plots: { matrix: false } } });
+    expect((await make({ plots: { matrix: false } })).id).toBe(b.id);
+    await call("analysis.update", { id: a.id, options: { variables: ["Ozone"] } });
     const c = await make();
     expect(c.id).not.toBe(a.id);
     for (const id of [a.id, b.id, c.id]) await call("analysis.delete", { id });

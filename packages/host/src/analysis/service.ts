@@ -170,16 +170,16 @@ export class AnalysisService {
     return full;
   }
 
-  create(p: { analysis: string; dataset?: string; options?: any; title?: string; createdBy?: "user" | "assistant" }): AnalysisInstance {
+  create(p: { analysis: string; dataset?: string; options?: any; title?: string; createdBy?: "user" | "assistant"; reuse?: boolean }): AnalysisInstance {
     const { def } = this.def(p.analysis);
-    // Opening the same analysis on the same data again (from the menu, with
-    // nothing changed) brings back the earlier one, run or not, instead of
+    // Opening the same analysis on the same data again from the menu, with
+    // nothing changed, brings back the earlier one, run or not, instead of
     // piling up copies. A new analysis is made once options differ.
-    if (p.options === undefined && p.title === undefined) {
-      const defaults = JSON.stringify(sortKeys(this.checkOptions(def, {})));
+    if (p.reuse) {
+      const want = JSON.stringify(sortKeys(this.checkOptions(def, p.options)));
       const same = this.list()
         .reverse()
-        .find((i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && !i.figures && JSON.stringify(sortKeys(i.options)) === defaults);
+        .find((i) => i.analysis === def.key && i.dataset === (p.dataset ?? "") && !i.figures && JSON.stringify(sortKeys(i.options)) === want);
       if (same) return this.save(this.read(same.id)!);
     }
     const now = new Date().toISOString();

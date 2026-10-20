@@ -4005,3 +4005,7 @@ label.check {
 .an-note-open {
   margin-left: 8px;
 }
+
+.tb-dropdown .menu-item.tb-indent {
+  padding-left: 22px;
+}
