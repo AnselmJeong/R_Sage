@@ -13,6 +13,7 @@ import { openFile } from "../editor/files";
 import { confirmDialog, formDialog } from "./Dialogs";
 import { PlotIcon } from "./plotIcons";
 import { SavePlotDialog } from "./SavePlotDialog";
+import { applyToDocument, askAssistant, convertExecution, STATUS_LABEL, useFigures, type Conversion } from "../figures";
 import {
   customPolicy,
   displayScale,
@@ -290,7 +291,10 @@ export function PlotsPanel() {
   };
 
   const exec = current?.executionId ? useStore.getState().executions[current.executionId] : undefined;
-  const code = exec?.code;
+  const conversion = useFigures((s) => (current?.executionId ? s.byExecution[current.executionId] : undefined));
+  const figBusy = useFigures((s) => s.busy);
+  // A converted plot's code is the tidyplots code, not the app's call that drew it.
+  const code = conversion?.result.code ?? exec?.code;
 
   const historyPos: Exclude<HistoryPos, "auto"> =
     prefs.history === "auto" ? (panel && panel.width > panel.height * 1.4 ? "right" : "bottom") : prefs.history;
@@ -307,6 +311,15 @@ export function PlotsPanel() {
         <span className="pt-sep" />
         <ToolButton icon={PlotIcon.save} title="플롯 저장…" disabled={!current} onClick={() => current && setSaving(current)} />
         <ToolButton icon={PlotIcon.copy} title="클립보드에 복사" disabled={!current?.image} onClick={copy} />
+        <button
+          className="pt-btn pt-labeled"
+          title="이 그림을 tidyplots로 바꿔 새 플롯으로 보기 (문서는 그대로)"
+          disabled={!code || figBusy}
+          onClick={() => current?.executionId && void convertExecution(current.executionId)}
+        >
+          {PlotIcon.tidy}
+          <span className="pt-label">tidyplots</span>
+        </button>
         <span className="pt-sep" />
         <ToolMenu
           icon={PlotIcon.zoom}
@@ -363,11 +376,11 @@ export function PlotsPanel() {
           disabled={!code}
           items={() => [
             {
-              label: exec?.source ? `원본 열기 (${exec.source.file.split("/").pop()}:${exec.source.line})` : "원본 열기",
-              disabled: !exec?.source,
-              run: () => exec?.source && openFile(exec.source.file, { line: exec.source.line }),
+              label: exec?.source ? `원본 열기 (${exec.source.file.split("/").pop()}:${exec.source.line})` : conversion?.sourceFile ? `원본 열기 (${conversion.sourceFile.split("/").pop()})` : "원본 열기",
+              disabled: !exec?.source && !conversion?.sourceFile,
+              run: () => (exec?.source ? openFile(exec.source.file, { line: exec.source.line }) : conversion?.sourceFile && openFile(conversion.sourceFile)),
             },
-            { label: "코드 다시 실행", run: () => code && void host.call("console.execute", { code, origin: "console" }) },
+            { label: "코드 다시 실행", disabled: !!conversion, run: () => code && void host.call("console.execute", { code, origin: "console" }) },
             {
               label: "코드 복사",
               run: () => code && void navigator.clipboard.writeText(code).then(() => useStore.getState().notify("코드를 복사했습니다.")),
@@ -398,6 +411,7 @@ export function PlotsPanel() {
         <ToolButton icon={PlotIcon.close} title="이 플롯 지우기" disabled={!current} onClick={() => current && remove(current)} />
         <ToolButton icon={PlotIcon.clear} title="모든 플롯 지우기" disabled={!plots.length} onClick={clearAll} />
       </div>
+      {conversion && current?.executionId && <ConversionBar conv={conversion} executionId={current.executionId} busy={figBusy} />}
       <div className="plot-body">
         <div className={`plot-stage ${prefs.zoom === "fit" ? "fit" : "zoomed"}`} ref={stageRef}>
           {current?.image && current.size ? (
@@ -443,6 +457,90 @@ export function PlotsPanel() {
         )}
       </div>
       {saving && <SavePlotDialog plot={saving} initialSize={saving.size ?? size ?? { width: 800, height: 600 }} onClose={() => setSaving(undefined)} />}
+    </div>
+  );
+}
+
+const COLOR_CHOICES: [string, string][] = [
+  ["auto", "원본 색 유지"],
+  ["friendly", "friendly (기본)"],
+  ["okabeito", "Okabe-Ito"],
+  ["seaside", "seaside"],
+  ["ibm", "IBM"],
+  ["apple", "apple"],
+  ["metro", "metro"],
+  ["candy", "candy"],
+  ["viridis", "viridis (연속형)"],
+];
+const THEME_CHOICES: [string, string][] = [
+  ["tidyplot", "tidyplot"],
+  ["minimal_xy", "minimal xy"],
+  ["minimal_y", "minimal y"],
+  ["minimal_x", "minimal x"],
+  ["ggplot2", "ggplot2"],
+];
+
+/** Under the toolbar for a converted plot: what was checked, the look, and applying it. */
+function ConversionBar({ conv, executionId, busy }: { conv: Conversion; executionId: string; busy: boolean }) {
+  const r = conv.result;
+  const checks = r.checks ?? [];
+  const failed = checks.filter((c) => !c.ok);
+  const checkTitle = checks.map((c) => `${c.ok ? "✓" : "✗"} ${c.check}: ${c.before}${c.ok ? "" : ` → ${c.after}`}`).join("\n");
+  const tone = r.status === "rule" ? "ok" : r.status === "mismatch" ? "bad" : "warn";
+  const pick = (key: "colors" | "theme" | "size", v: string) => void convertExecution(executionId, { [key]: v } as any);
+  const canApply = !!conv.sourceFile && /\.(qmd|rmd)$/i.test(conv.sourceFile);
+  return (
+    <div className="fig-bar">
+      <div className="fig-row">
+        <span className={`fig-status ${tone}`} title={checkTitle || undefined}>
+          {STATUS_LABEL[r.status]}
+          {checks.length > 0 && ` ${checks.length - failed.length}/${checks.length}`}
+        </span>
+        <select className="select-small" title="색 구성" value={conv.options.colors ?? "auto"} disabled={busy} onChange={(e) => pick("colors", e.target.value)}>
+          {COLOR_CHOICES.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <select className="select-small" title="테마" value={conv.options.theme ?? "tidyplot"} disabled={busy} onChange={(e) => pick("theme", e.target.value)}>
+          {THEME_CHOICES.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <select className="select-small" title="크기" value={conv.options.size ?? "fill"} disabled={busy} onChange={(e) => pick("size", e.target.value)}>
+          <option value="fill">문서 크기에 맞춤</option>
+          <option value="fixed">논문용 고정 크기</option>
+        </select>
+        <span className="fig-spacer" />
+        {r.status !== "rule" && (
+          <button className="btn btn-small" disabled={busy} onClick={() => void askAssistant(conv)} title="남은 부분을 어시스턴트에게 맡기기">
+            어시스턴트에게
+          </button>
+        )}
+        <button
+          className="btn btn-small"
+          onClick={() => r.code && void navigator.clipboard.writeText(r.code).then(() => useStore.getState().notify("tidyplots 코드를 복사했습니다."))}
+        >
+          코드 복사
+        </button>
+        <button
+          className="btn btn-small btn-primary"
+          disabled={busy || !canApply}
+          title={canApply ? "원본 청크를 이 코드로 바꿉니다 (바뀌는 내용을 먼저 보여 줍니다)" : "Quarto 문서에서 실행한 그림만 문서에 반영할 수 있습니다"}
+          onClick={() => void applyToDocument(conv)}
+        >
+          문서에 반영
+        </button>
+      </div>
+      {(r.notes.length > 0 || failed.length > 0) && (
+        <div className="fig-notes muted small" title={[...r.notes, ...failed.map((c) => `${c.check}: ${c.before} → ${c.after}`)].join("\n")}>
+          {failed.length > 0 ? `원본과 다름: ${failed.map((c) => c.check).join(", ")}. ` : ""}
+          {r.notes.join(" ")}
+        </div>
+      )}
     </div>
   );
 }

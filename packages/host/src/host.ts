@@ -39,6 +39,7 @@ import { renderParams, savePlot } from "./plots";
 import { PreviewServer, QuartoService } from "./quarto";
 import { columnValuesCode, parseColumnValues } from "./dataviewer";
 import { AnalysisService } from "./analysis/service";
+import { FigureService } from "./figures";
 import { airVersion, formatDocument, installAir } from "./format";
 
 export const APP_VERSION = "0.1.0";
@@ -62,6 +63,7 @@ export class Host {
   readonly comms = new CommManager(this.session);
   readonly assistant: AssistantService;
   readonly analyses: AnalysisService;
+  readonly figures: FigureService;
   private frontendWaiters = new Map<string, (result: unknown, error?: string) => void>();
   /** R's working directory as the UI comm last reported it. */
   private rCwd?: string;
@@ -110,6 +112,12 @@ export class Host {
       rHome: () => this.currentRHome(),
       emit: (inst) => this.emit("analysis.changed", inst),
       emitDeleted: (id) => this.emit("analysis.deleted", { id }),
+    });
+    this.figures = new FigureService({
+      session: this.session,
+      ensureSession,
+      rHome: () => this.currentRHome(),
+      cwd: () => this.project?.root,
     });
     this.assistant = new AssistantService({
       config: this.config,
@@ -172,6 +180,7 @@ export class Host {
     this.terminals.killAll();
     this.assistant.dispose();
     this.analyses.dispose();
+    this.figures.dispose();
     this.quarto.dispose();
     this.preview.dispose();
     this.lsp.stop();
@@ -559,6 +568,7 @@ export class Host {
       "analysis.delete": ({ id }) => this.analyses.delete(id),
       "analysis.code": ({ id }) => this.analyses.code(id),
       "analysis.showPlot": ({ id, plotId }) => this.analyses.showPlot(id, plotId),
+      "figures.convert": ({ code, options }) => this.figures.convert(code, options),
     };
     return h;
   }

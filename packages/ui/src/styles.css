@@ -851,6 +851,54 @@ select {
   flex: none;
   overflow: hidden;
 }
+/* tidyplots conversion bar under the plot toolbar */
+.fig-bar {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  font-size: 12px;
+}
+.fig-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.fig-spacer {
+  flex: 1;
+}
+.fig-bar select {
+  width: auto;
+  max-width: 150px;
+}
+.fig-status {
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: default;
+}
+.fig-status.ok {
+  background: color-mix(in srgb, #3fb950 22%, transparent);
+}
+.fig-status.warn {
+  background: color-mix(in srgb, #d29922 25%, transparent);
+}
+.fig-status.bad {
+  background: color-mix(in srgb, #f85149 25%, transparent);
+}
+.fig-notes {
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dialog:has(.dialog-detail) {
+  width: min(760px, 94vw);
+}
+.dialog-detail .diff {
+  max-height: 50vh;
+}
 .pt-btn {
   display: inline-flex;
   align-items: center;
