@@ -566,7 +566,7 @@ function ToolView({ item, conversationId }: { item: ToolItem; conversationId: st
   );
 }
 
-function DiffView({ before, after }: { before: string; after: string }) {
+export function DiffView({ before, after }: { before: string; after: string }) {
   const rows = useMemo(() => {
     const out: { kind: "add" | "del" | "ctx" | "gap"; text: string }[] = [];
     const parts = diffLines(before, after);

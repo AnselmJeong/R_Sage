@@ -7,6 +7,13 @@ const I = (d: JSX.Element) => (
 );
 
 export const PlotIcon = {
+  tidy: I(
+    <>
+      <path d="M2.5 13.5 9 7" />
+      <path d="M8 6l2 2" />
+      <path d="M11.5 1.5v3M10 3h3M13.5 7v2M12.5 8h2M5.5 2v2M4.5 3h2" />
+    </>,
+  ),
   back: I(<path d="M10 3.5 5.5 8l4.5 4.5" />),
   forward: I(<path d="M6 3.5 10.5 8 6 12.5" />),
   save: I(
