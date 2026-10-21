@@ -1,0 +1,137 @@
+---
+title: "tidyplots 변환 예제"
+---
+
+R Sage의 "tidyplots로" 변환을 시험하는 그림 모음이다. 청크 라벨 뒤의 주석은 기대하는 결과다. rsageFigures 테스트가 이 문서를 읽어 각 청크를 변환하고 확인한다.
+
+```{r}
+#| label: setup
+library(ggplot2)
+```
+
+```{r}
+#| label: fig-mean-bar
+#| fig-cap: 평균 막대와 표준오차 (rule)
+ggplot(ToothGrowth, aes(supp, len, fill = supp)) +
+  stat_summary(fun = mean, geom = "bar") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  labs(x = "보충제", y = "치아 길이")
+```
+
+```{r}
+#| label: fig-box-jitter
+#| fig-cap: 상자그림과 점 (rule)
+ggplot(PlantGrowth, aes(group, weight, colour = group)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point()
+```
+
+```{r}
+#| label: fig-violin
+#| fig-cap: 바이올린 (rule)
+ggplot(iris, aes(Species, Sepal.Length, fill = Species)) +
+  geom_violin()
+```
+
+```{r}
+#| label: fig-scatter-lm
+#| fig-cap: 산점도와 회귀선 (rule)
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+```{r}
+#| label: fig-histogram
+#| fig-cap: 히스토그램 (rule)
+ggplot(airquality, aes(Temp)) +
+  geom_histogram(bins = 20)
+```
+
+```{r}
+#| label: fig-stacked-count
+#| fig-cap: 개수 누적 막대, 식 매핑 (rule)
+ggplot(mtcars, aes(factor(cyl), fill = factor(gear))) +
+  geom_bar()
+```
+
+```{r}
+#| label: fig-relative-col
+#| fig-cap: 비율 누적 막대 (rule)
+counts <- as.data.frame(table(cyl = mtcars$cyl, am = mtcars$am))
+ggplot(counts, aes(cyl, Freq, fill = am)) +
+  geom_col(position = "fill")
+```
+
+```{r}
+#| label: fig-heatmap
+#| fig-cap: 상관 히트맵 (rule)
+cors <- as.data.frame(as.table(cor(mtcars[1:6])))
+ggplot(cors, aes(Var1, Var2, fill = Freq)) +
+  geom_tile()
+```
+
+```{r}
+#| label: fig-lines
+#| fig-cap: 월별 기온 선 (rule)
+ggplot(airquality, aes(Day, Temp, colour = factor(Month))) +
+  geom_line()
+```
+
+```{r}
+#| label: fig-facet
+#| fig-cap: 패싯 (rule, split_plot)
+ggplot(iris, aes(Sepal.Length, Sepal.Width)) +
+  geom_point() +
+  facet_wrap(~Species)
+```
+
+```{r}
+#| label: fig-precomputed
+#| fig-cap: 미리 요약한 막대와 오차막대 (partial)
+s <- aggregate(len ~ supp, ToothGrowth, function(v) c(m = mean(v), se = sd(v) / sqrt(length(v))))
+s <- data.frame(supp = s$supp, m = s$len[, "m"], se = s$len[, "se"])
+ggplot(s, aes(supp, m)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = m - se, ymax = m + se), width = 0.2)
+```
+
+```{r}
+#| label: fig-log-manual
+#| fig-cap: 로그 축, 직접 고른 색, 제목 (rule)
+ggplot(mtcars, aes(hp, mpg, colour = factor(am))) +
+  geom_point() +
+  scale_y_log10() +
+  scale_colour_manual(values = c("grey40", "firebrick")) +
+  ggtitle("마력과 연비")
+```
+
+```{r}
+#| label: fig-pie
+#| fig-cap: 원그래프 (rule)
+ggplot(mpg, aes(x = "", fill = drv)) +
+  geom_bar(width = 1) +
+  coord_polar(theta = "y")
+```
+
+```{r}
+#| label: fig-assigned
+#| fig-cap: 변수에 담은 그림 (rule)
+p <- ggplot(mtcars, aes(factor(cyl), mpg)) +
+  geom_boxplot()
+p
+```
+
+```{r}
+#| label: fig-base-hist
+#| fig-cap: base R 히스토그램 (ai)
+hist(airquality$Temp)
+```
+
+```{r}
+#| label: fig-map
+#| fig-cap: 지도 (unsupported)
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+ggplot(nc) +
+  geom_sf(aes(fill = AREA))
+```

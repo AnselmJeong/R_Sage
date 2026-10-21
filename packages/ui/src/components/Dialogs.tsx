@@ -1,6 +1,6 @@
 // Promise-based confirm/prompt dialogs rendered by <DialogHost />.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 
 interface ConfirmOpts {
@@ -11,6 +11,8 @@ interface ConfirmOpts {
   danger?: boolean;
   /** Show a close button that resolves to null (third choice). */
   allowDismiss?: boolean;
+  /** Shown under the message, e.g. the diff of a change to approve. */
+  detail?: ReactNode;
 }
 interface PromptOpts {
   title: string;
@@ -157,6 +159,7 @@ export function DialogHost() {
       >
         <h3>{current.opts.title}</h3>
         {current.opts.message && <p>{current.opts.message}</p>}
+        {current.kind === "confirm" && current.opts.detail && <div className="dialog-detail">{current.opts.detail}</div>}
         {current.kind === "form" && <FormBody key={current.opts.title} opts={current.opts} close={close} />}
         {current.kind === "prompt" && (
           <input

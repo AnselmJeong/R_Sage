@@ -300,7 +300,7 @@ export class KernelSession extends EventEmitter {
 
   execute(
     code: string,
-    opts: { origin?: ExecutionRecord["origin"]; source?: SourceRef; silent?: boolean; storeHistory?: boolean } = {},
+    opts: { origin?: ExecutionRecord["origin"]; source?: SourceRef; silent?: boolean; storeHistory?: boolean; /** false: run normally (plots reach the Plots pane) but don't show the code in the console. */ echo?: boolean } = {},
   ): ExecutionRecord {
     if (!this.client) throw new Error("R session is not running");
     const rec: ExecutionRecord = {
@@ -323,7 +323,7 @@ export class KernelSession extends EventEmitter {
     });
     this.byMsgId.set(header.msg_id, rec);
     this.emit("execution", { ...rec });
-    if (!opts.silent) this.emit("output", { kind: "input", executionId: rec.id, code } satisfies OutputEvent);
+    if (!opts.silent && opts.echo !== false) this.emit("output", { kind: "input", executionId: rec.id, code } satisfies OutputEvent);
     return rec;
   }
 

@@ -1,0 +1,16 @@
+Package: rsageFigures
+Title: Figure Conversion for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Reads the 'ggplot2' figure that a piece of R code draws, rewrites
+    it as a 'tidyplots' pipeline when every part has a known counterpart,
+    and checks that the new figure shows the same data: the same rows, the
+    same variables and the same summary values. Parts without a counterpart
+    are kept as 'ggplot2' code and reported, so the R Sage assistant can
+    finish them.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: ggplot2 (>= 3.5.0), rlang, jsonlite, grDevices, stats, utils
+Suggests: tidyplots (>= 0.4.0), dplyr, sf, testthat (>= 3.0.0)
+Config/testthat/edition: 3

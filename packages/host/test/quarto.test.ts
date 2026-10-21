@@ -33,3 +33,23 @@ maybe("renders a document and serves the result", async () => {
     preview.dispose();
   }
 }, 120_000);
+
+const hasR = !!Bun.which("Rscript");
+(svc.find() && hasR ? test : test.skip)("draws figures with ragg unless the document picks a device, and keeps the user's .Rprofile", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rsage-quarto-"));
+  const chunk = '```{r}\ncat("DEV=", knitr::opts_current$get("dev"), "PROFILE=", exists(".rsage_profile_ran"), "\\n")\nplot(1, main = "한글")\n```\n';
+  writeFileSync(join(dir, ".Rprofile"), ".rsage_profile_ran <- TRUE\n");
+  writeFileSync(join(dir, "a.qmd"), `---\ntitle: a\nformat: html\n---\n\n${chunk}`);
+  writeFileSync(join(dir, "b.qmd"), `---\ntitle: b\nformat:\n  html:\n    fig-format: svg\n---\n\n${chunk}`);
+  const render = (f: string) =>
+    new Promise<{ ok: boolean; output?: string; error?: string }>((resolve) => {
+      new QuartoService({ log: () => {}, done: (_id, r) => resolve(r) }).render(join(dir, f), {});
+    });
+  const a = await render("a.qmd");
+  expect(a.error).toBeUndefined();
+  const hasRagg = (await Bun.$`Rscript -e 'cat(requireNamespace("ragg", quietly = TRUE))'`.text()).trim() === "TRUE";
+  const html = await Bun.file(a.output!).text();
+  expect(html).toContain(`DEV= ${hasRagg ? "ragg_png" : "png"} PROFILE= TRUE`);
+  const b = await render("b.qmd");
+  expect(await Bun.file(b.output!).text()).toContain("DEV= svg");
+}, 240_000);

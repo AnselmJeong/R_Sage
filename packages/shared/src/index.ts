@@ -5,6 +5,8 @@
 // knows which shell it runs in. The page gets no privileged API beyond
 // these methods.
 
+import type { FigureConversion, FigureOptions } from "./figures";
+
 // ---------- domain types ----------
 
 export interface RInstallation {
@@ -805,6 +807,14 @@ export interface HostMethods {
   "analysis.code": { params: { id: string }; result: string };
   /** Redraws a result plot in the R session so it opens in the Plots pane. */
   "analysis.showPlot": { params: { id: string; plotId: string }; result: void };
+
+  // ----- figures (tidyplots conversion) -----
+  /**
+   * Converts the figure some R code draws to tidyplots (rsageFigures) and,
+   * when it drew one, shows the converted figure in the Plots pane. Nothing
+   * in the session or the files changes.
+   */
+  "figures.convert": { params: { code: string; options?: FigureOptions }; result: FigureConversion };
 }
 
 export type MethodName = keyof HostMethods;
@@ -855,3 +865,4 @@ export type WireMessage =
 
 export * from "./schema";
 export * from "./rchunks";
+export * from "./figures";
