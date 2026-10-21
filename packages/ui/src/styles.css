@@ -868,6 +868,10 @@ select {
 .fig-spacer {
   flex: 1;
 }
+.fig-bar select {
+  width: auto;
+  max-width: 150px;
+}
 .fig-status {
   padding: 1px 6px;
   border-radius: 8px;
