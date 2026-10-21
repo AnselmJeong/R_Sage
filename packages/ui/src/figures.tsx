@@ -55,7 +55,7 @@ export async function convertExecution(executionId: string, options?: FigureOpti
     const result = await host.call("figures.convert", { code: ranCode, options: opts });
     switch (result.status) {
       case "missing":
-        return offerInstall(result.missing ?? []);
+        return void offerInstall(result.missing ?? [], () => convertExecution(executionId, options));
       case "none":
         return notify("이 코드에서 그림을 찾지 못했습니다.", "error");
       case "already":
@@ -77,14 +77,18 @@ export async function convertExecution(executionId: string, options?: FigureOpti
   }
 }
 
-async function offerInstall(pkgs: string[]) {
+/** Installs what the conversion needs, then converts again. */
+async function offerInstall(pkgs: string[], then: () => Promise<void>) {
   const { confirmDialog } = await import("./components/Dialogs");
   const ok = await confirmDialog({
     title: "패키지 설치",
-    message: `그림을 바꾸려면 R 패키지가 필요합니다: ${pkgs.join(", ")}. 콘솔에서 설치할까요?`,
+    message: `그림을 바꾸려면 R 패키지가 필요합니다: ${pkgs.join(", ")}. 설치한 뒤 이어서 바꿀까요?`,
     confirm: "설치",
   });
-  if (ok) void host.call("console.execute", { code: `install.packages(c(${pkgs.map((p) => JSON.stringify(p)).join(", ")}))`, origin: "console" });
+  if (!ok) return;
+  const { installPackages } = await import("./packages");
+  if (await installPackages(pkgs)) await then();
+  else notify(`${pkgs.join(", ")} 설치에 실패했습니다. 콘솔을 확인해 주세요.`, "error");
 }
 
 async function offerAssistant(c: Conversion) {

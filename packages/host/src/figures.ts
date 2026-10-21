@@ -55,7 +55,7 @@ export class FigureService {
     res.kept = arr(res.kept);
     if (existsSync(rds)) {
       // Drawn by the session so Ark sends it to the Plots pane like any plot.
-      const rec = this.deps.session.execute(`print(readRDS(${rString(rds)}))`, { origin: "app" });
+      const rec = this.deps.session.execute(`print(readRDS(${rString(rds)}))`, { origin: "app", echo: false, storeHistory: false });
       res.previewExecutionId = rec.id;
     }
     return res;

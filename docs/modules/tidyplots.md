@@ -41,7 +41,7 @@ host가 print(readRDS()) 실행 ─▶ Ark ─▶ 플롯 창에 새 플롯
 ```
 
 - `r-packages/rsageFigures`: 그림 읽기, 규칙 변환, 비교. 앱이 처음 쓸 때 사용자 R 라이브러리에 설치하고, 소스가 바뀌면 다시 설치한다(`RSageHash`).
-- `packages/host/src/figures.ts`: 설치 확인, 세션에서 조용히 실행, 새 그림 그리기.
+- `packages/host/src/figures.ts`: 설치 확인, 세션에서 조용히 실행, 새 그림 그리기(콘솔에 코드를 남기지 않음).
 - `packages/ui/src/figures.tsx`: 변환 상태, 문서 반영, 어시스턴트 요청. `components/PlotsPanel.tsx`의 버튼과 변환 막대.
 - 사용자 세션을 건드리지 않는다. 청크 안의 대입은 자식 환경에만 남고, tidyplots는 `library()`로 붙이지 않고 함수만 빌려 쓴다.
 
@@ -115,7 +115,7 @@ host가 print(readRDS()) 실행 ─▶ Ark ─▶ 플롯 창에 새 플롯
 | ai | 규칙으로 못 바꿈 | 어시스턴트에게 맡길지 묻기 |
 | unsupported | tidyplots에 없는 그림 | 이유 알림 |
 | already / none / error | 이미 tidyplots / 그림 없음 / 코드 오류 | 알림 |
-| missing | tidyplots 등 설치 필요 | 콘솔에서 설치할지 묻기 |
+| missing | tidyplots 등 설치 필요 | 설치할지 묻고, 설치가 끝나면 이어서 변환 |
 
 ## 9. 검증
 

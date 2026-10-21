@@ -8,7 +8,8 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { findCli } from "./assistant/cli";
 
@@ -23,6 +24,33 @@ const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
 export interface QuartoEvents {
   log: (renderId: string, text: string) => void;
   done: (renderId: string, r: { ok: boolean; output?: string; error?: string }) => void;
+}
+
+// R profile for renders: knitr's png device draws Korean as boxes (no font
+// fallback), so figures that would use it go to ragg_png when ragg is
+// installed, as module figures do. A document that picks its own device or
+// fig-format keeps it. The user's own profile still runs, found the way R
+// finds it.
+const RENDER_PROFILE = `setHook(packageEvent("knitr", "onLoad"), function(...) {
+  if (requireNamespace("ragg", quietly = TRUE)) knitr::opts_hooks$set(dev = function(options) {
+    if (identical(options$dev, "png")) options$dev <- "ragg_png"
+    options
+  })
+})
+local({
+  f <- Sys.getenv("RSAGE_R_PROFILE_USER")
+  if (!nzchar(f)) f <- if (file.exists(".Rprofile")) ".Rprofile" else path.expand("~/.Rprofile")
+  if (file.exists(f)) tryCatch(sys.source(f, envir = globalenv()), error = function(e) message("Error in ", f, ": ", conditionMessage(e)))
+})
+`;
+
+let profilePath: string | undefined;
+function renderProfile(): string {
+  if (!profilePath || !existsSync(profilePath)) {
+    profilePath = join(mkdtempSync(join(tmpdir(), "rsage-render-")), "Rprofile.R");
+    writeFileSync(profilePath, RENDER_PROFILE);
+  }
+  return profilePath;
 }
 
 export class QuartoService {
@@ -58,6 +86,8 @@ export class QuartoService {
     const env: Record<string, string> = { ...(process.env as Record<string, string>) };
     // Render with the same R the project uses.
     if (opts.rHome && existsSync(join(opts.rHome, "bin", "R"))) env.QUARTO_R = join(opts.rHome, "bin", "R");
+    if (process.env.R_PROFILE_USER) env.RSAGE_R_PROFILE_USER = process.env.R_PROFILE_USER;
+    env.R_PROFILE_USER = renderProfile();
     const child = spawn(quarto, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     this.renders.set(id, child);
     let output: string | undefined;
