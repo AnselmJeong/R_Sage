@@ -257,7 +257,7 @@ export class AnalysisService {
     const { mod } = this.def(s.analysis);
     const status = await this.prepare(mod.id);
     const lib = status.libPath ? `.libPaths(unique(c(${rString(status.libPath)}, .libPaths()))); ` : "";
-    this.deps.session.execute(`${lib}rsage::rs_show_plot(${rString(plot.rds)})`, { origin: "app" });
+    this.deps.session.execute(`${lib}rsage::rs_show_plot(${rString(plot.rds)})`, { origin: "app", echo: false, storeHistory: false });
   }
 
   cancel(id: string) {
