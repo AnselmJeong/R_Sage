@@ -2,6 +2,7 @@
 // and sending code from an editor to the R console.
 
 import type { DockviewApi } from "dockview";
+import { qmdRChunks } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
 import { confirmDialog } from "../components/Dialogs";
@@ -342,6 +343,29 @@ function moveToNextCode(editor: monaco.editor.IStandaloneCodeEditor, fromLine: n
   while (line < model.getLineCount() && /^\s*(#.*)?$/.test(model.getLineContent(line))) line++;
   editor.setPosition({ lineNumber: line, column: 1 });
   editor.revealLine(line);
+}
+
+/**
+ * ⌘⇧↩: in a .qmd/.Rmd, runs the R chunk under the cursor (never the fences or
+ * prose around it); in an R script, runs the whole file.
+ */
+export async function runChunkOrFile(editor: monaco.editor.IStandaloneCodeEditor, path: string) {
+  const model = editor.getModel();
+  if (!model) return;
+  if (!/\.(qmd|rmd)$/i.test(path)) {
+    await runCode(model.getValue(), { file: path, line: 1 });
+    return;
+  }
+  const line = editor.getPosition()!.lineNumber - 1;
+  // The chunk counts from its opening fence through its closing fence.
+  const chunk = qmdRChunks(model.getValue()).find((c) => line >= c.start - 1 && line <= c.start + c.code.split("\n").length);
+  if (!chunk) {
+    useStore.getState().notify("커서가 R 청크 안에 있지 않습니다.");
+    return;
+  }
+  if (!chunk.code.trim()) return;
+  const endLine = chunk.start + chunk.code.split("\n").length;
+  await runCode(chunk.code, { file: path, line: chunk.start + 1, endLine });
 }
 
 /** Run the whole function enclosing the cursor. */
