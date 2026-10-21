@@ -10,6 +10,7 @@ import {
   reloadFromDisk,
   restoreBackup,
   runCode,
+  runChunkOrFile,
   runCurrentStatement,
   runEnclosingFunction,
   saveFile,
@@ -102,10 +103,10 @@ export function EditorPanel(props: IDockviewPanelProps<{ path: string; line?: nu
     });
     ed.addAction({
       id: "rsage.runAll",
-      label: "파일 전체 실행",
+      label: /\.(qmd|rmd)$/i.test(path) ? "현재 청크 실행" : "파일 전체 실행",
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter],
       contextMenuGroupId: "1_rsage",
-      run: () => runCode(ed.getModel()!.getValue(), { file: path, line: 1 }),
+      run: () => runChunkOrFile(ed, path),
     });
     ed.addAction({
       id: "rsage.source",
