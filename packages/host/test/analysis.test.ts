@@ -324,6 +324,20 @@ live("missing-data analysis in a live session", async () => {
     await call("analysis.delete", { id: a.id });
   }, 60_000);
 
+  test("checks that overlap install a stale module package once", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.missing" });
+    if (!prep.ready) return;
+    // As after an app update: the installed package's hash no longer matches its source.
+    const meta = `file.path(${JSON.stringify(prep.libPath)}, "rsageMissing", "Meta", "package.rds")`;
+    await host.session.evalText(`local({ d <- readRDS(${meta}); d$DESCRIPTION[["RSageHash"]] <- "stale"; saveRDS(d, ${meta}) })`);
+    const hash = () => host.session.evalText(`cat(readRDS(${meta})$DESCRIPTION[["RSageHash"]])`);
+    expect(await hash()).toBe("stale");
+    // The tab's check on opening and the first run's check arrive together.
+    const both = await Promise.all([call("analysis.prepare", { moduleId: "org.rsage.missing" }), call("analysis.prepare", { moduleId: "org.rsage.missing" })]);
+    expect(both.map((s: any) => s.error ?? s.ready)).toEqual([true, true]);
+    expect(await hash()).not.toBe("stale");
+  }, 240_000);
+
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
     const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "no_such_df" });

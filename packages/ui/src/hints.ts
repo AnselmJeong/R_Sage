@@ -88,7 +88,7 @@ export async function insertExplorationLog(inst: AnalysisInstance) {
   try {
     const code = await host.call("analysis.code", { id: inst.id });
     const all = Object.values(useAnalyses.getState().instances);
-    insertText((qmd) => (qmd ? explorationLog(inst, all, code) : null), "탐색 기록을");
+    insertText((qmd, doc) => (qmd ? explorationLog(inst, all, code, new Date(), doc) : null), "탐색 기록을");
   } catch (e: any) {
     notify(e?.message ?? String(e), "error");
   }
