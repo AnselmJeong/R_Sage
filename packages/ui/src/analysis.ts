@@ -6,9 +6,11 @@ import { create } from "zustand";
 import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisModuleInfo, AnalysisRuntimeStatus, AnalysisMenuEntry } from "@rsage/shared";
 import { host } from "./host/client";
 import { useStore } from "./store";
-import { getDockApi, getModel, editorsByPath } from "./editor/files";
+import { getDockApi, getModel, editorsByPath, visualFlushers } from "./editor/files";
+import { isVisual, visualEditors } from "./editor/views";
+import { toQmd, type PMNode } from "./quarto/qmd";
 import { suggestDataset, type DatasetPick } from "./analysisData";
-import { insertLineAfter } from "./docInsert";
+import { insertLineAfter, uniqueLabel } from "./docInsert";
 
 interface AnalysisState {
   modules: AnalysisModuleInfo[];
@@ -106,15 +108,19 @@ export async function deleteAnalysis(id: string) {
 
 /** Puts R code into the open document: a chunk in a .qmd, plain lines in an R script. */
 export function insertIntoDocument(code: string, label?: string): boolean {
-  return insertText((qmd) => (qmd ? `\n\`\`\`{r}\n${label ? `#| label: ${label}\n` : ""}${code}\n\`\`\`\n` : `\n${code}\n`), "코드를");
+  return insertText(
+    (qmd, doc) => (qmd ? `\n\`\`\`{r}\n${label ? `#| label: ${uniqueLabel(doc, label)}\n` : ""}${code}\n\`\`\`\n` : `\n${code}\n`),
+    "코드를",
+  );
 }
 
 /**
  * Inserts text into the open document after the cursor line (or at the end).
- * `make` gets whether the document is Quarto/Markdown and returns the text,
- * or null when the text only fits a document (the user is told why).
+ * `make` gets whether the document is Quarto/Markdown and its text, and
+ * returns the text to insert, or null when the text only fits a document
+ * (the user is told why).
  */
-export function insertText(make: (qmd: boolean) => string | null, what = "내용을"): boolean {
+export function insertText(make: (qmd: boolean, doc: string) => string | null, what = "내용을"): boolean {
   const path = useStore.getState().activeFile;
   const model = path ? getModel(path) : null;
   if (!path || !model) {
@@ -122,21 +128,34 @@ export function insertText(make: (qmd: boolean) => string | null, what = "내용
     return false;
   }
   const qmd = /\.(qmd|rmd|md)$/i.test(path);
-  const text = make(qmd);
+  // The visual view writes to the model after a pause: bring the model up to date first.
+  visualFlushers.get(path)?.();
+  const text = make(qmd, model.getValue());
   if (text === null) {
     useStore.getState().notify(`${what} 넣을 .qmd 문서를 먼저 여세요.`, "error");
     return false;
   }
-  const ed = editorsByPath.get(path);
-  const sel = ed?.getSelection();
   const end = model.getFullModelRange().getEndPosition();
   // In a document, after the line the cursor is on (past the YAML header or a
   // chunk it is inside); otherwise at the end.
-  const line = sel ? (qmd ? insertLineAfter(model.getLinesContent(), sel.endLineNumber) : sel.endLineNumber) : end.lineNumber;
-  const col = sel ? model.getLineMaxColumn(line) : end.column;
+  const cursor = isVisual(path) ? visualCursorLine(path, model.getValue()) : editorsByPath.get(path)?.getSelection()?.endLineNumber;
+  const line = cursor ? (qmd ? insertLineAfter(model.getLinesContent(), cursor) : cursor) : end.lineNumber;
+  const col = cursor ? model.getLineMaxColumn(line) : end.column;
   model.pushEditOperations([], [{ range: { startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: col }, text }], () => null);
   useStore.getState().notify(`${path.split("/").pop()}에 ${what} 넣었습니다.`);
   return true;
+}
+
+/** The source line where the top-level block holding the visual view's cursor ends. */
+function visualCursorLine(path: string, text: string): number | undefined {
+  const ve = visualEditors.get(path);
+  if (!ve || ve.isDestroyed) return undefined;
+  const doc = ve.getJSON() as PMNode;
+  const idx = ve.state.selection.$from.index(0);
+  // The document up to that block serializes to exactly the start of the file.
+  const before = toQmd({ ...doc, content: (doc.content ?? []).slice(0, idx + 1) }, "");
+  if (!text.startsWith(before)) return undefined;
+  return before.split("\n").length;
 }
 
 let started = false;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { insertLineAfter } from "../src/docInsert";
+import { definesData, insertLineAfter, uniqueLabel } from "../src/docInsert";
 import { explorationLog, shownHints } from "../src/explorationLog";
 
 const card = (id: string, title: string, extra: any = {}) => ({ id, title, text: `${title} 설명`, evidence: "ρ = 0.48, n = 118", variables: [], suggestions: [], ...extra });
@@ -44,5 +44,24 @@ describe("where text goes in a .qmd", () => {
     expect(insertLineAfter(doc, 7)).toBe(8);
     expect(insertLineAfter(doc, 9)).toBe(9);
     expect(insertLineAfter(["본문", "---", "x"], 2)).toBe(2);
+  });
+});
+
+describe("a log that renders", () => {
+  test("a second log gets its own chunk label", () => {
+    const first = explorationLog(inst, [], "x", new Date(), "");
+    expect(uniqueLabel(first, "explore-x1")).toBe("explore-x1-2");
+    expect(explorationLog(inst, [], "x", new Date(), first + first.replace("explore-x1", "explore-x1-2"))).toContain("#| label: explore-x1-3");
+    expect(uniqueLabel("```{r explore-x1}\n```", "explore-x1")).toBe("explore-x1-2");
+  });
+
+  test("says where the data must come from when the document does not make it", () => {
+    expect(explorationLog(inst, [], "x", new Date(), "")).toContain("R 세션의 데이터 `study`를 씁니다");
+    expect(explorationLog(inst, [], "x", new Date(), '```{r}\nstudy <- read.csv("s.csv")\n```')).not.toContain("R 세션의 데이터");
+    expect(definesData("study2 <- x", "study")).toBe(false);
+    expect(definesData("my.study <- x", "study")).toBe(false);
+    expect(definesData("study = readRDS(f)", "study")).toBe(true);
+    expect(definesData("study == 1", "study")).toBe(false);
+    expect(definesData("x |> filter() -> study", "study")).toBe(true);
   });
 });

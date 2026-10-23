@@ -4,6 +4,7 @@
 // analyses that followed and says plainly that the cards are hypotheses.
 
 import type { AnalysisHint, AnalysisInstance } from "@rsage/shared";
+import { definesData, uniqueLabel } from "./docInsert";
 
 /** The cards the tab shows first: the assistant's for this result, else the rule cards. */
 export function shownHints(inst: AnalysisInstance): { hints: AnalysisHint[]; question?: string } {
@@ -14,10 +15,12 @@ export function shownHints(inst: AnalysisInstance): { hints: AnalysisHint[]; que
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 
-export function explorationLog(inst: AnalysisInstance, all: AnalysisInstance[], code: string, date = new Date()): string {
+export function explorationLog(inst: AnalysisInstance, all: AnalysisInstance[], code: string, date = new Date(), doc = ""): string {
   const { hints, question } = shownHints(inst);
   const day = date.toISOString().slice(0, 10);
+  // Starts with a blank line: the text goes at the end of the cursor's line.
   const out = [
+    "",
     "",
     `## 탐색 기록: ${inst.dataset}`,
     "",
@@ -25,6 +28,9 @@ export function explorationLog(inst: AnalysisInstance, all: AnalysisInstance[], 
     `> ${day} 탐색 안내로 살펴본 결과입니다. 여러 변수와 조합을 한꺼번에 본 탐색이므로, 아래 내용은 확인할 가설입니다.`,
     "",
   ];
+  // The chunk uses the data frame from the R session; a rendered document must make it itself.
+  if (!definesData(doc, inst.dataset))
+    out.splice(out.length - 1, 0, ">", `> 아래 청크는 R 세션의 데이터 \`${inst.dataset}\`를 씁니다. 문서를 렌더하려면 이 앞의 청크에서 \`${inst.dataset}\`를 읽어 들이세요.`);
   if (question) out.push(`**질문**: ${oneLine(question)}`, "");
   if (hints.length) {
     out.push("**살펴볼 만한 것**", "");
@@ -41,6 +47,6 @@ export function explorationLog(inst: AnalysisInstance, all: AnalysisInstance[], 
     }
     out.push("");
   }
-  out.push("```{r}", `#| label: explore-${inst.id.replace(/^a-/, "")}`, "# 탐색 결과: 확인할 가설로 읽으세요", code, "```", "");
+  out.push("```{r}", `#| label: ${uniqueLabel(doc, `explore-${inst.id.replace(/^a-/, "")}`)}`, "# 탐색 결과: 확인할 가설로 읽으세요", code, "```", "");
   return out.join("\n");
 }

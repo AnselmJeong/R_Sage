@@ -44,6 +44,7 @@ export class AnalysisService {
   private modules?: LoadedModule[];
   private running = new Map<string, AbortController>();
   /** Per R home and session generation: modules whose R packages are known to be installed. */
+  private preparing = new Map<string, Promise<AnalysisRuntimeStatus>>();
   private prepared = new Map<string, { status: AnalysisRuntimeStatus; generation: number; unload: boolean }>();
 
   constructor(private deps: AnalysisDeps) {}
@@ -353,12 +354,21 @@ export class AnalysisService {
     const gen = this.deps.session.state.generation;
     const cached = this.prepared.get(key);
     if (cached && cached.status.ready && !force) return cached.status;
-    const runtime = join(rPackagesDir() ?? "", "rsage");
-    const r = await prepareModule(rHome, this.deps.project()?.root, mod, runtime);
-    const { installed, ...status } = r;
-    // A package reinstalled while the session has it loaded must be unloaded before the next run.
-    this.prepared.set(key, { status, generation: gen, unload: installed.length > 0 || !!cached?.unload });
-    return status;
+    // One check at a time per module: two installs into the same library fail
+    // on R's lock (the tab's check on opening and the first run's, for example).
+    const pending = this.preparing.get(key);
+    if (pending) return pending;
+    const job = (async () => {
+      const runtime = join(rPackagesDir() ?? "", "rsage");
+      const r = await prepareModule(rHome, this.deps.project()?.root, mod, runtime);
+      const { installed, ...status } = r;
+      // A package reinstalled while the session has it loaded must be unloaded before the next run.
+      const before = this.prepared.get(key);
+      this.prepared.set(key, { status, generation: gen, unload: installed.length > 0 || !!before?.unload });
+      return status;
+    })().finally(() => this.preparing.delete(key));
+    this.preparing.set(key, job);
+    return job;
   }
 
   async run(id: string, by: "user" | "assistant" = "user"): Promise<AnalysisInstance> {

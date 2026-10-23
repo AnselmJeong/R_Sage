@@ -17,3 +17,19 @@ export function insertLineAfter(lines: string[], line: number): number {
   }
   return line;
 }
+
+/** `base`, or `base-2`, `base-3`… when a chunk in the document already has that label (Quarto refuses duplicates). */
+export function uniqueLabel(doc: string, base: string): string {
+  const used = new Set([...doc.matchAll(/^\s*#\|\s*label:\s*(\S+)/gm)].map((m) => m[1]!));
+  for (const m of doc.matchAll(/^\s*```+\s*\{r[ ,]+([A-Za-z][\w.-]*)/gm)) used.add(m[1]!);
+  if (!used.has(base)) return base;
+  let i = 2;
+  while (used.has(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
+}
+
+/** Whether the document creates a data frame of this name (an assignment or a read in a chunk). */
+export function definesData(doc: string, name: string): boolean {
+  const n = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\w.])${n}\\s*(<<?-|=(?!=))|(->>?)\\s*${n}(?![\\w.])|assign\\(\\s*["']${n}["']`, "m").test(doc);
+}
