@@ -50,6 +50,36 @@ rs_note <- function(text, level = c("info", "warning"), code = NULL, file = NULL
   structure(list(text = text, level = match.arg(level), code = code, file = file), class = "rsage_note")
 }
 
+#' A suggested next analysis, offered as a button that opens it
+#'
+#' @param label Button text, e.g. "선형 회귀 열기".
+#' @param analysis Analysis key, "<module id>/<analysis id>". A key the app
+#'   does not have is shown as planned (예정).
+#' @param options Options for that analysis. Wrap vectors that must stay JSON
+#'   arrays in I() (a vector of length one would otherwise become a scalar).
+#' @param title Title for the new analysis tab.
+rs_suggest <- function(label, analysis, options = list(), title = NULL) {
+  structure(list(label = label, analysis = analysis, options = options, title = title), class = "rsage_suggestion")
+}
+
+#' A hint: something worth a closer look, with the evidence and where to go next
+#'
+#' @param id Stable identifier.
+#' @param title One line saying what was found.
+#' @param text Why it matters and how to look further, in a sentence or two.
+#' @param evidence The numbers behind it, e.g. "Spearman ρ = 0.52, n = 120".
+#' @param kind Kind of finding (module-specific code, e.g. "association").
+#' @param variables Variables involved.
+#' @param plot Id of a plot in the result drawn for this hint (shown on the card).
+#' @param signal Row id in the module's table of findings, if it has one.
+#' @param suggestions List of rs_suggest().
+rs_hint <- function(id, title, text, evidence = NULL, kind = NULL, variables = character(), plot = NULL,
+                    signal = NULL, suggestions = list()) {
+  structure(list(id = id, title = title, text = text, evidence = evidence, kind = kind,
+                 variables = as.character(variables), plot = plot, signal = signal, suggestions = suggestions),
+            class = "rsage_hint")
+}
+
 #' Build a module result
 #'
 #' @param analysis Analysis id, e.g. "missing".
@@ -59,9 +89,10 @@ rs_note <- function(text, level = c("info", "warning"), code = NULL, file = NULL
 #'   (only when the user asked for it, e.g. an imputed data set).
 #' @param sections Order of the result sections. Tables and plots are shown
 #'   grouped by their `section`, in this order; items without one come first.
+#' @param hints List of rs_hint(), shown as cards above the sections.
 rs_result <- function(analysis, title, tables = list(), plots = list(), notes = list(),
                       options = list(), data_info = list(), packages = character(), exports = list(),
-                      sections = character()) {
+                      sections = character(), hints = list()) {
   pkgs <- unique(c("rsage", packages))
   versions <- vapply(pkgs, function(p) {
     v <- tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_)
@@ -78,6 +109,7 @@ rs_result <- function(analysis, title, tables = list(), plots = list(), notes = 
       data_info = data_info,
       exports = exports,
       sections = as.character(sections),
+      hints = hints,
       provenance = list(
         r = R.version.string,
         packages = as.list(versions),
@@ -157,6 +189,14 @@ draw_plot <- function(p) {
 
 print.rsage_result <- function(x, ...) {
   cat("# ", x$title, "\n\n", sep = "")
+  if (length(x$hints)) {
+    cat("## 살펴볼 만한 것\n")
+    for (i in seq_along(x$hints)) {
+      h <- x$hints[[i]]
+      cat(i, ". ", h$title, if (!is.null(h$evidence)) paste0(" (", h$evidence, ")"), "\n   ", h$text, "\n", sep = "")
+    }
+    cat("\n")
+  }
   for (t in x$tables) {
     print(t)
     cat("\n")
@@ -170,6 +210,20 @@ knit_print.rsage_result <- function(x, options = list(), ...) {
   out <- character()
   label <- if (!is.null(options$label)) options$label else x$analysis
   fig_path <- if (!is.null(options$fig.path)) options$fig.path else "figure/"
+  plot_md <- function(p) {
+    file <- paste0(fig_path, label, "-", p$id, ".png")
+    dir.create(dirname(file), recursive = TRUE, showWarnings = FALSE)
+    save_plot(p, file)
+    sprintf("![%s](%s){fig-alt=\"%s\"}", p$title, file, gsub("\"", "'", p$alt))
+  }
+  if (length(x$hints)) {
+    out <- c(out, "#### 살펴볼 만한 것", "")
+    for (h in x$hints) {
+      out <- c(out, paste0("**", h$title, "**", if (!is.null(h$evidence)) paste0(" (", h$evidence, ")")), "", h$text, "")
+      p <- if (!is.null(h$plot)) x$plots[[h$plot]]
+      if (!is.null(p)) out <- c(out, plot_md(p), "")
+    }
+  }
   for (sec in result_sections(x)) {
     if (nzchar(sec$name) && length(x$sections) > 1) out <- c(out, paste("####", sec$name), "")
     for (t in sec$tables) {
@@ -178,10 +232,7 @@ knit_print.rsage_result <- function(x, options = list(), ...) {
       if (length(t$notes)) out <- c(out, paste0("*", t$notes, "*"), "")
     }
     for (p in sec$plots) {
-      file <- paste0(fig_path, label, "-", p$id, ".png")
-      dir.create(dirname(file), recursive = TRUE, showWarnings = FALSE)
-      save_plot(p, file)
-      out <- c(out, sprintf("![%s](%s){fig-alt=\"%s\"}", p$title, file, gsub("\"", "'", p$alt)), "")
+      out <- c(out, plot_md(p), "")
       if (!is.null(p$description)) out <- c(out, paste0("*", p$description, "*"), "")
     }
   }
@@ -190,8 +241,11 @@ knit_print.rsage_result <- function(x, options = list(), ...) {
 }
 
 # Tables and plots grouped by section, in the result's section order.
+# Plots drawn on a hint card are shown with the hint, not in a section.
 result_sections <- function(x) {
   sec_of <- function(i) if (is.null(i$section)) "" else i$section
+  on_cards <- unlist(lapply(x$hints, `[[`, "plot"))
+  x$plots <- Filter(function(p) !p$id %in% on_cards, x$plots)
   names_all <- unique(c("", x$sections, vapply(x$tables, sec_of, ""), vapply(x$plots, sec_of, "")))
   out <- lapply(names_all, function(n) list(
     name = n,
@@ -243,6 +297,16 @@ table_json <- function(t) {
        description = t$description, section = t$section)
 }
 
+# An empty options list must stay a JSON object, not [].
+json_object <- function(x) if (length(x)) x else structure(list(), names = character())
+
+hint_json <- function(h) {
+  list(id = h$id, title = h$title, text = h$text, evidence = h$evidence, kind = h$kind,
+       variables = I(h$variables), plot = h$plot, signal = h$signal,
+       suggestions = lapply(unname(h$suggestions), function(s)
+         list(label = s$label, analysis = s$analysis, options = json_object(s$options), title = s$title)))
+}
+
 #' Write a result for the R Sage app
 #'
 #' Plots go to `dir` as PNG files; everything else to `dir/result.json`,
@@ -271,6 +335,7 @@ rs_write <- function(result, dir, run_id = NULL) {
     dataInfo = result$data_info,
     exports = as.list(names(result$exports)),
     sections = as.list(result$sections),
+    hints = lapply(unname(result$hints), hint_json),
     provenance = result$provenance
   )
   tmp <- file.path(dir, "result.json.tmp")

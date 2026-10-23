@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "variables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Columns to look at. Empty means every column."
+    },
+    "target": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Optional target (outcome) column the user cares about. Adds a ranking of the variables most related to it and a regression to start from."
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Columns to leave out (e.g. free text, IDs the module would not recognise)."
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "What to look for.",
+      "properties": {
+        "structure": { "type": "boolean", "default": true, "description": "Data layout: scale item groups (with Cronbach's alpha and a total column), repeated measures (an ID with several rows), the same measure in several time-point columns." },
+        "distributions": { "type": "boolean", "default": true, "description": "Distribution shapes: skew, many zeros, floor/ceiling, two peaks, rare or dominant categories." },
+        "relations": { "type": "boolean", "default": true, "description": "Pairs of variables that go together (Spearman rho for numeric pairs, Cramer's V for categorical pairs), nonlinear, outlier-driven and redundant pairs." },
+        "groups": { "type": "boolean", "default": true, "description": "Numeric variables that differ between the groups of a categorical variable (eta squared)." },
+        "missing": { "type": "boolean", "default": true, "description": "Missingness of one variable related to the values of another (a MAR clue)." }
+      }
+    },
+    "maxHints": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 8,
+      "description": "Number of hint cards. All findings are in the signals table either way."
+    },
+    "maxRows": {
+      "type": "integer",
+      "minimum": 100,
+      "default": 50000,
+      "description": "Larger data are explored on a random sample of this many rows."
+    },
+    "seed": {
+      "type": "integer",
+      "default": 123,
+      "description": "Random seed for the sample of rows."
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "relationMap": { "type": "boolean", "default": true, "description": "Heat map of the association strength of every pair." },
+        "distributions": { "type": "boolean", "default": true, "description": "Histograms of every numeric variable." }
+      }
+    }
+  }
+}

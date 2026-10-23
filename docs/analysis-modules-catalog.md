@@ -4,7 +4,7 @@ _2026-10-17 · [analysis-modules-strategy.md](analysis-modules-strategy.md)의 �
 
 모듈을 만드는 방법(스펙, GUI, 결과 표·그림, 원칙, 검증)은 [module-authoring-guide.md](module-authoring-guide.md)에 있다.
 
-R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 맡길 R 패키지(백엔드)를 하나 이상 고른다. 백엔드는 모듈을 설계할 때 아래 기준으로 확정하고, 그 전까지는 이 문서의 후보를 출발점으로 쓴다. 지금 확정된 것은 Descriptives, 결측 데이터, 데이터 점검이다. 결측 데이터(`modules/missing`, `r-packages/rsageMissing`)와 데이터 점검(`modules/integrity`, `r-packages/rsageIntegrity`)은 구현되어 있다.
+R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 맡길 R 패키지(백엔드)를 하나 이상 고른다. 백엔드는 모듈을 설계할 때 아래 기준으로 확정하고, 그 전까지는 이 문서의 후보를 출발점으로 쓴다. 지금 확정된 것은 Descriptives, 결측 데이터, 데이터 점검, 탐색 안내다. 결측 데이터(`modules/missing`, `r-packages/rsageMissing`)와 데이터 점검(`modules/integrity`, `r-packages/rsageIntegrity`)은 구현되어 있다.
 
 ## 원칙: GUI는 통계 개념, 패키지는 백엔드
 
@@ -50,6 +50,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | 5 | `org.rsage.frequencies` | 교차표, 카이제곱, Fisher 정확검정 | stats | 후보 |
 | 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체), UpSetR(조합 그림) | 확정 (시범 구현) |
 | 6a | `org.rsage.integrity` | 데이터 무결성·정제 점검: 변수명·빈 행, 숫자·날짜·코드 형식, 이상치와 범위·허용 값·선후 규칙, 결측 코드와 중복, 텍스트 표기, 정리한 사본, 진단 보고서 | dlookr(진단·보고서), 나머지는 base R·ggplot2 | 확정 (구현) |
+| 6b | `org.rsage.explore` | 탐색 안내: 변수 유형·자료 구조 추정, 데이터 상태, 분포, 관계·집단 차이·결측 관련 신호, 목표 변수 순위, 카드마다 다음 분석 제안. 명세 [modules/explore.md](modules/explore.md) | datawizard, 나머지는 base R·ggplot2 | 0.1 구현 (0.2 LLM 힌트 예정) |
 | 7 | `org.rsage.reliability` | Cronbach's α, McDonald's ω, 문항 분석 | psych | 후보 |
 | 8 | `org.rsage.factor` | EFA, PCA, CFA | psych, GPArotation, lavaan(CFA) | 후보 |
 | 9 | `org.rsage.mixed` | 선형 혼합모형, 일반화 혼합모형 | lme4, lmerTest, emmeans | 후보 |
@@ -61,7 +62,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | 15 | `org.rsage.cluster` | k-means, 계층적 군집, 실루엣 | stats, cluster | 후보 |
 | 16 | `org.rsage.timeseries` | ARIMA, 분해, 예측 | stats, forecast 또는 fable | 후속 |
 
-머신러닝(tidymodels 계열)과 텍스트 마이닝(tidytext, topicmodels)은 의존성이 크고 GUI 형태가 달라서 첫 릴리스 범위에서 뺀다. EDA의 이상치 검출은 Descriptives의 후속 분석으로 둔다.
+머신러닝(tidymodels 계열)과 텍스트 마이닝(tidytext, topicmodels)은 의존성이 크고 GUI 형태가 달라서 첫 릴리스 범위에서 뺀다. 탐색적 분석(EDA)의 자동 탐색은 탐색 안내 모듈이 맡고, 자세한 이상치 점검은 데이터 점검 모듈이 맡는다.
 
 2번과 3번 중 하나가 두 번째 모듈이 된다. 둘 다 Descriptives와 입력·결과 요구가 달라서, 모듈 규격이 범용적인지 검증하는 데 맞다.
 

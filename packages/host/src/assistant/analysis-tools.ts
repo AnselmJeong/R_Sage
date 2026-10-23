@@ -64,6 +64,13 @@ export function formatResult(inst: AnalysisInstance, result: AnalysisResult | un
   if (inst.resultRevision !== inst.revision) out.push(`(Result is from revision ${inst.resultRevision}; the options have changed since.)`);
   const d = result.dataInfo;
   if (d.rows !== undefined) out.push(`Data: ${d.rows} rows × ${d.columns} columns`);
+  if (result.hints?.length) {
+    out.push("", "## Hint cards shown to the user (in this order)");
+    result.hints.forEach((h, i) => {
+      out.push(`${i + 1}. [${h.id}] ${h.title}${h.evidence ? ` (${h.evidence})` : ""}`, `   ${h.text}`);
+      for (const s of h.suggestions) out.push(`   Next: ${s.label} → run_analysis analysis=${s.analysis} options=${JSON.stringify(s.options)}`);
+    });
+  }
   for (const t of result.tables) {
     out.push("", `## ${t.title}`);
     if (t.description) out.push(`(How to read: ${t.description})`);

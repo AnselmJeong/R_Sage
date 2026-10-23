@@ -3551,6 +3551,51 @@ label.check {
 .an-hint {
   margin: 24px 0;
 }
+.an-hints {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.an-hint-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.an-hint-card h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.an-hint-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+.an-hint-plot {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 4px;
+}
+.an-hint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: auto;
+}
+.an-hint-planned {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--fg-muted, inherit);
+  opacity: 0.8;
+}
 .an-result.dim {
   opacity: 0.55;
   transition: opacity 0.2s;

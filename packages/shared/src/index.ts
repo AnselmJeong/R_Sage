@@ -553,6 +553,31 @@ export interface AnalysisTable {
   section?: string;
 }
 
+/** A next analysis a hint card offers; opens a new analysis tab with these options. */
+export interface AnalysisSuggestion {
+  label: string;
+  /** AnalysisDef.key; a key the app does not have is shown as planned. */
+  analysis: string;
+  options: Record<string, unknown>;
+  title?: string;
+}
+
+/** Something worth a closer look, shown as a card above the result sections. */
+export interface AnalysisHint {
+  id: string;
+  title: string;
+  text: string;
+  /** The numbers behind it, e.g. "Spearman ρ = 0.52, n = 120". */
+  evidence?: string;
+  kind?: string;
+  variables: string[];
+  /** Id of a plot in the result, drawn on the card. */
+  plot?: string;
+  /** Row id in the module's table of findings. */
+  signal?: string;
+  suggestions: AnalysisSuggestion[];
+}
+
 export interface AnalysisResult {
   runId: string;
   title: string;
@@ -578,6 +603,8 @@ export interface AnalysisResult {
   /** Order of the result sections; tables and plots are shown grouped by their section. */
   sections?: string[];
   notes: { level: "info" | "warning"; code?: string; text: string; /** A file the analysis wrote, which the app offers to open. */ file?: string }[];
+  /** Hint cards, shown first (plots they draw are not repeated in the sections). */
+  hints?: AnalysisHint[];
   dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
   exports: string[];
   provenance: { r?: string; packages?: Record<string, string>; created?: string };

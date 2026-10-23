@@ -108,6 +108,47 @@ describe("data integrity module", () => {
   });
 });
 
+const explore = loadModules().find((m) => m.id === "org.rsage.explore")!;
+const edef = explore.analyses[0]!;
+
+describe("exploration guide module", () => {
+  test("loads under 데이터 준비 with a consistent form", () => {
+    expect(edef.key).toBe("org.rsage.explore/explore");
+    expect(edef.entries.map((e) => e.menu)).toEqual([["데이터 준비", "탐색 안내"]]);
+    expect(explore.requires).toEqual(expect.arrayContaining(["datawizard", "ggplot2"]));
+    expect(formProblems(edef.form, edef.schema)).toEqual([]);
+    expect(validateOptions(edef.schema, fillDefaults(edef.schema, {}))).toEqual([]);
+    expect(edef.guide).toContain("hint cards");
+    expect(columnsUsed(edef.form, { target: "y", variables: ["a"], exclude: ["b"] })).toEqual(expect.arrayContaining(["y", "a", "b"]));
+  });
+
+  test("hint cards reach the assistant with their next analyses", () => {
+    const inst: any = { id: "a-1", revision: 1, resultRevision: 1, dataset: "d" };
+    const text = formatResult(inst, {
+      runId: "r",
+      title: "탐색 안내",
+      tables: [],
+      plots: [],
+      notes: [],
+      dataInfo: {},
+      exports: [],
+      provenance: {},
+      hints: [
+        {
+          id: "s01",
+          title: "'y'는 'x'와 관련이 큽니다",
+          text: "확인해 보세요.",
+          evidence: "Spearman ρ = 0.6, n = 50",
+          variables: ["y", "x"],
+          suggestions: [{ label: "선형 회귀 열기", analysis: "org.rsage.regression/regression", options: { outcome: { variable: "y" } } }],
+        },
+      ],
+    });
+    expect(text).toContain("1. [s01] 'y'는 'x'와 관련이 큽니다 (Spearman ρ = 0.6, n = 50)");
+    expect(text).toContain('analysis=org.rsage.regression/regression options={"outcome":{"variable":"y"}}');
+  });
+});
+
 describe("option schema", () => {
   test("fills nested defaults", () => {
     const o = fillDefaults(def.schema, { plots: { upset: true } });
@@ -335,6 +376,44 @@ live("missing-data analysis in a live session", async () => {
     expect(tests.rows[0].test).toBe("F");
     expect(tests.rows[0].p).toBeCloseTo(0.0014512, 6);
     expect(done.result.plots.some((p: any) => p.id === "coefficients")).toBe(true);
+    await call("analysis.delete", { id: inst.id });
+  }, 240_000);
+
+  test("the exploration guide finds signals and its suggestions open as valid analyses", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.explore" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText("aq2 <- airquality; invisible(NULL)");
+    const inst = await call("analysis.create", { analysis: "org.rsage.explore/explore", dataset: "aq2", options: { target: "Ozone" } });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    const hints = done.result.hints;
+    expect(hints.length).toBeGreaterThan(2);
+    expect(hints[0].kind).toBe("target_model");
+    expect(hints[0].evidence).toContain("n = ");
+    // Plots on cards are inlined like any other plot.
+    const plotIds = new Set(done.result.plots.map((p: any) => p.id));
+    for (const h of hints) if (h.plot) expect(plotIds.has(h.plot)).toBe(true);
+    expect(done.result.tables.find((t: any) => t.id === "target").rows[0].variable).toBe("Temp");
+    // Every suggestion for an installed analysis passes that analysis's schema.
+    const keys = new Set(host.analyses.defs().map((d: any) => d.key));
+    const sugs = hints.flatMap((h: any) => h.suggestions).filter((s: any) => keys.has(s.analysis));
+    expect(sugs.length).toBeGreaterThan(0);
+    for (const s of sugs) {
+      const made = await call("analysis.create", { analysis: s.analysis, dataset: "aq2", options: s.options, title: s.title });
+      await call("analysis.delete", { id: made.id });
+    }
+    // The regression it suggests runs.
+    const reg = sugs.find((s: any) => s.analysis === "org.rsage.regression/regression");
+    if ((await call("analysis.prepare", { moduleId: "org.rsage.regression" })).ready) {
+      const r = await call("analysis.create", { analysis: reg.analysis, dataset: "aq2", options: reg.options });
+      const rr = await call("analysis.run", { id: r.id });
+      expect(rr.lastRun.status).toBe("ok");
+      await call("analysis.delete", { id: r.id });
+    }
+    expect(formatResult(done, done.result)).toContain("Hint cards shown to the user");
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 
