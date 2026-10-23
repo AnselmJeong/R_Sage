@@ -13,7 +13,7 @@ import { useStore } from "../store";
 import { addLocalCommand, monaco, registerRCellModel } from "../editor/monaco";
 import { formDialog } from "../components/Dialogs";
 import { focusedCells } from "../editor/views";
-import { editorFontOptions } from "../editor/prefs";
+import { editorFontOptions, monacoTheme } from "../editor/prefs";
 
 const TOP_TYPES = [
   "paragraph",
@@ -160,7 +160,7 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
     const model = monaco.editor.createModel(node.attrs.code ?? "", "r");
     const e = monaco.editor.create(hostEl.current, {
       model,
-      theme: "rsage-dark",
+      theme: monacoTheme(),
       ...editorFontOptions(),
       minimap: { enabled: false },
       lineNumbers: "off",

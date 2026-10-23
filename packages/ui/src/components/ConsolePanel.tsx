@@ -6,7 +6,7 @@ import { addLocalCommand, monaco } from "../editor/monaco";
 import { openFile } from "../editor/files";
 import { parseAnsi, stripAnsi } from "../util/ansi";
 import { isMac } from "../commands";
-import { editorFontOptions } from "../editor/prefs";
+import { editorFontOptions, monacoTheme } from "../editor/prefs";
 
 /** Fallback when the kernel can't answer is_complete (busy or not started). */
 export function looksIncomplete(code: string): boolean {
@@ -177,7 +177,7 @@ export function ConsolePanel() {
     const model = monaco.editor.createModel("", "r", monaco.Uri.parse("inmemory://console/input.R"));
     const ed = monaco.editor.create(inputHost.current, {
       model,
-      theme: "rsage-dark",
+      theme: monacoTheme(),
       minimap: { enabled: false },
       lineNumbers: "off",
       glyphMargin: false,

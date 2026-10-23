@@ -3,6 +3,8 @@ import "dockview/dist/styles/dockview.css";
 import "katex/dist/katex.min.css";
 import "./assets/fonts/fonts.css";
 import "./styles.css";
+// Applies the saved theme before the first paint.
+import "./editor/prefs";
 import { connectHost } from "./host/client";
 import { initStore } from "./store";
 import { registerRLanguage, initLspEvents } from "./editor/monaco";

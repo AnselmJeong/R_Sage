@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   DockviewReact,
-  themeDark,
   type DockviewApi,
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
@@ -203,6 +202,9 @@ function showPanel(id: string, component: string, title: string, near: { id: str
   }
   p.api.setActive();
 }
+
+/** Panels sit as rounded surfaces on the window shell with a narrow gutter between them (styles.css). */
+const DOCK_THEME = { name: "rsage", className: "dockview-theme-rsage", gap: 6 };
 
 function registerAppCommands() {
   const offs = [
@@ -477,7 +479,7 @@ export function Workbench() {
           tabComponents={{ editorTab: EditorTab }}
           defaultTabComponent={undefined}
           onReady={onReady}
-          theme={themeDark}
+          theme={DOCK_THEME}
           />
         </div>
       </div>
