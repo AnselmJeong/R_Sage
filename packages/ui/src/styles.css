@@ -3981,6 +3981,10 @@ label.check {
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
+.an-rsection-title .an-rsection-action {
+  float: right;
+  font-weight: normal;
+}
 .an-rsection:first-child .an-rsection-title {
   margin-top: 4px;
 }

@@ -187,7 +187,15 @@ export class AnalysisService {
     return full;
   }
 
-  create(p: { analysis: string; dataset?: string; options?: any; title?: string; createdBy?: "user" | "assistant"; reuse?: boolean }): AnalysisInstance {
+  create(p: {
+    analysis: string;
+    dataset?: string;
+    options?: any;
+    title?: string;
+    createdBy?: "user" | "assistant";
+    reuse?: boolean;
+    from?: { analysis: string; hint?: string };
+  }): AnalysisInstance {
     const { def } = this.def(p.analysis);
     // Opening the same analysis on the same data again from the menu, with
     // nothing changed, brings back the earlier one, run or not, instead of
@@ -205,7 +213,11 @@ export class AnalysisService {
             !i.figures &&
             JSON.stringify(sortKeys(i.options)) === want,
         );
-      if (same) return this.save(this.read(same.id)!);
+      if (same) {
+        const s = this.read(same.id)!;
+        if (p.from && !s.from) s.from = p.from;
+        return this.save(s);
+      }
     }
     const now = new Date().toISOString();
     const s: Stored = {
@@ -218,6 +230,7 @@ export class AnalysisService {
       createdAt: now,
       updatedAt: now,
       createdBy: p.createdBy ?? "user",
+      from: p.from,
     };
     return this.save(s);
   }

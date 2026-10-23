@@ -665,6 +665,8 @@ export interface AnalysisInstance {
   /** Revision the result was computed for. */
   resultRevision?: number;
   createdBy?: "user" | "assistant";
+  /** The analysis (and hint card) this one was opened from, e.g. a 탐색 안내 suggestion. */
+  from?: { analysis: string; hint?: string };
   /** Assistant-written hints (탐색 안내). */
   guide?: ExplorationGuide;
 }
@@ -843,7 +845,10 @@ export interface HostMethods {
   "analysis.list": { params: {}; result: AnalysisInstance[] };
   "analysis.get": { params: { id: string }; result: AnalysisInstance | null };
   /** reuse: bring back an analysis of the same kind, data and options instead of making another (menu opens). */
-  "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string; reuse?: boolean }; result: AnalysisInstance };
+  "analysis.create": {
+    params: { analysis: string; dataset?: string; options?: any; title?: string; reuse?: boolean; from?: { analysis: string; hint?: string } };
+    result: AnalysisInstance;
+  };
   /** figures replaces all user figure sizes; a plot id mapped to null goes back to automatic. */
   /** Removes the assistant-written hints of an analysis. */
   "analysis.clearGuide": { params: { id: string }; result: AnalysisInstance };

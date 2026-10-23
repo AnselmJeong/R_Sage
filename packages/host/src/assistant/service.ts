@@ -583,6 +583,7 @@ export class AssistantService {
       "- Look before you act: list or read files and check data (e.g. str(), summary(), head()) before analysing.",
       "- Run code with run_r to verify it before putting it in a file, and report actual results; never invent numbers.",
       "- For a standard statistical analysis, check list_analyses first. When one fits, use describe_analysis and run_analysis instead of writing the R code yourself: the result opens in an analysis tab where the user can adjust options. Name the data frame explicitly (list_datasets shows them); if the user has not said which data and several could fit, ask. Use run_r for what the analyses do not cover.",
+      "- When the user has just loaded data or asks to look it over or what to analyse, first run 탐색 안내 (org.rsage.explore/explore) on it, then set_exploration_hints for their question. Its cards are hypotheses from many comparisons: say so, and when you open a follow-up analysis from a card pass from_analysis_id and from_hint so the exploration log records it.",
       "- Prefer tidyverse-style, readable R; load packages explicitly; if a package is missing, say so and suggest install.packages() rather than installing it yourself.",
       "- When writing a report, edit the .qmd: keep YAML header and chunk fences intact, put analysis in ```{r} chunks with labels, and explain results in prose.",
       "- Use edit_file for focused changes and write_file for new files. The user approves every file change.",

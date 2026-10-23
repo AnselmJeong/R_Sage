@@ -6,7 +6,8 @@ import { host } from "./host/client";
 import { useStore } from "./store";
 import { allCommands } from "./commands";
 import { send, useAssistant } from "./assistant";
-import { findDef, openAnalysisTab, useAnalyses } from "./analysis";
+import { findDef, insertText, openAnalysisTab, useAnalyses } from "./analysis";
+import { explorationLog } from "./explorationLog";
 
 const notify = (msg: string, kind?: "error") => useStore.getState().notify(msg, kind);
 
@@ -16,9 +17,16 @@ export function suggestionAvailable(s: AnalysisSuggestion): boolean {
 }
 
 /** A new analysis tab on the same data, with the suggestion's options. */
-export async function openSuggestion(inst: AnalysisInstance, s: AnalysisSuggestion) {
+export async function openSuggestion(inst: AnalysisInstance, s: AnalysisSuggestion, hint?: string) {
   try {
-    const created = await host.call("analysis.create", { analysis: s.analysis, dataset: s.dataset ?? inst.dataset, options: s.options, title: s.title, reuse: true });
+    const created = await host.call("analysis.create", {
+      analysis: s.analysis,
+      dataset: s.dataset ?? inst.dataset,
+      options: s.options,
+      title: s.title,
+      reuse: true,
+      from: { analysis: inst.id, hint },
+    });
     useAnalyses.setState((st) => ({ instances: { ...st.instances, [created.id]: created } }));
     openAnalysisTab(created.id);
   } catch (e: any) {
@@ -73,4 +81,27 @@ export async function askAboutHint(inst: AnalysisInstance, h: AnalysisHint) {
   showAssistant();
   if (!useAssistant.getState().model) return notify("AI 조수에서 모델을 먼저 고르세요.", "error");
   await send(parts.join("\n"));
+}
+
+/** Writes the exploration log (cards, question, analyses opened from them, the R chunk) into the open .qmd. */
+export async function insertExplorationLog(inst: AnalysisInstance) {
+  try {
+    const code = await host.call("analysis.code", { id: inst.id });
+    const all = Object.values(useAnalyses.getState().instances);
+    insertText((qmd) => (qmd ? explorationLog(inst, all, code) : null), "탐색 기록을");
+  } catch (e: any) {
+    notify(e?.message ?? String(e), "error");
+  }
+}
+
+/** Opens 탐색 안내 on a data frame (the same tab again if nothing changed). */
+export async function exploreDataset(dataset: string) {
+  try {
+    const created = await host.call("analysis.create", { analysis: "org.rsage.explore/explore", dataset, reuse: true });
+    useAnalyses.setState((st) => ({ instances: { ...st.instances, [created.id]: created } }));
+    openAnalysisTab(created.id);
+    if (!created.result && created.lastRun?.status !== "running") await host.call("analysis.run", { id: created.id });
+  } catch (e: any) {
+    notify(e?.message ?? String(e), "error");
+  }
 }

@@ -3,6 +3,7 @@ import type { RVariable } from "@rsage/shared";
 import { rpc, useComms } from "../comms";
 import { useStore } from "../store";
 import { confirmDialog } from "./Dialogs";
+import { exploreDataset } from "../hints";
 
 /** Global environment from the variables comm, with expandable children. */
 export function EnvironmentPanel() {
@@ -75,6 +76,18 @@ function VarRow({ v, path, depth, comm }: { v: RVariable; path: string[]; depth:
         {v.has_viewer && (
           <button className="btn btn-small env-view" onClick={view} title="데이터 뷰어로 보기">
             표
+          </button>
+        )}
+        {depth === 0 && v.has_viewer && /data\.frame|tbl|tibble|data\.table/i.test(`${v.display_type} ${v.display_value}`) && (
+          <button
+            className="btn btn-small env-view"
+            onClick={(e) => {
+              e.stopPropagation();
+              void exploreDataset(v.display_name);
+            }}
+            title="탐색 안내로 이 데이터를 두루 살펴봅니다"
+          >
+            탐색
           </button>
         )}
       </div>

@@ -87,6 +87,7 @@ export function AssistantPanel() {
             <h4>무엇을 도와드릴까요?</h4>
             <ul className="muted">
               <li>data 폴더의 csv를 읽고 변수들을 요약해 줘</li>
+              <li>study 데이터를 두루 살펴보고 무엇을 분석할지 알려 줘</li>
               <li>집단별 평균을 비교하는 t-검정을 하고 그래프를 그려 줘</li>
               <li>지금까지 분석을 report.qmd 보고서로 정리해 줘</li>
             </ul>
