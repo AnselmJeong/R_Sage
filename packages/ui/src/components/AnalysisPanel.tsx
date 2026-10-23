@@ -15,7 +15,7 @@ import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } fr
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
 import { LevelSelect, ModelPicker, ModelsField, TermChoice } from "./AnalysisModels";
 import { syncModels } from "../analysisModels";
-import { askAboutHint, openSuggestion, suggestionAvailable } from "../hints";
+import { askAboutHint, clearGuide, guideAvailable, openSuggestion, requestGuide, showAssistant, suggestionAvailable } from "../hints";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
@@ -701,7 +701,7 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
             {n.text}
           </div>
         ))}
-      {!!result.hints?.length && <HintCards inst={inst} result={result} />}
+      {(!!result.hints?.length || guideAvailable(inst)) && <HintCards inst={inst} result={result} />}
       {resultSections(result).map((sec) => (
         <div key={sec.name || "_"} className="an-rsection">
           {sec.name && resultSections(result).length > 1 && <h2 className="an-rsection-title">{sec.name}</h2>}
@@ -740,14 +740,102 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
 /** Hint cards: what was found, its numbers and figure, and where to go next. */
 function HintCards({ inst, result }: { inst: AnalysisInstance; result: AnalysisResult }) {
   const plots = new Map(result.plots.map((p) => [p.id, p]));
+  const guide = inst.guide;
+  const cards = (hints: AnalysisHint[]) => (
+    <div className="an-hints">
+      {hints.map((h) => (
+        <HintCard key={h.id} inst={inst} hint={h} plot={h.plot ? plots.get(h.plot) : undefined} />
+      ))}
+    </div>
+  );
+  const rules = result.hints ?? [];
   return (
     <div className="an-rsection">
       <h2 className="an-rsection-title">살펴볼 만한 것</h2>
-      <div className="an-hints">
-        {result.hints!.map((h) => (
-          <HintCard key={h.id} inst={inst} hint={h} plot={h.plot ? plots.get(h.plot) : undefined} />
-        ))}
+      {guideAvailable(inst) && <GuideBar inst={inst} result={result} />}
+      {!!guide?.hints.length && cards(guide.hints)}
+      {guide?.hints.length ? (
+        !!rules.length && (
+          <details className="an-hint-rules">
+            <summary>규칙으로 찾은 카드 {rules.length}장</summary>
+            {cards(rules)}
+          </details>
+        )
+      ) : (
+        cards(rules)
+      )}
+    </div>
+  );
+}
+
+/** Question box, question chips and guessed variable meanings for assistant-written hints. */
+function GuideBar({ inst, result }: { inst: AnalysisInstance; result: AnalysisResult }) {
+  const guide = inst.guide;
+  const [question, setQuestion] = useState(guide?.question ?? "");
+  useEffect(() => setQuestion(guide?.question ?? ""), [guide?.createdAt]);
+  const stale = !!guide && guide.runId !== result.runId;
+  const ask = (q: string) => {
+    setQuestion(q);
+    void requestGuide(inst, q);
+  };
+  return (
+    <div className="an-guide">
+      <div className="an-guide-ask">
+        <input
+          className="an-guide-input"
+          value={question}
+          placeholder="궁금한 것을 적으세요. 예: 치료 반응과 관련된 요인이 궁금해요 (비워 두면 두루 살펴봅니다)"
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) ask(question);
+          }}
+        />
+        <button className="btn btn-small btn-primary" onClick={() => ask(question)} title="어시스턴트가 신호 표에서 질문에 맞는 것을 골라 카드로 정리합니다">
+          {guide ? "힌트 다시 받기" : "힌트 받기"}
+        </button>
+        {guide && (
+          <button className="btn btn-small" onClick={() => void clearGuide(inst)} title="어시스턴트가 쓴 카드를 지우고 규칙 카드만 봅니다">
+            지우기
+          </button>
+        )}
       </div>
+      {guide && (
+        <div className="muted small">
+          어시스턴트가 신호 표에서 골라 쓴 카드입니다. 숫자는 R이 계산한 신호에서만 가져왔습니다.
+          {stale && <span className="an-guide-stale"> 이전 결과 기준이라 지금 신호와 다를 수 있습니다.</span>}
+        </div>
+      )}
+      {guide?.ask && (
+        <div className="an-note an-guide-question">
+          <b>어시스턴트의 질문:</b> {guide.ask}
+          <button className="btn btn-small an-note-open" onClick={() => showAssistant()}>
+            답하기
+          </button>
+        </div>
+      )}
+      {!!guide?.questions.length && (
+        <div className="an-guide-chips">
+          {guide.questions.map((q) => (
+            <button key={q} className="an-qchip" onClick={() => ask(q)} title="이 질문으로 카드를 다시 받습니다">
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
+      {!!guide?.variables.length && (
+        <details className="an-guide-vars">
+          <summary>변수 뜻 (추측) {guide.variables.length}개</summary>
+          <ul>
+            {guide.variables.map((v) => (
+              <li key={v.name}>
+                <code>{v.name}</code> {v.meaning}
+                {v.role && <span className="muted"> · {v.role}</span>}
+              </li>
+            ))}
+          </ul>
+          <div className="muted small">이름과 범주로 짐작한 것입니다. 틀리면 어시스턴트에게 알려 주세요.</div>
+        </details>
+      )}
     </div>
   );
 }

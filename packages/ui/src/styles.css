@@ -4222,3 +4222,60 @@ label.check {
   width: auto;
   flex: 0 0 auto;
 }
+.an-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.an-guide-ask {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.an-guide-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.an-guide-stale {
+  color: var(--warn);
+}
+.an-guide-question {
+  border-left: 3px solid var(--accent);
+}
+.an-guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.an-qchip {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.an-qchip:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+.an-guide-vars summary,
+.an-hint-rules summary {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.an-guide-vars ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}

@@ -14,6 +14,7 @@ defaults <- function() {
     maxHints = 8L,
     maxRows = 50000L,
     seed = 123L,
+    holdout = list(enabled = FALSE, fraction = 0.3, saveAs = "explore_holdout"),
     plots = list(relationMap = TRUE, distributions = TRUE)
   )
 }
@@ -37,6 +38,27 @@ one_name <- function(x) {
   if (is.null(x) || !length(x) || is.na(x[1]) || !nzchar(x[1])) NULL else as.character(x[1])
 }
 
+holdout_name <- function(x) {
+  x <- one_name(x)
+  if (is.null(x) || !nzchar(x)) "explore_holdout" else make.names(x)
+}
+
+# Rows kept back for checking what the exploration finds. Repeated
+# measures are split by their ID so one subject is never on both sides.
+split_holdout <- function(data, d, fraction, seed) {
+  fraction <- min(0.9, max(0.05, as.numeric(fraction)))
+  rep <- repeated_measures(d, profile_vars(d)$kind)
+  set.seed(seed)
+  if (!is.null(rep)) {
+    ids <- unique(d[[rep$id]])
+    out <- d[[rep$id]] %in% ids[sample.int(length(ids), max(1, round(fraction * length(ids))))]
+  } else {
+    out <- seq_len(nrow(d)) %in% sample.int(nrow(d), max(1, round(fraction * nrow(d))))
+  }
+  if (all(out) || !any(out)) stop("확인용 데이터를 떼어 두기에는 행이 너무 적습니다.")
+  list(keep = !out, holdout = data[out, , drop = FALSE], by = rep$id)
+}
+
 #' Exploration guide
 #'
 #' @param data A data frame.
@@ -58,6 +80,19 @@ analyse <- function(data, options = list()) {
 
   d <- as.data.frame(data[vars], stringsAsFactors = FALSE, check.names = FALSE)
   notes <- list()
+  exports <- list()
+  held <- NULL
+  if (isTRUE(o$holdout$enabled)) {
+    h <- split_holdout(data, d, o$holdout$fraction, o$seed)
+    held <- list(name = holdout_name(o$holdout$saveAs), rows = nrow(h$holdout), by = h$by)
+    exports[[held$name]] <- h$holdout
+    d <- d[h$keep, , drop = FALSE]
+    notes <- c(notes, list(rsage::rs_note(
+      sprintf("확인용으로 %s행(%s%%)을 떼어 '%s'에 저장하고 나머지 %s행으로 살폈습니다%s. 카드의 제안 분석은 떼어 둔 데이터로 엽니다.",
+              format(held$rows, big.mark = ","), fmt_num(100 * held$rows / nrow(data), 0), held$name,
+              format(nrow(d), big.mark = ","), if (is.null(h$by)) "" else sprintf("(%s 단위로 나눔)", h$by)),
+      code = "holdout")))
+  }
   n_all <- nrow(d)
   if (n_all > o$maxRows) {
     set.seed(o$seed)
@@ -149,8 +184,11 @@ analyse <- function(data, options = list()) {
       paste0(s$measure, " = ", fmt_value(s$value), if (!is.na(s$n)) sprintf(", n = %d", s$n),
              if (!is.na(s$size)) paste0(" (", s$size, ")"))
     } else if (!is.na(s$n)) sprintf("n = %d", s$n)
+    sugg <- s$suggestions
+    # Findings come from the exploration rows; their check belongs on the held-out rows.
+    if (!is.null(held)) sugg <- lapply(sugg, function(g) { g$dataset <- held$name; g })
     hints[[length(hints) + 1]] <- rsage::rs_hint(s$id, s$title, s$text, evidence = ev, kind = s$kind, variables = s$variables,
-                                                 plot = pid, signal = s$id, suggestions = s$suggestions)
+                                                 plot = pid, signal = s$id, suggestions = sugg)
   }
 
   # ---------- tables ----------
@@ -162,6 +200,7 @@ analyse <- function(data, options = list()) {
               fmt_num(100 * mean(is.na(d)), 1), fmt_num(100 * mean(stats::complete.cases(d)), 1), sum(duplicated(d)),
               length(rs$pairs), length(sig)),
     stringsAsFactors = FALSE)
+  if (!is.null(held)) overview <- rbind(overview, data.frame(item = "확인용 데이터", value = sprintf("%s (%s행, 탐색에 쓰지 않음)", held$name, format(held$rows, big.mark = ","))))
   if (!is.null(rep)) overview <- rbind(overview, data.frame(item = "자료 구조", value = sprintf("반복 측정: %s %d개, ID당 평균 %s행", rep$id, rep$ids, fmt_num(rep$mean, 1))))
   tables[[length(tables) + 1]] <- rsage::rs_table(
     "overview", "한눈에 보기", overview, labels = c(item = "항목", value = "값"), section = "개요",
@@ -219,7 +258,7 @@ analyse <- function(data, options = list()) {
     "variables", "변수 프로필", prof_tab,
     labels = c(variable = "변수", class = "R 클래스", kind = "추정 유형", missing_pct = "결측(%)", unique = "고유값",
                mean = "평균", sd = "표준편차", median = "중앙값", min = "최솟값", max = "최댓값", skew = "왜도",
-               top = "가장 많은 값", memo = "메모"),
+               top = "가장 많은 값", levels = "범주 (많은 순)", memo = "메모"),
     section = "변수",
     description = "추정 유형은 값의 모양으로 정했습니다(예: 0~10 정수는 순서 척도, 행마다 다른 값은 ID). 틀리면 R에서 factor()나 as.numeric()으로 바꾼 뒤 다시 실행하세요.")
 
@@ -252,7 +291,7 @@ analyse <- function(data, options = list()) {
   rsage::rs_result(
     analysis = "explore",
     title = if (is.null(target)) "탐색 안내" else sprintf("탐색 안내: %s", target),
-    tables = tables, plots = plots, notes = notes, options = o,
+    tables = tables, plots = plots, notes = notes, options = o, exports = exports,
     packages = c("rsageExplore", "datawizard", "ggplot2"),
     sections = SECTIONS, hints = hints
   )

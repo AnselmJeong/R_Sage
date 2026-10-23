@@ -83,6 +83,14 @@ top_level <- function(v) {
   sprintf("%s (%s)", names(t)[1], pct(t[[1]] / length(v)))
 }
 
+# The most common level names (at most 10), so the assistant can tell what a
+# group variable means. Never for IDs or free text: those can hold names.
+level_names <- function(v, max = 10) {
+  t <- sort(table(as.character(v)), decreasing = TRUE)
+  out <- paste(utils::head(names(t), max), collapse = ", ")
+  if (length(t) > max) paste0(out, sprintf(" 외 %d개", length(t) - max)) else out
+}
+
 #' One row per variable: kind, missing, spread or top level, shape
 profile_vars <- function(d) {
   kinds <- vapply(names(d), function(n) var_kind(d[[n]], n), "")
@@ -105,6 +113,7 @@ profile_vars <- function(d) {
       max = if (length(vn)) max(vn) else NA_real_,
       skew = if (length(vn) > 2 && k %in% c("integer", "continuous", "ordinal")) skewness(vn) else NA_real_,
       top = if (!num && k %in% c("binary", "categorical", "ordinal")) top_level(v) else NA_character_,
+      levels = if (!num && k %in% c("binary", "categorical", "ordinal")) level_names(v) else NA_character_,
       stringsAsFactors = FALSE
     )
   })
