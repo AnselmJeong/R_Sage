@@ -9,6 +9,9 @@ card_size <- function(draw) {
   switch(draw$type,
     missing_bars = list(width = 4.4, height = min(4.5, 1.1 + 0.26 * min(n, 15))),
     item_cor = list(width = 4.4, height = 3.8),
+    subgroups = list(width = 4.4, height = 3.3),
+    smd = list(width = 4.4, height = 3.4),
+    importance = list(width = 4.4, height = 3.2),
     stack = list(width = 4.4, height = 3.3),
     CARD_SIZE)
 }
@@ -29,10 +32,69 @@ as_group <- function(x, max_levels = 12) {
 }
 
 #' The ggplot for one hint, or NULL
-card_plot <- function(d, draw, ta = NULL) {
+card_plot <- function(d, draw, ta = NULL, deep = list()) {
   if (is.null(draw)) return(NULL)
   aes <- ggplot2::aes
   switch(draw$type,
+    importance = {
+      tab <- utils::head(deep$model$table, 10)
+      df <- data.frame(v = factor(short(tab$variable), levels = rev(short(tab$variable))), r = tab$relative)
+      ggplot2::ggplot(df, aes(x = .data$r, y = .data$v)) + ggplot2::geom_col(fill = "#4C78A8") +
+        ggplot2::labs(x = "상대 중요도 (%)", y = NULL) + card_theme()
+    },
+    pd = {
+      df <- deep$model$pd[[draw$x]]
+      ggplot2::ggplot(df, aes(x = .data$x, y = .data$y)) + ggplot2::geom_line(colour = "#4C78A8", linewidth = 0.9) +
+        ggplot2::geom_rug(data = data.frame(x = d[[draw$x]][is.finite(d[[draw$x]])]), aes(x = .data$x), inherit.aes = FALSE, alpha = 0.2) +
+        ggplot2::labs(x = draw$x, y = if (deep$model$numeric) "모형의 평균 예측" else sprintf("'%s' 예측 확률", deep$model$event)) + card_theme()
+    },
+    subgroups = {
+      tab <- deep$tree$table
+      lab <- sprintf("%s (n=%d)", vapply(strwrap_n(tab$rule, 34), identity, ""), tab$n)
+      df <- data.frame(r = factor(lab, levels = rev(lab)), v = tab$value)
+      ggplot2::ggplot(df, aes(x = .data$v, y = .data$r)) + ggplot2::geom_col(fill = "#4C78A8") +
+        ggplot2::geom_vline(xintercept = deep$tree$overall, linetype = 2, colour = "#E45756") +
+        ggplot2::labs(x = if (deep$tree$numeric) "평균 (점선: 전체)" else "비율(%) (점선: 전체)", y = NULL) + card_theme() +
+        ggplot2::theme(axis.text.y = ggplot2::element_text(size = 7))
+    },
+    interaction = {
+      df <- data.frame(x = d[[draw$x]], b = d[[draw$by]], y = d[[draw$y]])
+      df <- df[stats::complete.cases(df), , drop = FALSE]
+      df$b <- if (is.numeric(df$b) && length(unique(df$b)) > 5) {
+        q <- unique(stats::quantile(df$b, c(0, 1 / 3, 2 / 3, 1)))
+        cut(df$b, q, include.lowest = TRUE, labels = c("낮음", "중간", "높음")[seq_len(length(q) - 1)])
+      } else as_group(df$b, 5)
+      if (!is.numeric(df$y)) df$y <- as.numeric(as.character(df$y) == (ta$model$event %||% max(as.character(df$y))))
+      p <- ggplot2::ggplot(df, aes(x = .data$x, y = .data$y, colour = .data$b))
+      p <- if (is.numeric(df$x)) {
+        p + ggplot2::geom_point(alpha = 0.25, size = 0.9) + ggplot2::geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.9)
+      } else {
+        p + ggplot2::stat_summary(aes(group = .data$b), fun = mean, geom = "line") + ggplot2::stat_summary(fun = mean, geom = "point")
+      }
+      p + ggplot2::labs(x = draw$x, y = draw$y, colour = draw$by) + card_theme() + ggplot2::theme(legend.position = "bottom")
+    },
+    clusters = {
+      cl <- deep$clusters
+      df <- data.frame(a = cl$pc[, 1], b = cl$pc[, 2], k = factor(cl$best$cluster))
+      ggplot2::ggplot(df, aes(x = .data$a, y = .data$b, colour = .data$k)) + ggplot2::geom_point(alpha = 0.5, size = 1) +
+        ggplot2::labs(x = sprintf("주성분 1 (%s%%)", fmt_num(100 * cl$ve[1], 0)), y = sprintf("주성분 2 (%s%%)", fmt_num(100 * cl$ve[2], 0)), colour = "무리") +
+        card_theme()
+    },
+    anomaly = {
+      an <- deep$anomaly
+      df <- data.frame(i = seq_along(an$md), m = an$md, far = an$md > an$cut)
+      ggplot2::ggplot(df, aes(x = .data$i, y = .data$m, colour = .data$far)) + ggplot2::geom_point(size = 1) +
+        ggplot2::geom_hline(yintercept = an$cut, linetype = 2, colour = "#E45756") +
+        ggplot2::scale_colour_manual(values = c("FALSE" = "#BAB0AC", "TRUE" = "#E45756"), guide = "none") +
+        ggplot2::labs(x = "행 (결측 없는 행 순서)", y = "Mahalanobis 거리") + card_theme()
+    },
+    smd = {
+      s <- utils::head(sort(deep$compare$smd, decreasing = TRUE), 15)
+      df <- data.frame(v = factor(short(names(s)), levels = rev(short(names(s)))), s = unname(s))
+      ggplot2::ggplot(df, aes(x = .data$s, y = .data$v)) + ggplot2::geom_point(colour = "#4C78A8", size = 2) +
+        ggplot2::geom_vline(xintercept = c(0.1, 0.2), linetype = c(3, 2), colour = "#E45756") +
+        ggplot2::labs(x = "표준화 평균 차이 (SMD)", y = NULL) + card_theme()
+    },
     hist = {
       df <- data.frame(x = d[[draw$x]][is.finite(d[[draw$x]])])
       bins <- min(30, max(10, length(unique(df$x))))
@@ -127,6 +189,11 @@ card_plot <- function(d, draw, ta = NULL) {
     NULL
   )
 }
+
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+# Long rules cut to a width, so tree labels stay readable.
+strwrap_n <- function(x, n) ifelse(nchar(x) > n, paste0(substr(x, 1, n - 1), "…"), x)
 
 forcats_rev <- function(f) factor(f, levels = rev(levels(f)))
 

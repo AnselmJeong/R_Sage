@@ -27,6 +27,14 @@
       "default": [],
       "description": "Columns to leave out (e.g. free text, IDs the module would not recognise)."
     },
+    "compare": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Optional grouping column (2-6 groups, e.g. treatment arm, site, period). Adds a Table 1 draft by group with standardized mean differences and cards for the variables that differ most."
+    },
     "scope": {
       "type": "object",
       "additionalProperties": false,
@@ -57,6 +65,39 @@
           "type": "boolean",
           "default": true,
           "description": "Missingness of one variable related to the values of another (a MAR clue)."
+        }
+      }
+    },
+    "deep": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Deeper looks.",
+      "properties": {
+        "model": {
+          "type": "boolean",
+          "default": true,
+          "description": "With a target: quick random forest (ranger) permutation importance and partial dependence; flags variables important in the model but weak on their own."
+        },
+        "subgroups": {
+          "type": "boolean",
+          "default": true,
+          "description": "With a target: shallow tree (rpart, depth <= 3) for subgroups where the target differs."
+        },
+        "interactions": {
+          "type": "boolean",
+          "default": true,
+          "description": "With a target: delta R² of a*b over a+b for pairs of the target's top associates."
+        },
+        "clusters": {
+          "type": "boolean",
+          "default": true,
+          "description": "k-means on principal components of the numeric variables, shown only with a clear silhouette (>= 0.5)."
+        },
+        "anomalies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rows far from the rest on several numeric variables at once (Mahalanobis distance beyond the chi-square 99.9% cut-off)."
         }
       }
     },

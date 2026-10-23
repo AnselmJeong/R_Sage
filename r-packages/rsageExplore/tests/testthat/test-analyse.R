@@ -164,3 +164,72 @@ test_that("held-out rows are kept apart and the suggestions open on them", {
   expect_false(any(as.character(cw$Chick[!cw$Chick %in% held]) %in% held))
   expect_equal(length(held), round(0.3 * nlevels(cw$Chick)))
 })
+
+# ---------- deeper looks (0.3) ----------
+
+test_that("the quick model, subgroups and interactions find a planted interaction", {
+  set.seed(3)
+  n <- 400
+  d <- data.frame(x = stats::rnorm(n), g = sample(c("A", "B"), n, TRUE), z = stats::rnorm(n), w = stats::runif(n))
+  d$y <- ifelse(d$g == "B", 2 * d$x, -2 * d$x) + 0.5 * d$z + stats::rnorm(n, 0, 0.5)
+  d$y_copy <- d$y + stats::rnorm(n, 0, 0.01)
+  res <- analyse(d, list(target = "y"))
+  k <- kinds_of(res)
+  s <- signals(res)
+  # x has almost no relation with y on its own, but the model needs it.
+  expect_true("모형에서만 중요" %in% s$kind)
+  expect_true(any(grepl("'x'", s$title[s$kind == "모형에서만 중요"])))
+  expect_true("상호작용" %in% s$kind)
+  it <- res$tables$interactions$data
+  expect_true(any((it$a == "x" & it$b == "g" | it$a == "g" & it$b == "x") & it$delta > 0.5))
+  expect_true("하위집단" %in% s$kind)
+  expect_false(any(grepl("y_copy", res$tables$model$data$variable)))
+  expect_true(any(vapply(res$notes, function(n) identical(n$code, "target_copies"), TRUE)))
+  # The interaction card suggests a regression with the interaction term.
+  ic <- Filter(function(h) h$kind == "interaction", res$hints)[[1]]
+  terms <- ic$suggestions[[1]]$options$terms
+  expect_true(any(vapply(terms, function(t) identical(t$kind, "interaction"), TRUE)))
+  expect_true("i1" %in% ic$suggestions[[1]]$options$models[[1]]$termIds)
+  expect_true(all(c("pd-x", "hint-s01") %in% names(res$plots)) || "pd-x" %in% names(res$plots))
+})
+
+test_that("clear clusters and a row off the pattern are found, noise has neither", {
+  set.seed(4)
+  centers <- rbind(c(0, 0, 0, 0), c(6, 6, 0, 0), c(0, 6, 6, 6))
+  d <- as.data.frame(do.call(rbind, lapply(1:3, function(i) sweep(matrix(stats::rnorm(80 * 4), 80), 2, centers[i, ], "+"))))
+  res <- analyse(d)
+  expect_true("무리" %in% signals(res)$kind)
+  expect_equal(ncol(res$tables$clusters$data), 2 + 3)
+
+  set.seed(5)
+  a <- stats::rnorm(300)
+  e <- data.frame(a = a, b = a + stats::rnorm(300, 0, 0.2), c = stats::rnorm(300))
+  e$b[17] <- -e$a[17] * 1.5 + 0.1
+  e$a[17] <- 2
+  res <- analyse(e)
+  expect_true("동떨어진 행" %in% signals(res)$kind)
+  expect_equal(res$tables$anomalies$data$row[1], "17")
+
+  set.seed(6)
+  noise <- as.data.frame(matrix(stats::rnorm(300 * 5), 300))
+  s <- signals(analyse(noise))
+  expect_false(any(s$kind %in% c("무리", "동떨어진 행")))
+})
+
+test_that("groups are compared with a Table 1 draft and SMDs", {
+  d <- planted()
+  set.seed(7)
+  d$arm <- sample(c("A", "B"), nrow(d), TRUE)
+  d$age[d$arm == "B"] <- d$age[d$arm == "B"] + 10
+  res <- analyse(d, list(compare = "arm"))
+  t1 <- res$tables$table1$data
+  expect_equal(names(t1), c("variable", "level", "g1", "g2", "smd"))
+  expect_gt(t1$smd[t1$variable == "age"], 0.6)
+  # Scale items with a total are summarised by the total only.
+  expect_false("phq1" %in% t1$variable)
+  expect_equal(kinds_of(res)[1], "compare")
+  expect_true(any(vapply(res$hints, function(h) h$kind == "group_shift" && "age" %in% h$variables, TRUE)))
+  expect_error(analyse(d, list(compare = "nope")), "nope")
+  many <- analyse(d, list(compare = "id"))
+  expect_true(any(vapply(many$notes, function(n) identical(n$code, "compare_unusable"), TRUE)))
+})
