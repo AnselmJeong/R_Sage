@@ -50,7 +50,7 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | 5 | `org.rsage.frequencies` | 교차표, 카이제곱, Fisher 정확검정 | stats | 후보 |
 | 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체), UpSetR(조합 그림) | 확정 (시범 구현) |
 | 6a | `org.rsage.integrity` | 데이터 무결성·정제 점검: 변수명·빈 행, 숫자·날짜·코드 형식, 이상치와 범위·허용 값·선후 규칙, 결측 코드와 중복, 텍스트 표기, 정리한 사본, 진단 보고서 | dlookr(진단·보고서), 나머지는 base R·ggplot2 | 확정 (구현) |
-| 6b | `org.rsage.explore` | 탐색 안내: 변수 유형·자료 구조 추정, 데이터 상태, 분포, 관계·집단 차이·결측 관련 신호, 목표 변수 순위, 카드마다 다음 분석 제안. 명세 [modules/explore.md](modules/explore.md) | datawizard, 나머지는 base R·ggplot2 | 0.2 구현 (질문 맞춤 힌트, 확인용 데이터). 0.3 빠른 모형·하위집단 예정 |
+| 6b | `org.rsage.explore` | 탐색 안내: 변수 유형·자료 구조 추정, 데이터 상태, 분포, 관계·집단 차이·결측 관련 신호, 목표 변수 순위, 카드마다 다음 분석 제안. 명세 [modules/explore.md](modules/explore.md) | datawizard, 나머지는 base R·ggplot2 | 0.3 구현 (질문 맞춤 힌트, 확인용 데이터, 빠른 모형·하위집단·상호작용·무리·이상 행, 표 1) |
 | 7 | `org.rsage.reliability` | Cronbach's α, McDonald's ω, 문항 분석 | psych | 후보 |
 | 8 | `org.rsage.factor` | EFA, PCA, CFA | psych, GPArotation, lavaan(CFA) | 후보 |
 | 9 | `org.rsage.mixed` | 선형 혼합모형, 일반화 혼합모형 | lme4, lmerTest, emmeans | 후보 |

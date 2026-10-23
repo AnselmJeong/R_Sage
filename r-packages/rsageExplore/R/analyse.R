@@ -15,19 +15,23 @@ defaults <- function() {
     maxRows = 50000L,
     seed = 123L,
     holdout = list(enabled = FALSE, fraction = 0.3, saveAs = "explore_holdout"),
+    compare = NULL,
+    deep = list(model = TRUE, subgroups = TRUE, interactions = TRUE, clusters = TRUE, anomalies = TRUE),
     plots = list(relationMap = TRUE, distributions = TRUE)
   )
 }
 
 # Result sections, in the order the tab shows them.
-SECTIONS <- c("개요", "목표 변수", "발견한 신호", "변수", "관계", "분포")
+SECTIONS <- c("개요", "목표 변수", "집단 비교", "더 깊은 탐색", "발견한 신호", "변수", "관계", "분포")
 
 SIGNAL_LABEL <- c(health = "데이터 상태", missing = "결측", missing_related = "결측과 다른 변수", skew = "치우친 분포",
                   zeros = "0이 많음", ceiling = "바닥·천장 효과", bimodal = "봉우리 둘", imbalance = "한 범주에 몰림",
                   rare_levels = "드문 범주", scale = "척도 문항", repeated = "반복 측정", wide = "시점별 열",
                   association = "관계", nonlinear = "곡선 관계", outlier_driven = "극단값이 만든 상관",
                   redundant = "같은 정보", group_diff = "집단 차이", target = "목표 변수와의 관계",
-                  target_model = "목표 변수 모형")
+                  target_model = "목표 변수 모형", model_importance = "빠른 모형", model_hidden = "모형에서만 중요",
+                  subgroup = "하위집단", interaction = "상호작용", clusters = "무리", anomaly = "동떨어진 행",
+                  compare = "집단 비교", group_shift = "집단마다 다름")
 
 MAX_PAIRS <- 5000L
 
@@ -70,10 +74,11 @@ analyse <- function(data, options = list()) {
   stopifnot(is.data.frame(data))
   o <- rsage::rs_merge_options(options, defaults())
   target <- one_name(o$target)
+  compare <- one_name(o$compare)
   vars <- as.character(unlist(o$variables))
   if (!length(vars)) vars <- names(data)
-  vars <- setdiff(unique(c(vars, target)), as.character(unlist(o$exclude)))
-  unknown <- setdiff(c(vars, target), names(data))
+  vars <- setdiff(unique(c(vars, target, compare)), as.character(unlist(o$exclude)))
+  unknown <- setdiff(c(vars, target, compare), names(data))
   if (length(unknown)) stop("데이터에 없는 변수: ", paste(unknown, collapse = ", "))
   if (!length(vars)) stop("살펴볼 변수가 없습니다.")
   if (!nrow(data)) stop("데이터에 행이 없습니다.")
@@ -139,6 +144,8 @@ analyse <- function(data, options = list()) {
     sig <- c(sig, sig_rel)
   }
   if (isTRUE(o$scope$missing)) sig <- c(sig, missing_signals(d, kinds, rel))
+  # A scale with a total enters through its total, not item by item.
+  items <- unlist(lapply(Filter(function(s) !is.null(s$total), scales), `[[`, "items"))
   ta <- NULL
   if (!is.null(target)) {
     if (!target %in% rel) {
@@ -146,11 +153,58 @@ analyse <- function(data, options = list()) {
         sprintf("목표 변수 '%s'는 %s 유형이라 다른 변수와의 관계를 잴 수 없습니다. 수치나 범주(30개 이하) 변수를 고르세요.",
                 target, KIND_LABEL[[kinds[[target]]]]), "warning", "target_unusable")))
     } else {
-      # A scale with a total enters through its total, not item by item.
-      items <- unlist(lapply(Filter(function(s) !is.null(s$total), scales), `[[`, "items"))
       ta <- target_analysis(d, kinds, target, setdiff(rel, items))
       sig <- c(sig, target_signals(d, kinds, target, ta))
     }
+  }
+
+  # Deeper looks: each one is optional and a failure in one never stops the rest.
+  deep <- list()
+  attempt <- function(expr, what) tryCatch(expr, error = function(e) {
+    notes <<- c(notes, list(rsage::rs_note(sprintf("%s을(를) 계산하지 못했습니다: %s", what, conditionMessage(e)), "warning", "deep_failed")))
+    NULL
+  })
+  if (!is.null(ta) && nrow(ta$table)) {
+    # A near copy of the target (|ρ|, η or V ≥ 0.95) would explain everything and hide the rest.
+    copies <- ta$table$variable[ta$table$strength >= 0.95]
+    preds <- setdiff(ta$table$variable, copies)
+    if (length(copies) && (isTRUE(o$deep$model) || isTRUE(o$deep$subgroups))) {
+      notes <- c(notes, list(rsage::rs_note(sprintf("목표 변수와 거의 같은 %s은(는) 빠른 모형과 하위집단에서 뺐습니다.",
+                                                    paste(sprintf("'%s'", copies), collapse = ", ")), code = "target_copies")))
+    }
+    if (isTRUE(o$deep$model)) {
+      deep$model <- attempt(quick_model(d, kinds, target, preds, o$seed, stats::setNames(ta$table$strength, ta$table$variable)), "빠른 모형")
+      if (!is.null(deep$model$missing)) {
+        notes <- c(notes, list(rsage::rs_note("빠른 모형에는 ranger 패키지가 필요합니다. install.packages(\"ranger\")로 설치하면 다음 실행부터 보입니다.", code = "ranger_missing")))
+        deep$model <- NULL
+      }
+      sig <- c(sig, model_signals(target, deep$model, ta))
+    }
+    if (isTRUE(o$deep$subgroups)) {
+      deep$tree <- attempt(subgroup_tree(d, kinds, target, preds), "하위집단 나무")
+      sig <- c(sig, subgroup_signals(target, deep$tree, ta))
+    }
+    if (isTRUE(o$deep$interactions)) {
+      extra <- c(utils::head(deep$model$table$variable[deep$model$table$relative >= 10], 3), deep$tree$vars)
+      deep$ints <- attempt(interaction_scan(d, kinds, target, ta, skip = copies, extra = extra), "상호작용")
+      sig <- c(sig, interaction_signals(target, deep$ints, ta))
+    }
+  }
+  if (isTRUE(o$deep$clusters)) {
+    deep$clusters <- attempt(cluster_scan(d, kinds, setdiff(rel, target), o$seed), "군집")
+    sig <- c(sig, cluster_signals(deep$clusters))
+  }
+  if (isTRUE(o$deep$anomalies)) {
+    deep$anomaly <- attempt(anomaly_scan(d, kinds, setdiff(rel, target)), "동떨어진 행")
+    sig <- c(sig, anomaly_signals(deep$anomaly))
+  }
+  if (!is.null(compare)) {
+    deep$compare <- attempt(compare_groups(d, kinds, compare, setdiff(rel, items)), "집단 비교")
+    if (!is.null(deep$compare$error)) {
+      notes <- c(notes, list(rsage::rs_note(deep$compare$error, "warning", "compare_unusable")))
+      deep$compare <- NULL
+    }
+    sig <- c(sig, compare_signals(deep$compare, kinds, d))
   }
 
   # Rank: score, then n. One signal per kind and variable set.
@@ -160,7 +214,8 @@ analyse <- function(data, options = list()) {
   # Cards: the strongest signals, no variable on more than two relation cards (besides the target).
   cards <- list()
   used <- character()
-  pairwise <- c("association", "nonlinear", "outlier_driven", "redundant", "group_diff", "target", "missing_related")
+  pairwise <- c("association", "nonlinear", "outlier_driven", "redundant", "group_diff", "target", "missing_related",
+                "interaction", "group_shift")
   for (s in sig) {
     if (length(cards) >= o$maxHints) break
     v <- if (s$kind %in% pairwise) setdiff(s$variables, target) else character()
@@ -173,7 +228,7 @@ analyse <- function(data, options = list()) {
   plots <- list()
   hints <- list()
   for (s in cards) {
-    p <- tryCatch(card_plot(d, s$draw, ta), error = function(e) NULL)
+    p <- tryCatch(card_plot(d, s$draw, ta, deep), error = function(e) NULL)
     pid <- NULL
     if (!is.null(p)) {
       pid <- paste0("hint-", s$id)
@@ -240,6 +295,71 @@ analyse <- function(data, options = list()) {
         size = rsage::rs_figure_size(1, y_items = min(12, nrow(tt)), label_chars = 14, legend = FALSE),
         section = "목표 변수", description = "막대가 길수록 목표 변수와 함께 움직이거나 집단에 따라 크게 다릅니다. 색은 측도의 종류입니다.")
     }
+  }
+
+  if (!is.null(deep$compare)) {
+    cg <- deep$compare
+    tab1 <- cg$table
+    labs <- c(variable = "변수", level = "", stats::setNames(sprintf("%s (n=%d)", cg$levels, cg$n), paste0("g", seq_along(cg$levels))), smd = "SMD")
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "table1", sprintf("'%s'에 따른 표 1 (초안)", compare), tab1, labels = labs, section = "집단 비교",
+      notes = "수치는 평균 (SD), 치우친 변수(|왜도| ≥ 1)는 중앙값 [IQR], 범주는 n (%)입니다. SMD는 집단 쌍 가운데 가장 큰 값입니다.",
+      description = "집단의 구성을 비교하는 초안입니다. 검정 p값은 넣지 않았습니다. 논문용 표는 변수와 표기를 고른 뒤 다시 만드세요.")
+    pl <- card_plot(d, list(type = "smd"), ta, deep)
+    if (!is.null(pl)) plots[[length(plots) + 1]] <- rsage::rs_plot(
+      "smd", "집단 사이 표준화 평균 차이", pl, size = rsage::rs_figure_size(1, y_items = min(15, length(cg$smd)), label_chars = 14),
+      section = "집단 비교", description = "점선은 0.1과 0.2입니다. 오른쪽으로 갈수록 집단 사이 차이가 큽니다.")
+  }
+  if (!is.null(deep$model)) {
+    mt <- deep$model$table
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "model", sprintf("빠른 모형: '%s' 예측에 도움이 되는 변수", target), mt,
+      labels = c(variable = "변수", importance = "순열 중요도", relative = "상대 중요도(%)", marginal = "따로 본 관련 크기"),
+      section = "더 깊은 탐색",
+      notes = c(sprintf("ranger 랜덤포레스트, 나무 300그루, seed %d. %s = %s, n = %d.", o$seed, deep$model$perf$measure, fmt_num(deep$model$perf$value), deep$model$n),
+                if (deep$model$filled > 0) sprintf("설명변수의 결측 %d칸은 중앙값이나 가장 많은 범주로 채워 적합했습니다.", deep$model$filled)),
+      description = "변수 하나를 섞었을 때 예측이 얼마나 나빠지는지입니다. 효과의 크기나 방향, 원인을 뜻하지 않습니다. 따로 본 관련은 작은데 중요도가 크면 상호작용이나 곡선 관계를 의심해 보세요.")
+    for (v in names(deep$model$pd)) {
+      pl <- card_plot(d, list(type = "pd", x = v), ta, deep)
+      plots[[length(plots) + 1]] <- rsage::rs_plot(paste0("pd-", make.names(v)), sprintf("부분 의존: %s", v), pl, width = 4.4, height = 2.9,
+                                                   section = "더 깊은 탐색", description = "다른 변수는 그대로 두고 이 변수만 바꿨을 때 모형의 평균 예측입니다.")
+    }
+  }
+  if (!is.null(deep$tree)) {
+    tt <- deep$tree$table
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "subgroups", sprintf("하위집단: '%s'가 다른 집단", target), tt,
+      labels = c(rule = "집단", n = "n", value = if (deep$tree$numeric) "평균" else sprintf("'%s' 비율(%%)", deep$tree$event),
+                 diff = if (deep$tree$numeric) "전체와의 차이(SD 단위)" else "전체와의 차이(%p)"),
+      section = "더 깊은 탐색",
+      notes = sprintf("rpart 회귀나무(깊이 3 이하, 집단마다 %s명 이상). 전체 %s = %s.", "최소 5% 또는 20",
+                      if (deep$tree$numeric) "평균" else "비율(%)", fmt_num(deep$tree$overall, 1)),
+      description = "데이터에 맞춰 고른 경계라 다른 데이터에서는 달라질 수 있습니다. 어떤 변수의 조합에서 다른지를 가설로 보세요.")
+  }
+  if (length(deep$ints)) {
+    it <- do.call(rbind, lapply(deep$ints, function(x) data.frame(a = x$a, b = x$b, add = x$add, delta = x$delta, n = x$n)))
+    it <- it[order(-it$delta), , drop = FALSE]
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "interactions", sprintf("상호작용: '%s'와의 관계가 다른 변수에 따라 달라지는가", target), it,
+      labels = c(a = "변수 1", b = "변수 2", add = "더한 모형 R²", delta = "곱한 항을 넣었을 때 ΔR²", n = "n"),
+      section = "더 깊은 탐색", notes = "목표 변수와 관련이 있는 상위 6개 변수와, 빠른 모형·하위집단 나무가 쓴 변수의 모든 쌍입니다. 이분·개수 결과는 의사 R²(McFadden)입니다.",
+      description = "ΔR²가 0.02 이상이면 카드로 올렸습니다. 많은 쌍을 봤으므로 회귀에서 확인하세요.")
+  }
+  if (!is.null(deep$clusters$best) && deep$clusters$best$sil >= 0.5) {
+    cp <- deep$clusters$profile
+    k <- deep$clusters$best$k
+    names(cp)[3:(2 + k)] <- paste0("c", seq_len(k))
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "clusters", "무리마다 다른 변수 (표준화 평균)", utils::head(cp, 15),
+      labels = c(variable = "변수", spread = "무리 사이 차이", stats::setNames(sprintf("무리 %d (n=%d)", seq_len(k), as.integer(table(deep$clusters$best$cluster))), paste0("c", seq_len(k)))),
+      section = "더 깊은 탐색", notes = sprintf("주성분 %d개(분산 80%% 이상)로 k-평균(k = 2~5), 평균 실루엣이 가장 큰 k를 골랐습니다.", ncol(deep$clusters$pc)),
+      description = "값은 변수마다 표준화한 평균(0 = 전체 평균, 1 = 1 SD)입니다.")
+  }
+  if (!is.null(deep$anomaly$table) && length(Filter(function(s) s$kind == "anomaly", sig))) {
+    tables[[length(tables) + 1]] <- rsage::rs_table(
+      "anomalies", "찾은 이상 사례", deep$anomaly$table,
+      labels = c(row = "행 번호", distance = "Mahalanobis 거리", unusual = "가장 동떨어진 변수"),
+      section = "더 깊은 탐색", description = "행 번호는 원래 데이터의 행입니다. z는 그 변수의 표준화 값입니다.")
   }
 
   prof_tab <- prof$table

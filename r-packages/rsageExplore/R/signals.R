@@ -55,14 +55,19 @@ KEY <- list(
 
 FAMILY_LABEL <- c(gaussian = "선형 회귀", binomial = "로지스틱 회귀", poisson = "개수 회귀")
 
-sug_regression <- function(outcome, family, continuous = character(), categorical = character(), event = NULL) {
+sug_regression <- function(outcome, family, continuous = character(), categorical = character(), event = NULL, interaction = NULL) {
   preds <- c(as.character(continuous), as.character(categorical))
   # Main effects of every predictor in one model, as the regression form builds them.
   terms <- lapply(preds, function(v) list(id = paste0("m:", v), kind = "main", variable = v))
+  ids <- paste0("m:", preds)
+  if (length(interaction) == 2 && all(interaction %in% preds)) {
+    terms[[length(terms) + 1]] <- list(id = "i1", kind = "interaction", components = I(paste0("m:", interaction)))
+    ids <- c(ids, "i1")
+  }
   o <- list(outcome = list(variable = outcome), model = list(family = family),
             predictors = list(continuous = I(as.character(continuous)), categorical = I(as.character(categorical))),
             terms = terms,
-            models = list(list(id = "m1", label = "모형 1", termIds = I(paste0("m:", preds)), intercept = TRUE)))
+            models = list(list(id = "m1", label = "모형 1", termIds = I(ids), intercept = TRUE)))
   if (!is.null(event)) o$outcome$event <- event
   rsage::rs_suggest(paste(FAMILY_LABEL[[family]], "열기"), KEY$regression, o, title = paste0(FAMILY_LABEL[[family]], ": ", outcome))
 }

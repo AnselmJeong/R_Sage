@@ -68,15 +68,41 @@
       },
       {
         "title": "두 집단 비교와 표 1",
-        "description": "기관·시기처럼 두 데이터의 분포 차이를 변수별로 비교하고 기저특성표 초안을 만듭니다.",
-        "planned": true,
-        "enable": {}
+        "description": "'비교할 집단'에 치료군·기관·시기 같은 변수를 넣으면 집단마다 요약한 표 1 초안과 표준화 평균 차이(SMD)를 보여 주고, 크게 다른 변수를 카드로 올립니다.",
+        "enable": {},
+        "needs": "비교할 집단을 넣으세요.",
+        "needsFilled": [
+          "compare"
+        ]
       },
       {
         "title": "빠른 모형과 하위집단",
-        "description": "랜덤포레스트 변수 중요도와 얕은 결정나무로 어떤 하위집단에서 결과가 다른지 봅니다.",
-        "planned": true,
-        "enable": {}
+        "description": "랜덤포레스트 변수 중요도와 부분 의존 그림, 얕은 결정나무의 하위집단, 상호작용을 봅니다. 따로 볼 때는 약한데 모형에서 중요한 변수도 찾습니다.",
+        "enable": {
+          "deep.model": true,
+          "deep.subgroups": true,
+          "deep.interactions": true
+        },
+        "fn": [
+          "ranger::ranger",
+          "rpart::rpart"
+        ],
+        "needs": "목표 변수를 넣으세요.",
+        "needsFilled": [
+          "target"
+        ]
+      },
+      {
+        "title": "숨은 무리와 동떨어진 행",
+        "description": "수치 변수로 나뉘는 뚜렷한 무리(실루엣 0.5 이상)와, 여러 변수를 함께 볼 때 드문 행을 찾습니다.",
+        "fn": [
+          "stats::kmeans",
+          "stats::mahalanobis"
+        ],
+        "enable": {
+          "deep.clusters": true,
+          "deep.anomalies": true
+        }
       }
     ]
   },
@@ -87,6 +113,13 @@
       "label": "목표 변수",
       "optional": true,
       "hint": "관심 있는 결과 변수. 비워 두면 일반 탐색입니다."
+    },
+    {
+      "type": "variable",
+      "bind": "compare",
+      "label": "비교할 집단",
+      "optional": true,
+      "hint": "치료군, 기관, 시기처럼 나눠 볼 변수(2~6개 범주). 표 1 초안을 만듭니다."
     },
     {
       "type": "variables",
@@ -137,6 +170,55 @@
           "bind": "scope.missing",
           "label": "결측과 다른 변수",
           "description": "한 변수가 빠진 행에서 다른 변수의 값이 다른지."
+        },
+        {
+          "type": "checkbox",
+          "bind": "deep.model",
+          "label": "빠른 모형",
+          "description": "목표 변수를 랜덤포레스트로 한 번 적합해 예측에 도움이 되는 변수를 봅니다.",
+          "fn": "ranger::ranger",
+          "enabledWhen": {
+            "bind": "target",
+            "filled": true
+          },
+          "disabledHint": "목표 변수를 넣으면 쓸 수 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "deep.subgroups",
+          "label": "하위집단",
+          "description": "얕은 결정나무로 목표 변수가 크게 다른 집단을 찾습니다.",
+          "fn": "rpart::rpart",
+          "enabledWhen": {
+            "bind": "target",
+            "filled": true
+          },
+          "disabledHint": "목표 변수를 넣으면 쓸 수 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "deep.interactions",
+          "label": "상호작용",
+          "description": "목표 변수와의 관계가 다른 변수에 따라 달라지는 쌍을 찾습니다.",
+          "enabledWhen": {
+            "bind": "target",
+            "filled": true
+          },
+          "disabledHint": "목표 변수를 넣으면 쓸 수 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "deep.clusters",
+          "label": "무리 (군집)",
+          "description": "수치 변수로 나뉘는 뚜렷한 무리가 있는지 봅니다(주성분 + k-평균).",
+          "fn": "stats::kmeans"
+        },
+        {
+          "type": "checkbox",
+          "bind": "deep.anomalies",
+          "label": "동떨어진 행",
+          "description": "여러 변수를 함께 볼 때 드문 조합인 행(Mahalanobis 거리).",
+          "fn": "stats::mahalanobis"
         }
       ]
     },

@@ -1,6 +1,6 @@
 Package: rsageExplore
 Title: Exploration Guide Module for R Sage
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
 Description: Profiles a data frame and points to what is worth a closer
     look: the role and structure of each variable (IDs, scale items,
@@ -13,6 +13,6 @@ Description: Profiles a data frame and points to what is worth a closer
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 4.2.0)
-Imports: rsage (>= 0.1.0), ggplot2, datawizard, stats, utils
-Suggests: testthat (>= 3.0.0)
+Imports: rsage (>= 0.1.0), ggplot2, datawizard, rpart, cluster, stats, utils
+Suggests: ranger, testthat (>= 3.0.0)
 Config/testthat/edition: 3

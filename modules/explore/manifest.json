@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "org.rsage.explore",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "title": "탐색 안내",
   "description": "데이터를 훑어 더 살펴볼 만한 것을 카드로 알려 줍니다. 변수의 유형과 자료 구조(ID, 척도 문항, 반복 측정)를 추정하고, 치우친 분포, 변수 사이 관계, 집단 차이, 같은 정보를 담은 변수, 다른 변수와 관련된 결측, 목표 변수와 관련이 큰 변수를 찾아 근거 수치와 그림, 다음에 할 분석을 함께 보여 줍니다.",
   "publisherId": "org.rsage",
@@ -19,11 +19,18 @@
         "package": "datawizard",
         "role": "왜도·첨도",
         "required": true
+      },
+      {
+        "package": "ranger",
+        "role": "빠른 모형 (목표 변수의 변수 중요도)",
+        "required": false
       }
     ],
     "requires": [
       "datawizard",
-      "ggplot2"
+      "ggplot2",
+      "rpart",
+      "cluster"
     ]
   },
   "analyses": [
@@ -41,7 +48,7 @@
       "resultSchemaVersion": 1,
       "requiresDataset": true,
       "assistant": {
-        "summary": "Exploration guide for a data frame the user has just opened or asks to look over: guesses each variable's kind and the data layout (IDs, questionnaire scale items with Cronbach's alpha, repeated measures in long or wide form), quick health check (duplicates, empty columns, numbers stored as text, missing-value codes, missing share), distribution shapes (skew, many zeros, floor/ceiling, bimodality, rare or dominant categories), pairwise associations ranked by effect size (Spearman rho, eta squared, Cramer's V) incl. nonlinear, outlier-driven and redundant pairs, group differences, missingness related to other variables, and for an optional target variable the ranked associates plus a regression to start from. Returns hint cards with evidence numbers, a small plot and suggested next analyses; it does not fit final models.",
+        "summary": "Exploration guide for a data frame the user has just opened or asks to look over: guesses each variable's kind and the data layout (IDs, questionnaire scale items with Cronbach's alpha, repeated measures in long or wide form), quick health check (duplicates, empty columns, numbers stored as text, missing-value codes, missing share), distribution shapes (skew, many zeros, floor/ceiling, bimodality, rare or dominant categories), pairwise associations ranked by effect size (Spearman rho, eta squared, Cramer's V) incl. nonlinear, outlier-driven and redundant pairs, group differences, missingness related to other variables, for an optional target variable the ranked associates plus a regression to start from, a quick random forest (importance, partial dependence), tree subgroups and interactions; clusters and multivariate unusual rows; and for an optional grouping variable a Table 1 draft with standardized mean differences. Returns hint cards with evidence numbers, a small plot and suggested next analyses; it does not fit final models.",
         "guide": "ai.md"
       }
     }
