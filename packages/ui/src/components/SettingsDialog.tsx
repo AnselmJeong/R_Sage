@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { ProjectSettings } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
-import { EDITOR_FONTS, useEditorPrefs, type EditorPrefs } from "../editor/prefs";
+import { EDITOR_FONTS, useEditorPrefs, type EditorPrefs, type ThemeChoice } from "../editor/prefs";
 
 export const useSettings = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -91,6 +91,12 @@ export function SettingsDialog() {
   );
 }
 
+const THEMES: [ThemeChoice, string][] = [
+  ["dark", "다크"],
+  ["light", "라이트"],
+  ["system", "시스템 설정 따르기"],
+];
+
 /** The editor's few app-wide options. They apply as soon as they change. */
 function EditorSettings() {
   const p = useEditorPrefs();
@@ -102,6 +108,17 @@ function EditorSettings() {
   const set = (patch: Partial<typeof p>) => useEditorPrefs.setState(patch);
   return (
     <div className="settings-editor">
+      <h4>화면</h4>
+      <div className="settings-theme">
+        <span>테마</span>
+        <div className="seg" role="radiogroup" aria-label="테마">
+          {THEMES.map(([id, label]) => (
+            <button key={id} role="radio" aria-checked={p.theme === id} className={p.theme === id ? "active" : ""} onClick={() => set({ theme: id })}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <h4>편집기</h4>
       <div className="settings-row">
         <label>

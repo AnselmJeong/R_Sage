@@ -21,7 +21,7 @@
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--pop-shadow);
 }
 .conv-history-search {
   margin: 6px;
@@ -160,7 +160,7 @@
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--pop-shadow);
   padding: 3px 0;
 }
 .mention-item {

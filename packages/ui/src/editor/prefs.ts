@@ -1,11 +1,15 @@
-// App-wide editor preferences: font, size, ligatures, format on save. Kept
-// deliberately few; they live in this window's storage and apply live to every
-// Monaco editor (files, console, diffs and visual-mode chunks).
+// App-wide preferences: colour theme, editor font, size, ligatures, format on
+// save. Kept deliberately few; they live in this window's storage and apply live
+// to the whole window and every Monaco editor (files, console, diffs and
+// visual-mode chunks).
 
 import { create } from "zustand";
-import { monaco } from "./monaco";
+import { defineThemes, monaco } from "./monaco";
+
+export type ThemeChoice = "dark" | "light" | "system";
 
 export interface EditorPrefs {
+  theme: ThemeChoice;
   font: string;
   fontSize: number;
   ligatures: boolean;
@@ -15,7 +19,7 @@ export interface EditorPrefs {
 /** Fira Code ships with the app; the others are used when installed. */
 export const EDITOR_FONTS = ["Fira Code", "JetBrains Mono", "SF Mono", "Menlo", "D2Coding"];
 
-const DEFAULTS: EditorPrefs = { font: "Fira Code", fontSize: 13, ligatures: true, formatOnSave: true };
+const DEFAULTS: EditorPrefs = { theme: "dark", font: "Fira Code", fontSize: 13, ligatures: true, formatOnSave: true };
 const KEY = "rsage.editorPrefs";
 
 function load(): EditorPrefs {
@@ -42,7 +46,30 @@ export function editorFontOptions(): monaco.editor.IEditorOptions {
   return { fontFamily: fontStack(p.font), fontSize: p.fontSize, fontLigatures: p.ligatures };
 }
 
+const systemDark = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : undefined;
+
+/** The theme actually shown: "system" follows macOS. */
+export function resolvedTheme(choice = useEditorPrefs.getState().theme): "dark" | "light" {
+  if (choice === "system") return systemDark?.matches === false ? "light" : "dark";
+  return choice;
+}
+
+/** Monaco's theme is window-wide; editors are created with the current one. */
+export function monacoTheme() {
+  return `rsage-${resolvedTheme()}`;
+}
+
+function applyTheme(p: EditorPrefs) {
+  const t = resolvedTheme(p.theme);
+  document.documentElement.dataset.theme = t;
+  defineThemes();
+  monaco.editor.setTheme(`rsage-${t}`);
+  window.dispatchEvent(new CustomEvent("rsage-theme", { detail: t }));
+}
+systemDark?.addEventListener("change", () => applyTheme(useEditorPrefs.getState()));
+
 function apply(p: EditorPrefs) {
+  applyTheme(p);
   // Code shown outside Monaco (outputs, inline code) follows the same font.
   document.documentElement.style.setProperty("--mono", fontStack(p.font));
   for (const e of monaco.editor.getEditors()) e.updateOptions(editorFontOptions());

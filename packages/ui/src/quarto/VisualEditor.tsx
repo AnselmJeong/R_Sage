@@ -3,7 +3,7 @@
 // edits here are written back into the model as text, and changes to the
 // model from elsewhere are parsed back into this view.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { XREF_KINDS, xrefTargets, type XrefTarget } from "./xref";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
@@ -364,11 +364,33 @@ async function insertImage(editor: Editor, docPath: string) {
   else insertTopLevel(editor, { type: "paragraph", content: [image] });
 }
 
+/** Toolbar glyphs: 15px line icons, drawn on a 24px grid like the rest of the app's icons. */
+const ico = (d: string) => (
+  <svg viewBox="0 0 24 24" className="qv-ico" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+const TB = {
+  bold: ico("M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"),
+  italic: ico("M11 5h6M7 19h6M14 5l-4 14"),
+  strike: ico("M5 12h14M16 7.5C15.4 6 13.9 5 12 5c-2.5 0-4 1.3-4 3 0 1.3.9 2.3 2.6 2.8M8 16.5c.6 1.5 2.1 2.5 4 2.5 2.5 0 4-1.3 4-3"),
+  code: ico("M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"),
+  link: ico("M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-.5.5M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l.5-.5"),
+  bullets: ico("M10 6h10M10 12h10M10 18h10M5 6h.01M5 12h.01M5 18h.01"),
+  numbers: ico("M11 6h9M11 12h9M11 18h9M4 5l1.5-1V9M4 14.5c0-.8.7-1.5 1.5-1.5S7 13.6 7 14.4c0 1.4-3 2.1-3 3.6h3"),
+  quote: ico("M9 7H6a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h3v1a3 3 0 0 1-3 3M19 7h-3a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h3v1a3 3 0 0 1-3 3"),
+  table: ico("M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 10h16M10 4v16"),
+  math: ico("M17 5H7l5 7-5 7h10"),
+  image: ico("M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 16l4.5-4.5a1.5 1.5 0 0 1 2 0L16 17M14 14l1.5-1.5a1.5 1.5 0 0 1 2 0L20 15M15 8h.01"),
+  plus: ico("M12 6v12M6 12h12"),
+  play: ico("M8 5.5v13l10-6.5z"),
+};
+
 function Toolbar({ editor, path }: { editor: Editor; path: string }) {
   const chain = () => editor.chain().focus();
   const level = [1, 2, 3, 4].find((l) => editor.isActive("heading", { level: l }));
-  const btn = (label: string, title: string, on: () => void, active = false) => (
-    <button className={`btn btn-small qv-tb ${active ? "active" : ""}`} title={title} onMouseDown={(e) => e.preventDefault()} onClick={on}>
+  const btn = (label: ReactNode, title: string, on: () => void, active = false, extra = "") => (
+    <button className={`btn btn-small qv-tb ${extra} ${active ? "active" : ""}`} title={title} aria-label={title} onMouseDown={(e) => e.preventDefault()} onClick={on}>
       {label}
     </button>
   );
@@ -389,25 +411,25 @@ function Toolbar({ editor, path }: { editor: Editor; path: string }) {
         <option value="3">제목 3</option>
         <option value="4">제목 4</option>
       </select>
-      {btn("B", "굵게 (⌘B)", () => chain().toggleBold().run(), editor.isActive("bold"))}
-      {btn("I", "기울임 (⌘I)", () => chain().toggleItalic().run(), editor.isActive("italic"))}
-      {btn("S", "취소선", () => chain().toggleStrike().run(), editor.isActive("strike"))}
-      {btn("</>", "코드", () => chain().toggleCode().run(), editor.isActive("code"))}
-      {btn("링크", "링크 넣기/고치기", () => void editLink(editor), editor.isActive("link"))}
+      {btn(TB.bold, "굵게 (⌘B)", () => chain().toggleBold().run(), editor.isActive("bold"))}
+      {btn(TB.italic, "기울임 (⌘I)", () => chain().toggleItalic().run(), editor.isActive("italic"))}
+      {btn(TB.strike, "취소선", () => chain().toggleStrike().run(), editor.isActive("strike"))}
+      {btn(TB.code, "코드", () => chain().toggleCode().run(), editor.isActive("code"))}
+      {btn(TB.link, "링크 넣기/고치기", () => void editLink(editor), editor.isActive("link"))}
       <span className="qv-sep" />
-      {btn("•", "글머리 목록", () => chain().toggleBulletList().run(), editor.isActive("bulletList"))}
-      {btn("1.", "번호 목록", () => chain().toggleOrderedList().run(), editor.isActive("orderedList"))}
-      {btn("❝", "인용", () => chain().toggleBlockquote().run(), editor.isActive("blockquote"))}
-      {btn("표", "표 넣기", () => {
+      {btn(TB.bullets, "글머리 목록", () => chain().toggleBulletList().run(), editor.isActive("bulletList"))}
+      {btn(TB.numbers, "번호 목록", () => chain().toggleOrderedList().run(), editor.isActive("orderedList"))}
+      {btn(TB.quote, "인용", () => chain().toggleBlockquote().run(), editor.isActive("blockquote"))}
+      {btn(TB.table, "표 넣기", () => {
         if (!editor.isActive("table")) chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
       })}
-      {btn("∑", "수식 블록", () => insertTopLevel(editor, { type: "mathBlock", attrs: { tex: "" } }))}
-      {btn("그림", "그림 넣기", () => void insertImage(editor, path))}
+      {btn(TB.math, "수식 블록", () => insertTopLevel(editor, { type: "mathBlock", attrs: { tex: "" } }))}
+      {btn(TB.image, "그림 넣기", () => void insertImage(editor, path))}
       {btn("각주", "각주 넣기 (⇧⌘F7)", () => void insertFootnote(editor))}
       <XrefButton editor={editor} path={path} />
       <span className="qv-sep" />
-      {btn("+ R 청크", "R 청크 넣기 (⌘⌥I)", () => insertRCell(editor))}
-      {btn("▶ 모든 청크", "모든 R 청크를 위에서부터 실행", () => void runCellRange(editor, path, "all"))}
+      {btn(<>{TB.plus}R 청크</>, "R 청크 넣기 (⌘⌥I)", () => insertRCell(editor), false, "qv-outline")}
+      {btn(<>{TB.play}모든 청크</>, "모든 R 청크를 위에서부터 실행", () => void runCellRange(editor, path, "all"))}
     </div>
   );
 }

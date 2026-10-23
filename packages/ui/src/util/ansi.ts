@@ -9,8 +9,10 @@ export interface Segment {
   bg?: string;
 }
 
-const BASIC = ["#3b3b3b", "#e05561", "#8cc265", "#d18f52", "#4aa5f0", "#c162de", "#42b3c2", "#d7dae0"];
-const BRIGHT = ["#6b6b6b", "#ff616e", "#a5e075", "#f0a45d", "#4dc4ff", "#de73ff", "#4cd1e0", "#ffffff"];
+// The 16 basic colours come from the theme (styles.css --ansi-*), so console
+// output stays readable in both the dark and the light theme.
+const BASIC = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `var(--ansi-${i})`);
+const BRIGHT = [8, 9, 10, 11, 12, 13, 14, 15].map((i) => `var(--ansi-${i})`);
 
 function color256(n: number): string {
   if (n < 8) return BASIC[n]!;

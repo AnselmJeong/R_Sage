@@ -145,18 +145,127 @@ const SNIPPETS: { label: string; insert: string; doc: string }[] = [
 ];
 
 let registered = false;
+let themesDefined = false;
+
+/**
+ * The editor themes. The editor background is transparent so each editor
+ * shows the surface it sits on (a panel, or a chunk's inset canvas in visual
+ * mode); the colours follow the app's tokens in styles.css. Syntax colours are
+ * kept quiet: mauve keywords, sand strings, desaturated blue constants.
+ */
+export function defineThemes() {
+  if (themesDefined) return;
+  themesDefined = true;
+  const clear = "#00000000";
+  monaco.editor.defineTheme("rsage-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "", foreground: "e4e4e7" },
+      { token: "comment", foreground: "6e6e78", fontStyle: "italic" },
+      { token: "keyword", foreground: "c3a6e6" },
+      { token: "string", foreground: "dcbc8f" },
+      { token: "number", foreground: "e3a98a" },
+      { token: "constant", foreground: "8fb3e0" },
+      { token: "type", foreground: "8fb3e0" },
+      { token: "delimiter", foreground: "a1a1aa" },
+      { token: "operator", foreground: "a1a1aa" },
+      { token: "keyword.md", foreground: "e4e4e7", fontStyle: "bold" },
+      { token: "variable.md", foreground: "8fb3e0" },
+      { token: "string.link.md", foreground: "8fb3e0" },
+    ],
+    colors: {
+      "editor.background": clear,
+      "editorGutter.background": clear,
+      "editor.foreground": "#e4e4e7",
+      "editorLineNumber.foreground": "#4b4b52",
+      "editorLineNumber.activeForeground": "#a1a1aa",
+      "editor.lineHighlightBackground": "#ffffff08",
+      "editor.lineHighlightBorder": "#00000000",
+      "editor.selectionBackground": "#8fb3e040",
+      "editor.inactiveSelectionBackground": "#8fb3e024",
+      "editorCursor.foreground": "#e4e4e7",
+      "editorIndentGuide.background1": "#ffffff0d",
+      "editorIndentGuide.activeBackground1": "#ffffff24",
+      "editorWhitespace.foreground": "#ffffff1f",
+      "editorBracketHighlight.foreground1": "#b9b9c2",
+      "editorBracketHighlight.foreground2": "#c3a6e6",
+      "editorBracketHighlight.foreground3": "#8fb3e0",
+      "editorBracketMatch.background": "#ffffff14",
+      "editorBracketMatch.border": "#ffffff30",
+      "editorWidget.background": "#1d1d1f",
+      "editorWidget.border": "#ffffff1a",
+      "editorSuggestWidget.background": "#1d1d1f",
+      "editorSuggestWidget.border": "#ffffff1a",
+      "editorSuggestWidget.selectedBackground": "#ffffff12",
+      "editorHoverWidget.background": "#1d1d1f",
+      "editorHoverWidget.border": "#ffffff1a",
+      "editorStickyScroll.background": "#181819",
+      "scrollbarSlider.background": "#ffffff14",
+      "scrollbarSlider.hoverBackground": "#ffffff24",
+      "scrollbarSlider.activeBackground": "#ffffff30",
+      "scrollbar.shadow": "#00000000",
+      "focusBorder": "#00000000",
+    },
+  });
+  monaco.editor.defineTheme("rsage-light", {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "", foreground: "27272a" },
+      { token: "comment", foreground: "8e8e96", fontStyle: "italic" },
+      { token: "keyword", foreground: "7a4fb0" },
+      { token: "string", foreground: "9a6a2c" },
+      { token: "number", foreground: "b4563a" },
+      { token: "constant", foreground: "3d6aa8" },
+      { token: "type", foreground: "3d6aa8" },
+      { token: "delimiter", foreground: "71717a" },
+      { token: "operator", foreground: "71717a" },
+      { token: "keyword.md", foreground: "18181b", fontStyle: "bold" },
+      { token: "variable.md", foreground: "3d6aa8" },
+      { token: "string.link.md", foreground: "3d6aa8" },
+    ],
+    colors: {
+      "editor.background": clear,
+      "editorGutter.background": clear,
+      "editor.foreground": "#27272a",
+      "editorLineNumber.foreground": "#c4c4ca",
+      "editorLineNumber.activeForeground": "#71717a",
+      "editor.lineHighlightBackground": "#0000000a",
+      "editor.lineHighlightBorder": "#00000000",
+      "editor.selectionBackground": "#3d6aa833",
+      "editor.inactiveSelectionBackground": "#3d6aa81f",
+      "editorCursor.foreground": "#18181b",
+      "editorIndentGuide.background1": "#0000000f",
+      "editorIndentGuide.activeBackground1": "#00000026",
+      "editorWhitespace.foreground": "#00000026",
+      "editorBracketHighlight.foreground1": "#52525b",
+      "editorBracketHighlight.foreground2": "#7a4fb0",
+      "editorBracketHighlight.foreground3": "#3d6aa8",
+      "editorBracketMatch.background": "#0000000f",
+      "editorBracketMatch.border": "#00000033",
+      "editorWidget.background": "#ffffff",
+      "editorWidget.border": "#0000001a",
+      "editorSuggestWidget.background": "#ffffff",
+      "editorSuggestWidget.border": "#0000001a",
+      "editorSuggestWidget.selectedBackground": "#0000000d",
+      "editorHoverWidget.background": "#ffffff",
+      "editorHoverWidget.border": "#0000001a",
+      "editorStickyScroll.background": "#ffffff",
+      "scrollbarSlider.background": "#0000001a",
+      "scrollbarSlider.hoverBackground": "#0000002b",
+      "scrollbarSlider.activeBackground": "#00000038",
+      "scrollbar.shadow": "#00000000",
+      "focusBorder": "#00000000",
+    },
+  });
+}
 
 export function registerRLanguage() {
   if (registered) return;
   registered = true;
 
-  monaco.editor.defineTheme("rsage-dark", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [],
-    colors: { "editor.background": "#1b1d21", "editorGutter.background": "#1b1d21" },
-  });
-  monaco.editor.defineTheme("rsage-light", { base: "vs", inherit: true, rules: [], colors: {} });
+  defineThemes();
 
   monaco.languages.setLanguageConfiguration("r", {
     comments: { lineComment: "#" },
