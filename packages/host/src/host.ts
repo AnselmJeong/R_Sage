@@ -563,6 +563,7 @@ export class Host {
       "analysis.get": ({ id }) => this.analyses.get(id),
       "analysis.create": (p) => this.analyses.create(p),
       "analysis.update": (p) => this.analyses.update(p),
+      "analysis.clearGuide": (p) => this.analyses.setGuide(p.id, null),
       "analysis.run": ({ id }) => this.analyses.run(id),
       "analysis.cancel": ({ id }) => this.analyses.cancel(id),
       "analysis.delete": ({ id }) => this.analyses.delete(id),

@@ -3,38 +3,68 @@
   "about": {
     "summary": "데이터를 처음 받았을 때, 무엇이 눈에 띄고 어디를 더 살펴봐야 할지 알려 줍니다. 모든 분석을 대신하지 않고, 찾은 것마다 근거 수치와 작은 그림, 이어서 할 분석을 카드로 보여 줍니다. 목표 변수를 넣으면 그 변수와 관련이 큰 것부터 봅니다.",
     "links": [
-      { "label": "AutoGluon EDA (참고한 구성)", "url": "https://auto.gluon.ai/dev/tutorials/eda/index.html" },
-      { "label": "datawizard", "url": "https://easystats.github.io/datawizard/" }
+      {
+        "label": "AutoGluon EDA (참고한 구성)",
+        "url": "https://auto.gluon.ai/dev/tutorials/eda/index.html"
+      },
+      {
+        "label": "datawizard",
+        "url": "https://easystats.github.io/datawizard/"
+      }
     ],
     "showcase": [
       {
         "title": "처음 받은 데이터 훑기",
         "description": "변수 유형과 자료 구조, 데이터 상태, 치우친 분포, 큰 관계를 한 번에 봅니다.",
-        "fn": ["datawizard::skewness", "stats::cor"],
-        "enable": { "scope.structure": true, "scope.distributions": true, "scope.relations": true, "scope.groups": true, "scope.missing": true }
+        "fn": [
+          "datawizard::skewness",
+          "stats::cor"
+        ],
+        "enable": {
+          "scope.structure": true,
+          "scope.distributions": true,
+          "scope.relations": true,
+          "scope.groups": true,
+          "scope.missing": true
+        }
       },
       {
         "title": "결과 변수와 관련된 것 찾기",
         "description": "목표 변수와 관련이 큰 변수를 순서대로 보고, 그 변수들로 회귀를 시작합니다.",
-        "enable": { "scope.relations": true, "scope.groups": true },
+        "enable": {
+          "scope.relations": true,
+          "scope.groups": true
+        },
         "needs": "목표 변수를 넣으세요.",
-        "needsFilled": ["target"]
+        "needsFilled": [
+          "target"
+        ]
       },
       {
         "title": "척도 문항 묶음과 반복 측정 찾기",
         "description": "phq1~phq9 같은 문항 묶음(Cronbach α), 한 사람의 여러 행, 시점별 열을 찾습니다.",
-        "enable": { "scope.structure": true }
+        "enable": {
+          "scope.structure": true
+        }
       },
       {
         "title": "결측이 다른 변수와 관련 있는지 보기",
         "description": "어떤 변수가 빠진 행에서 다른 변수의 값이 다른지 봅니다. 결측이 무작위가 아닐 단서입니다.",
-        "enable": { "scope.missing": true }
+        "enable": {
+          "scope.missing": true
+        }
       },
       {
         "title": "질문에 맞춘 힌트 (LLM)",
-        "description": "하고 싶은 질문을 적으면 어시스턴트가 신호를 골라 쉬운 말로 설명하고 다음 분석을 제안합니다.",
-        "planned": true,
+        "description": "결과 위의 질문 칸에 하고 싶은 질문을 적고 '힌트 받기'를 누르면, 어시스턴트가 신호 표에서 질문에 맞는 것을 골라 쉬운 말로 설명하고 물어볼 만한 질문과 다음 분석을 제안합니다. 숫자는 R이 계산한 것만 씁니다.",
         "enable": {}
+      },
+      {
+        "title": "확인용 데이터 떼어 두기",
+        "description": "행의 일부를 떼어 두고 나머지로만 탐색합니다. 카드의 제안 분석은 떼어 둔 데이터로 열려, 찾은 것이 다시 나오는지 확인할 수 있습니다.",
+        "enable": {
+          "holdout.enabled": true
+        }
       },
       {
         "title": "두 집단 비교와 표 1",
@@ -51,37 +81,139 @@
     ]
   },
   "roles": [
-    { "type": "variable", "bind": "target", "label": "목표 변수", "optional": true, "hint": "관심 있는 결과 변수. 비워 두면 일반 탐색입니다." },
-    { "type": "variables", "bind": "variables", "label": "살펴볼 변수", "hint": "비워 두면 모든 변수를 봅니다." },
-    { "type": "variables", "bind": "exclude", "label": "뺄 변수", "hint": "자유 텍스트나 분석에 쓰지 않을 열." }
+    {
+      "type": "variable",
+      "bind": "target",
+      "label": "목표 변수",
+      "optional": true,
+      "hint": "관심 있는 결과 변수. 비워 두면 일반 탐색입니다."
+    },
+    {
+      "type": "variables",
+      "bind": "variables",
+      "label": "살펴볼 변수",
+      "hint": "비워 두면 모든 변수를 봅니다."
+    },
+    {
+      "type": "variables",
+      "bind": "exclude",
+      "label": "뺄 변수",
+      "hint": "자유 텍스트나 분석에 쓰지 않을 열."
+    }
   ],
   "sections": [
     {
       "title": "살펴볼 것",
       "open": false,
       "controls": [
-        { "type": "checkbox", "bind": "scope.structure", "label": "자료 구조", "description": "척도 문항 묶음(Cronbach α), 한 ID의 여러 행(반복 측정), 시점별 열(넓은 형식)." },
-        { "type": "checkbox", "bind": "scope.distributions", "label": "분포 모양", "description": "치우침, 0이 많음, 바닥·천장 효과, 봉우리 둘, 드문 범주.", "fn": "datawizard::skewness" },
-        { "type": "checkbox", "bind": "scope.relations", "label": "변수 사이 관계", "description": "Spearman ρ, Cramér V. 곡선 관계, 극단값이 만든 상관, 같은 정보를 담은 변수도 찾습니다.", "fn": "stats::cor" },
-        { "type": "checkbox", "bind": "scope.groups", "label": "집단 차이", "description": "범주에 따라 수치 변수가 크게 다른 조합(η²)." },
-        { "type": "checkbox", "bind": "scope.missing", "label": "결측과 다른 변수", "description": "한 변수가 빠진 행에서 다른 변수의 값이 다른지." }
+        {
+          "type": "checkbox",
+          "bind": "scope.structure",
+          "label": "자료 구조",
+          "description": "척도 문항 묶음(Cronbach α), 한 ID의 여러 행(반복 측정), 시점별 열(넓은 형식)."
+        },
+        {
+          "type": "checkbox",
+          "bind": "scope.distributions",
+          "label": "분포 모양",
+          "description": "치우침, 0이 많음, 바닥·천장 효과, 봉우리 둘, 드문 범주.",
+          "fn": "datawizard::skewness"
+        },
+        {
+          "type": "checkbox",
+          "bind": "scope.relations",
+          "label": "변수 사이 관계",
+          "description": "Spearman ρ, Cramér V. 곡선 관계, 극단값이 만든 상관, 같은 정보를 담은 변수도 찾습니다.",
+          "fn": "stats::cor"
+        },
+        {
+          "type": "checkbox",
+          "bind": "scope.groups",
+          "label": "집단 차이",
+          "description": "범주에 따라 수치 변수가 크게 다른 조합(η²)."
+        },
+        {
+          "type": "checkbox",
+          "bind": "scope.missing",
+          "label": "결측과 다른 변수",
+          "description": "한 변수가 빠진 행에서 다른 변수의 값이 다른지."
+        }
       ]
     },
     {
       "title": "보여 주기",
       "open": false,
       "controls": [
-        { "type": "number", "bind": "maxHints", "label": "카드 수", "description": "나머지는 '찾은 신호 전체' 표에 있습니다." },
-        { "type": "checkbox", "bind": "plots.relationMap", "label": "관련 크기 지도", "description": "모든 변수 쌍의 관련 크기를 색으로 봅니다." },
-        { "type": "checkbox", "bind": "plots.distributions", "label": "수치 변수 분포", "description": "히스토그램을 한데 모아 봅니다." }
+        {
+          "type": "number",
+          "bind": "maxHints",
+          "label": "카드 수",
+          "description": "나머지는 '찾은 신호 전체' 표에 있습니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.relationMap",
+          "label": "관련 크기 지도",
+          "description": "모든 변수 쌍의 관련 크기를 색으로 봅니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.distributions",
+          "label": "수치 변수 분포",
+          "description": "히스토그램을 한데 모아 봅니다."
+        }
+      ]
+    },
+    {
+      "title": "확인용 데이터",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "holdout.enabled",
+          "label": "일부 행을 떼어 두기",
+          "description": "떼어 둔 행은 탐색에 쓰지 않고 R 세션에 저장합니다. 카드에서 찾은 것을 그 데이터로 다시 확인하면 우연히 나온 관계를 걸러낼 수 있습니다. 반복 측정은 ID 단위로 나눕니다."
+        },
+        {
+          "type": "number",
+          "bind": "holdout.fraction",
+          "label": "떼어 둘 비율",
+          "description": "0.3이면 30%입니다.",
+          "enabledWhen": {
+            "bind": "holdout.enabled",
+            "equals": true
+          },
+          "disabledHint": "떼어 두기를 켜면 쓸 수 있습니다."
+        },
+        {
+          "type": "text",
+          "bind": "holdout.saveAs",
+          "label": "R 세션에 저장할 이름",
+          "placeholder": "explore_holdout",
+          "enabledWhen": {
+            "bind": "holdout.enabled",
+            "equals": true
+          },
+          "disabledHint": "떼어 두기를 켜면 쓸 수 있습니다."
+        }
       ]
     },
     {
       "title": "큰 데이터",
       "open": false,
       "controls": [
-        { "type": "number", "bind": "maxRows", "label": "최대 행 수", "unit": "행", "description": "넘으면 이만큼 무작위로 뽑아 살핍니다." },
-        { "type": "number", "bind": "seed", "label": "seed" }
+        {
+          "type": "number",
+          "bind": "maxRows",
+          "label": "최대 행 수",
+          "unit": "행",
+          "description": "넘으면 이만큼 무작위로 뽑아 살핍니다."
+        },
+        {
+          "type": "number",
+          "bind": "seed",
+          "label": "seed"
+        }
       ]
     }
   ]

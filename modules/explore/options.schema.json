@@ -5,18 +5,25 @@
   "properties": {
     "variables": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": [],
       "description": "Columns to look at. Empty means every column."
     },
     "target": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "default": null,
       "description": "Optional target (outcome) column the user cares about. Adds a ranking of the variables most related to it and a regression to start from."
     },
     "exclude": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": [],
       "description": "Columns to leave out (e.g. free text, IDs the module would not recognise)."
     },
@@ -26,11 +33,31 @@
       "default": {},
       "description": "What to look for.",
       "properties": {
-        "structure": { "type": "boolean", "default": true, "description": "Data layout: scale item groups (with Cronbach's alpha and a total column), repeated measures (an ID with several rows), the same measure in several time-point columns." },
-        "distributions": { "type": "boolean", "default": true, "description": "Distribution shapes: skew, many zeros, floor/ceiling, two peaks, rare or dominant categories." },
-        "relations": { "type": "boolean", "default": true, "description": "Pairs of variables that go together (Spearman rho for numeric pairs, Cramer's V for categorical pairs), nonlinear, outlier-driven and redundant pairs." },
-        "groups": { "type": "boolean", "default": true, "description": "Numeric variables that differ between the groups of a categorical variable (eta squared)." },
-        "missing": { "type": "boolean", "default": true, "description": "Missingness of one variable related to the values of another (a MAR clue)." }
+        "structure": {
+          "type": "boolean",
+          "default": true,
+          "description": "Data layout: scale item groups (with Cronbach's alpha and a total column), repeated measures (an ID with several rows), the same measure in several time-point columns."
+        },
+        "distributions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Distribution shapes: skew, many zeros, floor/ceiling, two peaks, rare or dominant categories."
+        },
+        "relations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pairs of variables that go together (Spearman rho for numeric pairs, Cramer's V for categorical pairs), nonlinear, outlier-driven and redundant pairs."
+        },
+        "groups": {
+          "type": "boolean",
+          "default": true,
+          "description": "Numeric variables that differ between the groups of a categorical variable (eta squared)."
+        },
+        "missing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Missingness of one variable related to the values of another (a MAR clue)."
+        }
       }
     },
     "maxHints": {
@@ -51,13 +78,47 @@
       "default": 123,
       "description": "Random seed for the sample of rows."
     },
+    "holdout": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "Keep back a random part of the rows for checking the findings later; the exploration uses only the rest. Repeated measures are split by subject ID.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hold out part of the rows."
+        },
+        "fraction": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 0.9,
+          "default": 0.3,
+          "description": "Share of rows (or subjects) held out."
+        },
+        "saveAs": {
+          "type": "string",
+          "default": "explore_holdout",
+          "pattern": "^[A-Za-z.][A-Za-z0-9._]*$",
+          "description": "Name of the held-out data frame saved in the R session. The cards' suggested analyses open on it."
+        }
+      }
+    },
     "plots": {
       "type": "object",
       "additionalProperties": false,
       "default": {},
       "properties": {
-        "relationMap": { "type": "boolean", "default": true, "description": "Heat map of the association strength of every pair." },
-        "distributions": { "type": "boolean", "default": true, "description": "Histograms of every numeric variable." }
+        "relationMap": {
+          "type": "boolean",
+          "default": true,
+          "description": "Heat map of the association strength of every pair."
+        },
+        "distributions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Histograms of every numeric variable."
+        }
       }
     }
   }

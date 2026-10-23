@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { KernelSession } from "@rsage/kernel";
-import type { AnalysisDataset, AnalysisDef, AnalysisFigureSize, AnalysisInstance, AnalysisResult, AnalysisRuntimeStatus } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisDef, AnalysisFigureSize, AnalysisInstance, AnalysisResult, AnalysisRuntimeStatus, ExplorationGuide } from "@rsage/shared";
 import { fillDefaults, validateOptions } from "@rsage/shared";
 import { readJson, writeFileAtomic } from "../config";
 import type { Project } from "../project";
@@ -150,6 +150,7 @@ export class AnalysisService {
           analysis: g.analysis,
           options: g.options && !Array.isArray(g.options) ? g.options : {},
           title: g.title ?? undefined,
+          dataset: g.dataset ?? undefined,
         })),
       })),
       dataInfo: raw.dataInfo ?? {},
@@ -239,6 +240,14 @@ export class AnalysisService {
       s.figures = Object.keys(figs).length ? figs : undefined;
       s.revision += 1;
     }
+    return this.save(s);
+  }
+
+  /** Saves assistant-written hints (탐색 안내) with the analysis; null removes them. */
+  setGuide(id: string, guide: ExplorationGuide | null): AnalysisInstance {
+    const s = this.read(id);
+    if (!s) throw new AnalysisError(`No analysis ${id}`, "not_found");
+    s.guide = guide ?? undefined;
     return this.save(s);
   }
 

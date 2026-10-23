@@ -560,6 +560,27 @@ export interface AnalysisSuggestion {
   analysis: string;
   options: Record<string, unknown>;
   title?: string;
+  /** Data frame to open it on, when not the analysed one (e.g. held-out rows). */
+  dataset?: string;
+}
+
+/**
+ * Hints the assistant wrote for one exploration result, fitted to the
+ * user's question. Every card points at rows of the result's signals table,
+ * and its numbers were checked against them.
+ */
+export interface ExplorationGuide {
+  /** Run whose signals the guide was written from; another run makes it stale. */
+  runId: string;
+  question: string;
+  /** Questions worth asking of these data, offered as chips. */
+  questions: string[];
+  /** Guessed meaning and role of variables (shown as guesses). */
+  variables: { name: string; meaning: string; role?: string }[];
+  hints: AnalysisHint[];
+  /** A question for the user instead of (or before) hints, e.g. what one row is. */
+  ask?: string;
+  createdAt: string;
 }
 
 /** Something worth a closer look, shown as a card above the result sections. */
@@ -644,6 +665,8 @@ export interface AnalysisInstance {
   /** Revision the result was computed for. */
   resultRevision?: number;
   createdBy?: "user" | "assistant";
+  /** Assistant-written hints (탐색 안내). */
+  guide?: ExplorationGuide;
 }
 
 // ---------- methods ----------
@@ -822,6 +845,8 @@ export interface HostMethods {
   /** reuse: bring back an analysis of the same kind, data and options instead of making another (menu opens). */
   "analysis.create": { params: { analysis: string; dataset?: string; options?: any; title?: string; reuse?: boolean }; result: AnalysisInstance };
   /** figures replaces all user figure sizes; a plot id mapped to null goes back to automatic. */
+  /** Removes the assistant-written hints of an analysis. */
+  "analysis.clearGuide": { params: { id: string }; result: AnalysisInstance };
   "analysis.update": {
     params: { id: string; dataset?: string; options?: any; title?: string; figures?: Record<string, AnalysisFigureSize | null> };
     result: AnalysisInstance;

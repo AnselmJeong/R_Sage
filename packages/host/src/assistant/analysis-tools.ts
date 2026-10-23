@@ -5,6 +5,7 @@
 
 import type { AnalysisDataset, AnalysisInstance, AnalysisResult, AssistantItem } from "@rsage/shared";
 import type { AnalysisService } from "../analysis/service";
+import { buildGuide } from "../analysis/guide";
 import type { ToolResult, ToolSpec } from "./types";
 
 export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
@@ -45,6 +46,60 @@ export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
+    name: "set_exploration_hints",
+    description:
+      "Write hint cards fitted to the user's question onto a 탐색 안내 (org.rsage.explore/explore) analysis tab. Read the result with get_analysis_result first. Pick the signals (rows of the signals table, by ID such as s03) that bear on the question and explain each in plain Korean: what goes together or differs, why it may matter for the question, and how to check it. Rules: every hint cites one or more signal IDs; numbers in a title or text must come from the cited signals (or their variables' profile and target rows), rounded is fine; never write causes/affects/predicts, write 'go together' or 'differ between groups'; no p-values. Suggestions must be installed analyses with valid options (describe_analysis gives the schema); the cards' rule suggestions are a valid start. Also offer 3-6 questions worth asking of these data and your guess of what key variables mean (from their names and level names). If the unit of a row or the outcome is unclear, set `ask` with one question for the user. The tool checks all of this and returns the problems if any; fix them and call again. It runs nothing.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_id: { type: "string", description: "The 탐색 안내 analysis" },
+        question: { type: "string", description: "The user's question in their words; empty for a general look" },
+        hints: {
+          type: "array",
+          description: "3-8 cards, most useful first",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "One line, e.g. '수면 시간이 짧을수록 우울 점수가 높은 편입니다'" },
+              text: { type: "string", description: "Two or three sentences: why it matters for the question and how to check it" },
+              signals: { type: "array", items: { type: "string" }, description: "Signal IDs from the signals table" },
+              suggestions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string", description: "Button text, e.g. '선형 회귀 열기'" },
+                    analysis: { type: "string", description: "Analysis key from list_analyses" },
+                    options: { type: "object" },
+                    title: { type: "string" },
+                  },
+                  required: ["label", "analysis", "options"],
+                },
+              },
+            },
+            required: ["title", "text", "signals"],
+          },
+        },
+        questions: { type: "array", items: { type: "string" }, description: "3-6 questions worth asking of these data, in Korean" },
+        variables: {
+          type: "array",
+          description: "Guessed meaning of key variables",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              meaning: { type: "string", description: "e.g. '기저 해밀턴 우울 척도 점수'" },
+              role: { type: "string", description: "결과, 노출, 공변량, 시점, ID or 기타" },
+            },
+            required: ["name", "meaning"],
+          },
+        },
+        ask: { type: "string", description: "One question for the user when the data are unclear" },
+      },
+      required: ["analysis_id", "hints"],
+    },
+  },
+  {
     name: "get_analysis_result",
     description: "Read the latest result of a saved analysis (e.g. after the user changed its options in the analysis tab), with full numbers.",
     parameters: { type: "object", properties: { analysis_id: { type: "string" } }, required: ["analysis_id"] },
@@ -71,8 +126,15 @@ export function formatResult(inst: AnalysisInstance, result: AnalysisResult | un
       for (const s of h.suggestions) out.push(`   Next: ${s.label} → run_analysis analysis=${s.analysis} options=${JSON.stringify(s.options)}`);
     });
   }
+  const g = inst.guide;
+  if (g?.hints.length || g?.ask) {
+    out.push("", `## Hints you wrote with set_exploration_hints${g.runId !== result.runId ? " (from an earlier run; the signals may have changed)" : ""}`);
+    if (g.question) out.push(`Question: ${g.question}`);
+    g.hints.forEach((h, i) => out.push(`${i + 1}. ${h.title} [${h.signal}]`));
+    if (g.ask) out.push(`Asked the user: ${g.ask}`);
+  }
   for (const t of result.tables) {
-    out.push("", `## ${t.title}`);
+    out.push("", `## ${t.title}${t.id ? ` (table ${t.id})` : ""}`);
     if (t.description) out.push(`(How to read: ${t.description})`);
     out.push(t.columns.map((c) => c.label).join("\t"));
     for (const r of t.rows.slice(0, maxRows)) out.push(t.columns.map((c) => cell(r[c.id])).join("\t"));
@@ -171,6 +233,15 @@ export async function runAnalysisTool(
         } finally {
           env.signal.removeEventListener("abort", onAbort);
         }
+      }
+      case "set_exploration_hints": {
+        const inst = svc.get(String(input?.analysis_id ?? ""));
+        if (!inst) return { output: `No analysis ${input?.analysis_id}`, isError: true };
+        const guide = buildGuide(inst, input ?? {}, (s) => svc.checkOptions(svc.def(s.analysis).def, s.options));
+        svc.setGuide(inst.id, guide);
+        env.openAnalysis?.(inst.id);
+        const n = guide.hints.length;
+        return { output: `Saved ${n} hint card${n === 1 ? "" : "s"}${guide.questions.length ? `, ${guide.questions.length} questions` : ""}${guide.ask ? " and a question for the user" : ""} on the 탐색 안내 tab. The user sees them above the rule cards. Tell the user in one or two sentences what the cards cover; don't repeat them.` };
       }
       case "get_analysis_result": {
         const inst = svc.get(String(input?.analysis_id ?? ""));

@@ -140,3 +140,27 @@ test_that("the result is written for the app with hints", {
   expect_type(h$suggestions[[1]]$options, "list")
   expect_type(h$suggestions[[1]]$options$predictors$continuous, "list")
 })
+
+test_that("group variables list their level names, IDs do not", {
+  res <- analyse(planted())
+  v <- res$tables$variables$data
+  expect_setequal(strsplit(v$levels[v$variable == "sex"], ", ")[[1]], c("F", "M"))
+  expect_true(is.na(v$levels[v$variable == "id"]))
+})
+
+test_that("held-out rows are kept apart and the suggestions open on them", {
+  d <- planted()
+  res <- analyse(d, list(target = "score", holdout = list(enabled = TRUE, fraction = 0.25, saveAs = "check_set")))
+  h <- res$exports$check_set
+  expect_equal(nrow(h), 50)
+  expect_equal(names(h), names(d))
+  expect_true(any(vapply(res$notes, function(n) identical(n$code, "holdout"), TRUE)))
+  expect_equal(res$hints[[1]]$suggestions[[1]]$dataset, "check_set")
+  expect_match(res$tables$overview$data$value[res$tables$overview$data$item == "행"], "150")
+  # Repeated measures: whole chicks go to one side.
+  cw <- as.data.frame(datasets::ChickWeight)
+  r2 <- analyse(cw, list(holdout = list(enabled = TRUE)))
+  held <- unique(as.character(r2$exports$explore_holdout$Chick))
+  expect_false(any(as.character(cw$Chick[!cw$Chick %in% held]) %in% held))
+  expect_equal(length(held), round(0.3 * nlevels(cw$Chick)))
+})

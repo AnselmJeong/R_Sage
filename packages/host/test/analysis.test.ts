@@ -414,6 +414,42 @@ live("missing-data analysis in a live session", async () => {
       await call("analysis.delete", { id: r.id });
     }
     expect(formatResult(done, done.result)).toContain("Hint cards shown to the user");
+
+    // Hints the assistant writes are checked against the signals before they are saved.
+    const item = { kind: "tool" as const, id: "t2", name: "set_exploration_hints", input: {}, status: "running" as const, at: "" };
+    const env = { analyses: host.analyses, autoRunR: () => false, approve: async () => false, update: () => {}, signal: new AbortController().signal };
+    const sig = done.result.tables.find((t: any) => t.id === "signals").rows;
+    const temp = sig.find((r: any) => r.kind === "목표 변수와의 관계" && r.variables.includes("Temp"));
+    const made = await runAnalysisTool(
+      "set_exploration_hints",
+      {
+        analysis_id: inst.id,
+        question: "오존 농도와 관련된 것",
+        hints: [{ title: "기온이 높을수록 오존도 높습니다", text: `ρ는 약 ${Number(temp.value).toFixed(2)}입니다. 0.93이라는 숫자는 지어낸 것입니다.`, signals: [temp.id] }],
+      },
+      item,
+      env,
+    );
+    expect(made.isError).toBe(true);
+    expect(made.output).toContain("0.93");
+    const good = await runAnalysisTool(
+      "set_exploration_hints",
+      {
+        analysis_id: inst.id,
+        question: "오존 농도와 관련된 것",
+        hints: [{ title: "기온이 높을수록 오존도 높습니다", text: `ρ는 약 ${Number(temp.value).toFixed(2)}입니다.`, signals: [temp.id], suggestions: [reg] }],
+        questions: ["바람이 셀수록 오존이 낮은가?"],
+        variables: [{ name: "Ozone", meaning: "오존 농도(ppb)", role: "결과" }],
+      },
+      item,
+      env,
+    );
+    expect(good.isError).toBeFalsy();
+    const guided = await call("analysis.get", { id: inst.id });
+    expect(guided.guide.hints[0].evidence).toContain("n = ");
+    expect(guided.guide.runId).toBe(done.result.runId);
+    expect(formatResult(guided, guided.result)).toContain("Hints you wrote");
+    expect((await call("analysis.clearGuide", { id: inst.id })).guide).toBeUndefined();
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 

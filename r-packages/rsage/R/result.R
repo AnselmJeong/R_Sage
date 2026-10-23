@@ -58,8 +58,10 @@ rs_note <- function(text, level = c("info", "warning"), code = NULL, file = NULL
 #' @param options Options for that analysis. Wrap vectors that must stay JSON
 #'   arrays in I() (a vector of length one would otherwise become a scalar).
 #' @param title Title for the new analysis tab.
-rs_suggest <- function(label, analysis, options = list(), title = NULL) {
-  structure(list(label = label, analysis = analysis, options = options, title = title), class = "rsage_suggestion")
+#' @param dataset Data frame to open it on, when not the one analysed (e.g. a
+#'   held-out part saved by the analysis).
+rs_suggest <- function(label, analysis, options = list(), title = NULL, dataset = NULL) {
+  structure(list(label = label, analysis = analysis, options = options, title = title, dataset = dataset), class = "rsage_suggestion")
 }
 
 #' A hint: something worth a closer look, with the evidence and where to go next
@@ -304,7 +306,7 @@ hint_json <- function(h) {
   list(id = h$id, title = h$title, text = h$text, evidence = h$evidence, kind = h$kind,
        variables = I(h$variables), plot = h$plot, signal = h$signal,
        suggestions = lapply(unname(h$suggestions), function(s)
-         list(label = s$label, analysis = s$analysis, options = json_object(s$options), title = s$title)))
+         list(label = s$label, analysis = s$analysis, options = json_object(s$options), title = s$title, dataset = s$dataset)))
 }
 
 #' Write a result for the R Sage app
