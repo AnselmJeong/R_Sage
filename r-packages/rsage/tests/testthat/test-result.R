@@ -89,3 +89,24 @@ test_that("rs_figure_size grows with content and flags what will not fit", {
   expect_lte(big$width, 12)
   expect_true(big$compact)
 })
+
+test_that("hints with suggestions are written, printed and keep their plot off the sections", {
+  p <- rs_plot("card", "카드 그림", ggplot2::ggplot(mtcars, ggplot2::aes(wt, mpg)) + ggplot2::geom_point())
+  q <- rs_plot("other", "다른 그림", ggplot2::ggplot(mtcars, ggplot2::aes(hp)) + ggplot2::geom_histogram(bins = 10))
+  h <- rs_hint("h1", "무게와 연비", "함께 움직입니다.", evidence = "ρ = -0.89", kind = "association",
+               variables = c("wt", "mpg"), plot = "card",
+               suggestions = list(rs_suggest("선형 회귀 열기", "org.rsage.regression/regression",
+                                             list(predictors = list(continuous = I("wt")))),
+                                  rs_suggest("예정", "org.rsage.anova/anova")))
+  res <- rs_result("x", "X", plots = list(p, q), hints = list(h))
+  expect_equal(unname(vapply(result_sections(res)[[1]]$plots, `[[`, "", "id")), "other")
+  expect_output(print(res), "무게와 연비")
+  dir <- tempfile()
+  rs_write(res, dir)
+  j <- jsonlite::read_json(file.path(dir, "result.json"))
+  expect_equal(j$hints[[1]]$plot, "card")
+  expect_equal(j$hints[[1]]$variables, list("wt", "mpg"))
+  # A one-element array stays an array; empty options stay an object.
+  expect_equal(j$hints[[1]]$suggestions[[1]]$options$predictors$continuous, list("wt"))
+  expect_match(paste(readLines(file.path(dir, "result.json"), warn = FALSE), collapse = ""), '"options":\\{\\}')
+})

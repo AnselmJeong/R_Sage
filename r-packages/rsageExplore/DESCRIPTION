@@ -1,0 +1,18 @@
+Package: rsageExplore
+Title: Exploration Guide Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Profiles a data frame and points to what is worth a closer
+    look: the role and structure of each variable (IDs, scale items,
+    repeated measures), distribution shapes, associations between
+    variables, group differences, redundant variables, missingness that
+    depends on other variables, and what goes with a chosen target
+    variable. Each finding comes with its numbers, a small figure and a
+    suggested next analysis. Numbers are computed here; the module does
+    not fit or test the final models itself.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), ggplot2, datawizard, stats, utils
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3

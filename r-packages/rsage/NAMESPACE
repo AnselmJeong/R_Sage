@@ -1,6 +1,8 @@
 export(rs_table)
 export(rs_plot)
 export(rs_note)
+export(rs_hint)
+export(rs_suggest)
 export(rs_result)
 export(rs_value)
 export(rs_write)

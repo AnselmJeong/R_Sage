@@ -1,0 +1,49 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.explore",
+  "version": "0.1.0",
+  "title": "탐색 안내",
+  "description": "데이터를 훑어 더 살펴볼 만한 것을 카드로 알려 줍니다. 변수의 유형과 자료 구조(ID, 척도 문항, 반복 측정)를 추정하고, 치우친 분포, 변수 사이 관계, 집단 차이, 같은 정보를 담은 변수, 다른 변수와 관련된 결측, 목표 변수와 관련이 큰 변수를 찾아 근거 수치와 그림, 다음에 할 분석을 함께 보여 줍니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsageExplore",
+    "packageVersion": "0.1.0",
+    "source": "rsageExplore",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [
+      {
+        "package": "datawizard",
+        "role": "왜도·첨도",
+        "required": true
+      }
+    ],
+    "requires": [
+      "datawizard",
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "explore",
+      "title": "탐색 안내",
+      "menu": [
+        "데이터 준비",
+        "탐색 안내"
+      ],
+      "entrypoint": "analyse",
+      "optionsSchema": "options.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Exploration guide for a data frame the user has just opened or asks to look over: guesses each variable's kind and the data layout (IDs, questionnaire scale items with Cronbach's alpha, repeated measures in long or wide form), quick health check (duplicates, empty columns, numbers stored as text, missing-value codes, missing share), distribution shapes (skew, many zeros, floor/ceiling, bimodality, rare or dominant categories), pairwise associations ranked by effect size (Spearman rho, eta squared, Cramer's V) incl. nonlinear, outlier-driven and redundant pairs, group differences, missingness related to other variables, and for an optional target variable the ranked associates plus a regression to start from. Returns hint cards with evidence numbers, a small plot and suggested next analyses; it does not fit final models.",
+        "guide": "ai.md"
+      }
+    }
+  ]
+}

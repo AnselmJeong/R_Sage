@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
-import type { AnalysisDataset, AnalysisForm, AnalysisFormControl, AnalysisInstance, AnalysisResult, AnalysisShowcase, AnalysisTable } from "@rsage/shared";
+import type { AnalysisDataset, AnalysisForm, AnalysisFormControl, AnalysisHint, AnalysisInstance, AnalysisResult, AnalysisShowcase, AnalysisTable } from "@rsage/shared";
 import { getPath, setPath } from "@rsage/shared";
 import { host } from "../host/client";
 import { useStore } from "../store";
@@ -15,6 +15,7 @@ import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } fr
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
 import { LevelSelect, ModelPicker, ModelsField, TermChoice } from "./AnalysisModels";
 import { syncModels } from "../analysisModels";
+import { askAboutHint, openSuggestion, suggestionAvailable } from "../hints";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
@@ -700,6 +701,7 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
             {n.text}
           </div>
         ))}
+      {!!result.hints?.length && <HintCards inst={inst} result={result} />}
       {resultSections(result).map((sec) => (
         <div key={sec.name || "_"} className="an-rsection">
           {sec.name && resultSections(result).length > 1 && <h2 className="an-rsection-title">{sec.name}</h2>}
@@ -735,11 +737,55 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
   );
 }
 
-/** Tables and plots grouped by section, in the result's section order (unsectioned first). */
+/** Hint cards: what was found, its numbers and figure, and where to go next. */
+function HintCards({ inst, result }: { inst: AnalysisInstance; result: AnalysisResult }) {
+  const plots = new Map(result.plots.map((p) => [p.id, p]));
+  return (
+    <div className="an-rsection">
+      <h2 className="an-rsection-title">살펴볼 만한 것</h2>
+      <div className="an-hints">
+        {result.hints!.map((h) => (
+          <HintCard key={h.id} inst={inst} hint={h} plot={h.plot ? plots.get(h.plot) : undefined} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HintCard({ inst, hint, plot }: { inst: AnalysisInstance; hint: AnalysisHint; plot?: Plot }) {
+  return (
+    <article className="an-hint-card">
+      <h3>{hint.title}</h3>
+      {hint.evidence && <div className="muted small an-hint-evidence">{hint.evidence}</div>}
+      <p>{hint.text}</p>
+      {plot && <img className="an-hint-plot" src={plot.src} alt={plot.alt} style={{ aspectRatio: `${plot.width} / ${plot.height}` }} />}
+      <div className="an-hint-actions">
+        {hint.suggestions.map((s, i) =>
+          suggestionAvailable(s) ? (
+            <button key={i} className="btn btn-small btn-primary" onClick={() => void openSuggestion(inst, s)} title="옵션을 채운 새 분석 탭을 엽니다">
+              {s.label}
+            </button>
+          ) : (
+            <span key={i} className="an-hint-planned" title="아직 이 앱에 없는 분석입니다">
+              {s.label} · 예정
+            </span>
+          ),
+        )}
+        <button className="btn btn-small" onClick={() => void askAboutHint(inst, hint)} title="이 카드를 어시스턴트에게 넘겨 더 살펴봅니다">
+          어시스턴트에게 묻기
+        </button>
+      </div>
+    </article>
+  );
+}
+
+/** Tables and plots grouped by section, in the result's section order (unsectioned first). Plots on hint cards are left out. */
 function resultSections(result: AnalysisResult) {
-  const names = [...new Set(["", ...(result.sections ?? []), ...result.tables.map((t) => t.section ?? ""), ...result.plots.map((p) => p.section ?? "")])];
+  const onCards = new Set((result.hints ?? []).map((h) => h.plot).filter(Boolean));
+  const plots = result.plots.filter((p) => !onCards.has(p.id));
+  const names = [...new Set(["", ...(result.sections ?? []), ...result.tables.map((t) => t.section ?? ""), ...plots.map((p) => p.section ?? "")])];
   return names
-    .map((name) => ({ name, tables: result.tables.filter((t) => (t.section ?? "") === name), plots: result.plots.filter((p) => (p.section ?? "") === name) }))
+    .map((name) => ({ name, tables: result.tables.filter((t) => (t.section ?? "") === name), plots: plots.filter((p) => (p.section ?? "") === name) }))
     .filter((s) => s.tables.length || s.plots.length);
 }
 
