@@ -50,13 +50,27 @@ function wire() {
   });
 }
 
+/** Opens (or focuses) the Preview as a tab in the editor area, next to the documents. */
 export function showPreview() {
   const api = getDockApi();
   if (!api) return;
   let p = api.getPanel("preview");
   if (!p) {
-    const ref = api.getPanel("plots") ?? api.getPanel("assistant");
-    p = api.addPanel({ id: "preview", component: "preview", title: "미리보기", position: ref ? { referencePanel: ref.id, direction: "within" } : undefined });
+    const inEditorArea = (id: string) =>
+      id.startsWith("editor:") || id === "welcome-editor" || id.startsWith("analysis:") || id.startsWith("data:") || id.startsWith("diff:");
+    const active = api.activePanel && inEditorArea(api.activePanel.id) ? api.activePanel : undefined;
+    const ref = active ?? api.panels.find((x) => inEditorArea(x.id));
+    const consolePanel = api.getPanel("console");
+    p = api.addPanel({
+      id: "preview",
+      component: "preview",
+      title: "미리보기",
+      position: ref
+        ? { referencePanel: ref.id, direction: "within" }
+        : consolePanel
+          ? { referencePanel: consolePanel.id, direction: "above" }
+          : undefined,
+    });
   }
   p.api.setActive();
 }
