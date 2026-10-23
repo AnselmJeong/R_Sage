@@ -106,7 +106,7 @@ export async function openInEditor(path: string, at?: { line: number; column?: n
   let panel = dock.getPanel(id);
   if (!panel) {
     const active = dock.activePanel?.id.startsWith("editor:") ? dock.activePanel : undefined;
-    const ref = active ?? dock.panels.find((p) => p.id.startsWith("editor:")) ?? dock.getPanel("welcome-editor");
+    const ref = active ?? dock.panels.find((p) => p.id.startsWith("editor:")) ?? dock.getPanel("welcome-editor") ?? dock.getPanel("preview");
     const consolePanel = dock.getPanel("console");
     panel = dock.addPanel({
       id,

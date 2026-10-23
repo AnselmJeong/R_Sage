@@ -161,7 +161,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps<any
   help: () => <HelpPanel />,
   dataViewer: DataViewerPanel,
   analysis: AnalysisPanel,
-  preview: () => <PreviewPanel />,
+  preview: (props) => <PreviewPanel api={props.api} />,
   diff: DiffPanel,
 };
 
