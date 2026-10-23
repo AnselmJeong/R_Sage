@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { DockviewPanelApi } from "dockview";
 import { host } from "../host/client";
 import { openInEditor } from "../editor/files";
 import { loadQuartoInfo, renderDocument, stopRender, useRender } from "../quarto/render";
 
-/** The rendered document, with the render log below it. */
-export function PreviewPanel() {
+/** The rendered document, with the render log below it. Lives as a tab in the editor area. */
+export function PreviewPanel({ api }: { api?: DockviewPanelApi }) {
   const r = useRender();
   const [showLog, setShowLog] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
@@ -20,6 +21,10 @@ export function PreviewPanel() {
   }, [r.log, showLog]);
 
   const name = r.output?.split("/").pop();
+  const source = r.file?.split("/").pop();
+  useEffect(() => {
+    api?.setTitle(name || source ? `미리보기: ${name ?? source}` : "미리보기");
+  }, [api, name, source]);
   return (
     <div className="preview-panel">
       <div className="preview-bar">
@@ -37,6 +42,11 @@ export function PreviewPanel() {
               다시 렌더링
             </button>
           )
+        )}
+        {r.file && (
+          <button className="btn btn-small" onClick={() => void openInEditor(r.file!)} title="렌더링한 .qmd 문서로 돌아갑니다">
+            문서 보기
+          </button>
         )}
         {r.output && !r.running && !r.file && /\.html?$/i.test(r.output) && (
           <button className="btn btn-small" onClick={() => void openInEditor(r.output!)} title="HTML 소스를 편집기에서 엽니다">
