@@ -129,6 +129,20 @@ export function buildGuide(inst: AnalysisInstance, input: GuideInput, checkSugge
       }
     });
 
+    // A card without suggestions keeps the next analyses of the rule cards it cites.
+    if (!Array.isArray(h?.suggestions) || !h.suggestions.length) {
+      const seen = new Set<string>();
+      for (const card of result.hints ?? []) {
+        if (!card.signal || !ids.includes(card.signal)) continue;
+        for (const sug of card.suggestions) {
+          const key = JSON.stringify([sug.analysis, sug.options]);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          suggestions.push(sug);
+        }
+      }
+    }
+
     const plot = (result.hints ?? []).find((c) => c.plot && c.signal && ids.includes(c.signal))?.plot;
     const evidence = rows
       .filter((r) => r.measure && typeof r.value === "number")

@@ -11,7 +11,18 @@ const inst: any = {
   options: { holdout: { enabled: false } },
   result: {
     runId: "a-1--r1",
-    hints: [{ id: "s01", title: "'sleep_h'와 'phq_total'은 함께 움직입니다", text: "ρ = -0.48", evidence: "Spearman ρ = -0.48, n = 118 (중간)", signal: "s01", plot: "hint-s01", variables: [], suggestions: [] }],
+    hints: [
+      {
+        id: "s01",
+        title: "'sleep_h'와 'phq_total'은 함께 움직입니다",
+        text: "ρ = -0.48",
+        evidence: "Spearman ρ = -0.48, n = 118 (중간)",
+        signal: "s01",
+        plot: "hint-s01",
+        variables: [],
+        suggestions: [{ label: "선형 회귀 열기", analysis: "org.rsage.regression/regression", options: { outcome: { variable: "phq_total" } } }],
+      },
+    ],
     plots: [],
     tables: [
       {
@@ -63,6 +74,8 @@ describe("buildGuide", () => {
     expect(g.hints[0]!.evidence).toBe("Spearman ρ = -0.48, n = 118 (중간)");
     expect(g.hints[0]!.plot).toBe("hint-s01");
     expect(g.hints[0]!.variables).toEqual(["phq_total", "sleep_h"]);
+    // No suggestions of its own: it keeps the rule card's next analysis.
+    expect(g.hints[0]!.suggestions.map((s) => s.label)).toEqual(["선형 회귀 열기"]);
   });
 
   test("names every problem at once", () => {
