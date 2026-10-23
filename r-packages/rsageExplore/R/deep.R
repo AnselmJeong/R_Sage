@@ -111,7 +111,7 @@ subgroup_tree <- function(d, kinds, target, preds) {
   if (nrow(fit$frame) < 3) return(NULL)
   leaves <- which(fit$frame$var == "<leaf>")
   paths <- rpart::path.rpart(fit, nodes = as.integer(rownames(fit$frame)[leaves]), print.it = FALSE)
-  rules <- vapply(paths, function(p) paste(tidy_rule(p[-1]), collapse = " 그리고 "), "")
+  rules <- vapply(paths, function(p) paste(tidy_rule(merge_bounds(p[-1])), collapse = " 그리고 "), "")
   overall <- mean(df$.y)
   sdv <- stats::sd(df$.y)
   tab <- data.frame(rule = unname(rules), n = fit$frame$n[leaves], value = fit$frame$yval[leaves], stringsAsFactors = FALSE)
@@ -121,6 +121,30 @@ subgroup_tree <- function(d, kinds, target, preds) {
   split_vars <- unique(as.character(fit$frame$var[fit$frame$var != "<leaf>"]))
   list(table = tab, overall = if (num) overall else 100 * overall, numeric = num, event = event, n = nrow(df),
        vars = split_vars, first = as.character(fit$frame$var[1]))
+}
+
+# A path can split one variable twice ("x>=-0.2", "x>=0.78"): keep the
+# tightest lower and upper bound, and the last (narrowest) level set.
+merge_bounds <- function(p) {
+  m <- regmatches(p, regexec("^(.+?)(>=|< ?|=)(.*)$", p))
+  var <- vapply(m, function(z) if (length(z) == 4) z[2] else NA_character_, "")
+  op <- vapply(m, function(z) if (length(z) == 4) trimws(z[3]) else NA_character_, "")
+  val <- vapply(m, function(z) if (length(z) == 4) trimws(z[4]) else NA_character_, "")
+  keep <- rep(TRUE, length(p))
+  for (i in seq_along(p)) {
+    if (is.na(var[i])) next
+    same <- which(var == var[i] & op == op[i])
+    if (length(same) < 2) next
+    if (op[i] == "=") {
+      keep[i] <- i == max(same)
+    } else {
+      v <- suppressWarnings(as.numeric(val[same]))
+      if (anyNA(v)) next
+      best <- same[if (op[i] == ">=") which.max(v) else which.min(v)]
+      keep[i] <- i == best
+    }
+  }
+  p[keep]
 }
 
 # "age>=45.5" → "age ≥ 45.5", "sex=F,M" → "sex: F, M"

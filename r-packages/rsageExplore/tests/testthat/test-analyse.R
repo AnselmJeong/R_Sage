@@ -233,3 +233,9 @@ test_that("groups are compared with a Table 1 draft and SMDs", {
   many <- analyse(d, list(compare = "id"))
   expect_true(any(vapply(many$notes, function(n) identical(n$code, "compare_unusable"), TRUE)))
 })
+
+test_that("a subgroup rule names each variable once, with its tightest bounds", {
+  expect_equal(merge_bounds(c("x1>=-0.2013", "x1>=0.7753", "g=a,b", "x1< 2.5", "g=a")),
+               c("x1>=0.7753", "x1< 2.5", "g=a"))
+  expect_equal(tidy_rule(merge_bounds(c("age< 60", "age< 45.5", "sex=F"))), c("age < 45.5", "sex: F"))
+})
