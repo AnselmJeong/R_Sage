@@ -25,3 +25,4 @@ Hints fitted to a question (set_exploration_hints):
 - If what one row is (a patient, a visit) or which variable is the outcome is unclear and it changes the advice, set `ask` instead of guessing.
 - If the analysis kept rows back (holdout), say the cards come from the exploration rows and the suggested analyses open on the held-out data frame.
 - Never send or ask for raw rows; the tables are enough.
+- When you open an analysis a card suggests, pass `from_analysis_id` (this exploration) and `from_hint` (the card id) to run_analysis. The user can then write the exploration log (탐색 기록 넣기) into their .qmd, which lists the analyses opened from the cards.

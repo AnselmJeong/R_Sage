@@ -8,6 +8,7 @@ import { host } from "./host/client";
 import { useStore } from "./store";
 import { getDockApi, getModel, editorsByPath } from "./editor/files";
 import { suggestDataset, type DatasetPick } from "./analysisData";
+import { insertLineAfter } from "./docInsert";
 
 interface AnalysisState {
   modules: AnalysisModuleInfo[];
@@ -105,22 +106,36 @@ export async function deleteAnalysis(id: string) {
 
 /** Puts R code into the open document: a chunk in a .qmd, plain lines in an R script. */
 export function insertIntoDocument(code: string, label?: string): boolean {
+  return insertText((qmd) => (qmd ? `\n\`\`\`{r}\n${label ? `#| label: ${label}\n` : ""}${code}\n\`\`\`\n` : `\n${code}\n`), "코드를");
+}
+
+/**
+ * Inserts text into the open document after the cursor line (or at the end).
+ * `make` gets whether the document is Quarto/Markdown and returns the text,
+ * or null when the text only fits a document (the user is told why).
+ */
+export function insertText(make: (qmd: boolean) => string | null, what = "내용을"): boolean {
   const path = useStore.getState().activeFile;
   const model = path ? getModel(path) : null;
   if (!path || !model) {
-    useStore.getState().notify("코드를 넣을 .qmd나 R 파일을 먼저 여세요.", "error");
+    useStore.getState().notify(`${what} 넣을 .qmd나 R 파일을 먼저 여세요.`, "error");
     return false;
   }
   const qmd = /\.(qmd|rmd|md)$/i.test(path);
-  const text = qmd ? `\n\`\`\`{r}\n${label ? `#| label: ${label}\n` : ""}${code}\n\`\`\`\n` : `\n${code}\n`;
+  const text = make(qmd);
+  if (text === null) {
+    useStore.getState().notify(`${what} 넣을 .qmd 문서를 먼저 여세요.`, "error");
+    return false;
+  }
   const ed = editorsByPath.get(path);
   const sel = ed?.getSelection();
   const end = model.getFullModelRange().getEndPosition();
-  // In a document, after the line the cursor is on; otherwise at the end.
-  const line = sel ? sel.endLineNumber : end.lineNumber;
+  // In a document, after the line the cursor is on (past the YAML header or a
+  // chunk it is inside); otherwise at the end.
+  const line = sel ? (qmd ? insertLineAfter(model.getLinesContent(), sel.endLineNumber) : sel.endLineNumber) : end.lineNumber;
   const col = sel ? model.getLineMaxColumn(line) : end.column;
   model.pushEditOperations([], [{ range: { startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: col }, text }], () => null);
-  useStore.getState().notify(`${path.split("/").pop()}에 코드를 넣었습니다.`);
+  useStore.getState().notify(`${path.split("/").pop()}에 ${what} 넣었습니다.`);
   return true;
 }
 

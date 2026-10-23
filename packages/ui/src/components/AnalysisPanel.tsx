@@ -15,7 +15,7 @@ import { TransferBlock, VarIcon, holds, isRole, roleNames, type RoleControl } fr
 import { KIND_LABEL, accepts, varKind } from "../analysisVars";
 import { LevelSelect, ModelPicker, ModelsField, TermChoice } from "./AnalysisModels";
 import { syncModels } from "../analysisModels";
-import { askAboutHint, clearGuide, guideAvailable, openSuggestion, requestGuide, showAssistant, suggestionAvailable } from "../hints";
+import { askAboutHint, clearGuide, guideAvailable, insertExplorationLog, openSuggestion, requestGuide, showAssistant, suggestionAvailable } from "../hints";
 
 const notifyError = (e: any) => useStore.getState().notify(e?.message ?? String(e), "error");
 
@@ -737,6 +737,8 @@ function ResultView({ inst, result, dim }: { inst: AnalysisInstance; result: Ana
   );
 }
 
+const EXPLORE_KEY = "org.rsage.explore/explore";
+
 /** Hint cards: what was found, its numbers and figure, and where to go next. */
 function HintCards({ inst, result }: { inst: AnalysisInstance; result: AnalysisResult }) {
   const plots = new Map(result.plots.map((p) => [p.id, p]));
@@ -751,7 +753,18 @@ function HintCards({ inst, result }: { inst: AnalysisInstance; result: AnalysisR
   const rules = result.hints ?? [];
   return (
     <div className="an-rsection">
-      <h2 className="an-rsection-title">살펴볼 만한 것</h2>
+      <h2 className="an-rsection-title">
+        살펴볼 만한 것
+        {inst.analysis === EXPLORE_KEY && (
+          <button
+            className="btn btn-small an-rsection-action"
+            onClick={() => void insertExplorationLog(inst)}
+            title="보이는 카드, 질문, 카드에서 연 분석과 R 청크를 열린 .qmd에 넣습니다"
+          >
+            탐색 기록 넣기
+          </button>
+        )}
+      </h2>
       {guideAvailable(inst) && <GuideBar inst={inst} result={result} />}
       {!!guide?.hints.length && cards(guide.hints)}
       {guide?.hints.length ? (
@@ -850,7 +863,7 @@ function HintCard({ inst, hint, plot }: { inst: AnalysisInstance; hint: Analysis
       <div className="an-hint-actions">
         {hint.suggestions.map((s, i) =>
           suggestionAvailable(s) ? (
-            <button key={i} className="btn btn-small btn-primary" onClick={() => void openSuggestion(inst, s)} title="옵션을 채운 새 분석 탭을 엽니다">
+            <button key={i} className="btn btn-small btn-primary" onClick={() => void openSuggestion(inst, s, hint.id)} title="옵션을 채운 새 분석 탭을 엽니다">
               {s.label}
             </button>
           ) : (

@@ -314,6 +314,16 @@ live("missing-data analysis in a live session", async () => {
     for (const id of [a.id, b.id, c.id]) await call("analysis.delete", { id });
   }, 60_000);
 
+  test("an analysis opened from an exploration card remembers it", async () => {
+    const from = { analysis: "a-explore", hint: "s01" };
+    const a = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", reuse: true, from });
+    expect(a.from).toEqual(from);
+    expect((await call("analysis.list", {})).find((i: any) => i.id === a.id)?.from).toEqual(from);
+    // Opened again from elsewhere, it keeps the first card.
+    expect((await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq", reuse: true, from: { analysis: "a-other" } })).from).toEqual(from);
+    await call("analysis.delete", { id: a.id });
+  }, 60_000);
+
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
     const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "no_such_df" });

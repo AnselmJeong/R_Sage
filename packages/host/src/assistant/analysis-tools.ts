@@ -41,6 +41,11 @@ export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
         options: { type: "object", description: "Options as described by describe_analysis" },
         title: { type: "string", description: "Short title for the analysis tab" },
         analysis_id: { type: "string", description: "Re-run an existing analysis with new options instead of creating one" },
+        from_analysis_id: {
+          type: "string",
+          description: "When this analysis follows a 탐색 안내 card, the exploration's analysis_id (and from_hint the card id), so the exploration log lists it",
+        },
+        from_hint: { type: "string", description: "The hint card id this analysis follows, with from_analysis_id" },
       },
       required: ["analysis", "dataset"],
     },
@@ -222,7 +227,14 @@ export async function runAnalysisTool(
         const existing = input?.analysis_id ? svc.get(String(input.analysis_id)) : null;
         const inst = existing
           ? svc.update({ id: existing.id, dataset, options, title: input?.title })
-          : svc.create({ analysis: def.key, dataset, options, title: input?.title, createdBy: "assistant" });
+          : svc.create({
+              analysis: def.key,
+              dataset,
+              options,
+              title: input?.title,
+              createdBy: "assistant",
+              from: input?.from_analysis_id && svc.get(String(input.from_analysis_id)) ? { analysis: String(input.from_analysis_id), hint: input?.from_hint ? String(input.from_hint) : undefined } : undefined,
+            });
         env.openAnalysis?.(inst.id);
         const onAbort = () => svc.cancel(inst.id);
         env.signal.addEventListener("abort", onAbort);

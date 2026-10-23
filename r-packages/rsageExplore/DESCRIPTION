@@ -1,6 +1,6 @@
 Package: rsageExplore
 Title: Exploration Guide Module for R Sage
-Version: 0.3.0
+Version: 1.0.0
 Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
 Description: Profiles a data frame and points to what is worth a closer
     look: the role and structure of each variable (IDs, scale items,
