@@ -270,12 +270,21 @@ analyse <- function(data, options = list()) {
   }
   if (isTRUE(o$plots$diagram)) {
     lay <- node_layout(mvars, tier)
-    dp <- diagram_plot(ct, lay, o$plots$labels %||% "std", map)
+    # Links between two variables without parents are not model parameters
+    # (lavaan fixes their covariance at the sample value) but are part of
+    # the graph, so the figure shows them with the sample correlation.
+    gc <- edges[edges$type == "covariance", , drop = FALSE]
+    gc <- gc[gc$from %in% mvars & gc$to %in% mvars & !paste(gc$from, gc$to) %in% paste(parts$cov$from, parts$cov$to), , drop = FALSE]
+    exo <- data.frame(from = gc$from, to = gc$to,
+                      r = vapply(seq_len(nrow(gc)), function(i) stats::cor(d[[gc$from[i]]], d[[gc$to[i]]], use = "pairwise.complete.obs"), 0),
+                      stringsAsFactors = FALSE)
+    dp <- diagram_plot(ct, lay, o$plots$labels %||% "std", map, exo)
     if (dp$backend == "tidySEM") used <- c(used, "tidySEM")
     else if (has("tidySEM") && !is.null(dp$error)) add(note(paste("tidySEM으로 그리지 못해 ggplot2로 그렸습니다:", dp$error), "path_component_failed", "info"))
     add(rsage::rs_plot("diagram", "경로 그림", dp$plot, size = diagram_size(lay), section = "경로 계수",
       alt = "단계별로 놓인 변수와 추정한 경로 계수를 그린 경로 그림",
-      description = "왼쪽에서 오른쪽으로 단계 순서입니다. 파랑은 양, 빨강은 음의 관계이고, 실선은 95% 구간이 0을 포함하지 않는 경로, 점선은 포함하는 경로입니다. 숫자는 표준화 계수입니다."))
+      description = paste0("왼쪽에서 오른쪽으로 단계 순서입니다. 파랑은 양, 빨강은 음의 관계이고, 실선은 95% 구간이 0을 포함하지 않는 경로, 점선은 포함하는 경로입니다. 숫자는 표준화 계수입니다.",
+                           if (nrow(exo)) " 들어오는 화살표가 없는 변수끼리의 상관(↔)은 추정하지 않고 표본 상관을 그대로 쓰므로 회색으로 그립니다." else "")))
   }
 
   # Effects for the focus pair.

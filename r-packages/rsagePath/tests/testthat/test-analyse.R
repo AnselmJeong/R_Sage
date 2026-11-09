@@ -195,3 +195,13 @@ test_that("the found structure opens as an editable path list with the same spli
   expect_true("path_split" %in% codes(r2))
   expect_equal(jsonlite::fromJSON(jsonlite::toJSON(s$options$variables, auto_unbox = TRUE), simplifyVector = FALSE)$outcome, list("y"))
 })
+
+test_that("a link between two variables without parents is drawn with its sample correlation", {
+  local_mocked_bindings(has = function(pkg) pkg != "tidySEM" && requireNamespace(pkg, quietly = TRUE))
+  d <- sim()
+  paths <- list(list(from = "age", type = "covariance", to = "x"), list(from = "age", to = "y"), list(from = "x", to = "y"))
+  r <- analyse(d, list(structure = list(source = "specified"), paths = paths, estimation = list(inference = "standard", scale = "raw")))
+  p <- r$plots[[which(vapply(r$plots, function(p) p$id, "") == "diagram")]]$plot
+  labels <- unlist(lapply(ggplot2::ggplot_build(p)$data, function(l) l$label))
+  expect_true(formatC(cor(d$age, d$x), digits = 2, format = "f") %in% labels)
+})

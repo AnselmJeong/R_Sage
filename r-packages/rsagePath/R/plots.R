@@ -60,7 +60,8 @@ box_geometry <- function(layout) {
   sx <- if (xr > 0) max((size$width - margin_in - 2 * pad_x) / xr, 0.05) else 1
   sy <- if (yr > 0) max((size$height - margin_in - 2 * pad_y) / yr, 0.05) else sx
   list(hw = stats::setNames(hw_in / sx, layout$name), hh = hh_in / sy,
-       expand_x = if (xr > 0) pad_x / sx else 1, expand_y = if (yr > 0) pad_y / sy else 1, size = size)
+       expand_x = if (xr > 0) pad_x / sx else 1, expand_y = if (yr > 0) pad_y / sy else 1, size = size,
+       sx = sx, sy = sy)
 }
 
 # Own diagram: boxes, straight arrows, curved covariances.
@@ -91,8 +92,11 @@ draw_graph <- function(layout, edges, title_legend = NULL) {
     mid <- mean(range(layout$y))
     reg$curv <- ifelse((reg$y1 + reg$y2) / 2 >= mid, -CURVE, CURVE)
     k <- 0.37 * reg$curv
-    reg$lx <- ifelse(reg$bend, (reg$sx1 + reg$sx2) / 2 + k * (reg$sy2 - reg$sy1), reg$sx1 + (reg$sx2 - reg$sx1) * 0.55)
-    reg$ly <- ifelse(reg$bend, (reg$sy1 + reg$sy2) / 2 - k * (reg$sx2 - reg$sx1), reg$sy1 + (reg$sy2 - reg$sy1) * 0.55)
+    # Labels of slanted arrows sit nearer their start so arrows crossing in
+    # an X keep their labels apart.
+    at <- ifelse(abs(reg$y2 - reg$y1) > 1e-9, 0.33, 0.55)
+    reg$lx <- ifelse(reg$bend, (reg$sx1 + reg$sx2) / 2 + k * (reg$sy2 - reg$sy1), reg$sx1 + (reg$sx2 - reg$sx1) * at)
+    reg$ly <- ifelse(reg$bend, (reg$sy1 + reg$sy2) / 2 - k * (reg$sx2 - reg$sx1), reg$sy1 + (reg$sy2 - reg$sy1) * at)
     aes_e <- ggplot2::aes(x = .data$sx1, y = .data$sy1, xend = .data$sx2, yend = .data$sy2,
                           colour = .data$colour, linetype = .data$linetype, linewidth = .data$width, alpha = .data$alpha)
     arr <- grid::arrow(length = grid::unit(0.09, "inches"), type = "closed")
@@ -125,9 +129,11 @@ draw_graph <- function(layout, edges, title_legend = NULL) {
     lab <- cov[nzchar(cov$label), , drop = FALSE]
     if (nrow(lab)) {
       # The label sits on the middle of the arc.
+      # The bow is drawn in inches, so the offset is converted between the
+      # x and y scales (they differ, and a same-column arc is vertical).
       k <- 0.5 * lab$curv
-      lab$lx <- (lab$sx1 + lab$sx2) / 2 + k * (lab$sy2 - lab$sy1)
-      lab$ly <- (lab$sy1 + lab$sy2) / 2 - k * (lab$sx2 - lab$sx1)
+      lab$lx <- (lab$sx1 + lab$sx2) / 2 + k * (lab$sy2 - lab$sy1) * geo$sy / geo$sx
+      lab$ly <- (lab$sy1 + lab$sy2) / 2 - k * (lab$sx2 - lab$sx1) * geo$sx / geo$sy
       g <- g + borderless_label(data = lab, ggplot2::aes(x = .data$lx, y = .data$ly, label = .data$label, colour = .data$colour),
                                 size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
     }
@@ -153,7 +159,7 @@ edge_label <- function(est, p, sig, how) {
 }
 
 # Fitted model: coefficient table rows with from/to/type, est, CI.
-diagram_plot <- function(ct, layout, how, map) {
+diagram_plot <- function(ct, layout, how, map, exo = NULL) {
   ct$sig <- !is.na(ct$ci.lower) & (ct$ci.lower > 0 | ct$ci.upper < 0)
   e <- data.frame(from = ct$from, to = ct$to, type = ct$type, stringsAsFactors = FALSE)
   shown <- if (!is.null(ct$std) && !all(is.na(ct$std))) ct$std else ct$est
@@ -162,7 +168,11 @@ diagram_plot <- function(ct, layout, how, map) {
   e$linetype <- ifelse(ct$sig, "solid", "dashed")
   e$width <- 0.35 + 1.6 * pmin(abs(shown), 1)
   e$alpha <- ifelse(ct$sig, 1, 0.75)
-  tidy <- tidysem_plot(ct, layout, how, map)
+  if (NROW(exo)) e <- rbind(e, data.frame(from = exo$from, to = exo$to, type = "covariance",
+                                          label = if (how == "none") "" else formatC(exo$r, digits = 2, format = "f"),
+                                          colour = GREY, linetype = "solid", width = 0.35 + 1.6 * pmin(abs(exo$r), 1), alpha = 1,
+                                          stringsAsFactors = FALSE))
+  tidy <- tidysem_plot(ct, layout, how, map, exo)
   list(plot = tidy$plot %||% draw_graph(layout, e), backend = if (!is.null(tidy$plot)) "tidySEM" else "ggplot2", error = tidy$error)
 }
 
@@ -176,7 +186,7 @@ layout_grid <- function(layout, map) {
 }
 
 # tidySEM graph with the tier layout; edges limited to the graph's paths.
-tidysem_plot <- function(ct, layout, how, map) {
+tidysem_plot <- function(ct, layout, how, map, exo = NULL) {
   if (!has("tidySEM")) return(list(plot = NULL))
   r <- quietly({
     fit <- attr(ct, "fit")
@@ -188,7 +198,29 @@ tidysem_plot <- function(ct, layout, how, map) {
     ed <- tidySEM::edges(g)
     inv <- stats::setNames(names(map), map)
     keep <- paste(ed$from, ed$to) %in% c(paste(map[ct$from], map[ct$to]), paste(map[ct$to[ct$type == "covariance"]], map[ct$from[ct$type == "covariance"]]))
-    ed <- ed[keep, , drop = FALSE]
+    # Covariances between variables without parents (fixed at the sample
+    # value by lavaan): kept if tidySEM lists them, added otherwise.
+    exo_key <- if (NROW(exo)) paste(map[exo$from], map[exo$to]) else character()
+    is_exo <- paste(ed$from, ed$to) %in% exo_key | paste(ed$to, ed$from) %in% exo_key
+    ed <- ed[keep | is_exo, , drop = FALSE]
+    is_exo <- is_exo[keep | is_exo]
+    missing_exo <- setdiff(seq_len(NROW(exo)), which(exo_key %in% c(paste(ed$from, ed$to), paste(ed$to, ed$from))))
+    if (length(missing_exo) && nrow(ed)) {
+      cov_row <- which(ed$arrow %in% c("both", "none"))
+      tmpl <- ed[if (length(cov_row)) cov_row[1] else 1, , drop = FALSE]
+      add <- tmpl[rep(1, length(missing_exo)), , drop = FALSE]
+      add$from <- unname(map[exo$from[missing_exo]])
+      add$to <- unname(map[exo$to[missing_exo]])
+      if (!is.null(add$arrow)) add$arrow <- "both"
+      if (!is.null(add$curvature)) add$curvature <- 60
+      if (!is.null(add$connect_from)) add$connect_from <- NA
+      if (!is.null(add$connect_to)) add$connect_to <- NA
+      if (!is.null(add$est_std)) add$est_std <- formatC(exo$r[missing_exo], digits = 2, format = "f")
+      if (!is.null(add$est)) add$est <- formatC(exo$r[missing_exo], digits = 2, format = "f")
+      add$label <- formatC(exo$r[missing_exo], digits = 2, format = "f")
+      ed <- rbind(ed, add)
+      is_exo <- c(is_exo, rep(TRUE, length(missing_exo)))
+    }
     est <- suppressWarnings(as.numeric(ed$est_std %||% ed$est))
     ci_ok <- vapply(seq_len(nrow(ed)), function(i) {
       row <- ct[map[ct$from] == ed$from[i] & map[ct$to] == ed$to[i] | (ct$type == "covariance" & map[ct$to] == ed$from[i] & map[ct$from] == ed$to[i]), ]
@@ -197,7 +229,18 @@ tidysem_plot <- function(ct, layout, how, map) {
     ed$colour <- ifelse(!is.na(est) & est < 0, NEG, POS)
     ed$linetype <- ifelse(ci_ok, 1, 2)
     if (how == "std") ed$label <- formatC(est, digits = 2, format = "f")
+    if (any(is_exo)) {
+      ed$colour[is_exo] <- GREY
+      ed$linetype[is_exo] <- 1
+      if (how != "none") ed$label[is_exo] <- formatC(est[is_exo], digits = 2, format = "f")
+    }
     if (how == "none") ed$label <- ""
+    # Labels of slanted arrows sit nearer their start, so two arrows that
+    # cross in an X (a -> d, c -> b between two columns) do not put their
+    # labels on the same crossing point.
+    rowpos <- stats::setNames(layout$row, unname(map[layout$name]))
+    slanted <- !is_exo & !is.na(rowpos[ed$from]) & !is.na(rowpos[ed$to]) & rowpos[ed$from] != rowpos[ed$to] & ed$from != ed$to
+    ed$label_location <- ifelse(slanted, 0.33, 0.5)
     # Arrows that skip a tier would run straight behind the boxes in
     # between; bend them (tidySEM curvature is in degrees).
     col <- stats::setNames(layout$col, unname(map[layout$name]))
