@@ -29,32 +29,60 @@ node_layout <- function(vars, tier) {
   out
 }
 
-diagram_size <- function(layout, label_chars) {
+# Display width of a name in characters (Korean and other wide characters
+# count twice).
+name_width <- function(x) nchar(x, type = "width")
+
+diagram_size <- function(layout) {
+  label_chars <- max(name_width(layout$name))
   w <- attr(layout, "ncol") * (1.6 + 0.09 * min(label_chars, 16)) + 1
   h <- attr(layout, "nrow") * 1.25 + 1.1
   list(width = round(min(max(w, 4.5), 12), 1), height = round(min(max(h, 2.8), 10), 1))
+}
+
+# Node boxes in data units. The figure is drawn at diagram_size(), so the
+# inches-per-unit scale is known and each box gets its own half-width from
+# its label (a single width for all boxes left arrows ending in empty space
+# next to short names).
+LABEL_SIZE <- 3.6
+box_geometry <- function(layout) {
+  size <- diagram_size(layout)
+  pt <- LABEL_SIZE * ggplot2::.pt
+  char_in <- 0.55 * pt / 72
+  pad_in <- 0.35 * pt * 1.2 / 72
+  hw_in <- name_width(layout$name) * char_in / 2 + pad_in
+  hh_in <- pt * 1.2 / 72 / 2 + pad_in
+  margin_in <- 2 * 5.5 / 72
+  xr <- diff(range(layout$x))
+  yr <- diff(range(layout$y))
+  pad_x <- max(hw_in) + 0.3
+  pad_y <- hh_in + 0.25
+  sx <- if (xr > 0) max((size$width - margin_in - 2 * pad_x) / xr, 0.05) else 1
+  sy <- if (yr > 0) max((size$height - margin_in - 2 * pad_y) / yr, 0.05) else sx
+  list(hw = stats::setNames(hw_in / sx, layout$name), hh = hh_in / sy,
+       expand_x = if (xr > 0) pad_x / sx else 1, expand_y = if (yr > 0) pad_y / sy else 1, size = size)
 }
 
 # Own diagram: boxes, straight arrows, curved covariances.
 draw_graph <- function(layout, edges, title_legend = NULL) {
   pos <- layout[, c("name", "x", "y")]
   e <- merge(merge(edges, stats::setNames(pos, c("from", "x1", "y1"))), stats::setNames(pos, c("to", "x2", "y2")))
-  bw <- 0.62 + 0.035 * max(nchar(layout$name))
-  shrink <- function(x1, y1, x2, y2) {
+  geo <- box_geometry(layout)
+  hh <- geo$hh
+  # Stop each end at its own box edge.
+  shrink <- function(from, to, x1, y1, x2, y2) {
     dx <- x2 - x1
     dy <- y2 - y1
-    len <- sqrt(dx^2 + dy^2)
-    # Stop at the box edge: horizontal half-width bw, vertical half-height 0.3.
-    tx <- ifelse(abs(dx) > 1e-9, bw / abs(dx), Inf)
-    ty <- ifelse(abs(dy) > 1e-9, 0.3 / abs(dy), Inf)
-    t <- pmin(tx, ty, 0.45)
-    list(x1 = x1 + dx * t, y1 = y1 + dy * t, x2 = x2 - dx * t, y2 = y2 - dy * t)
+    t_at <- function(hw) pmin(ifelse(abs(dx) > 1e-9, hw / abs(dx), Inf), ifelse(abs(dy) > 1e-9, hh / abs(dy), Inf), 0.45)
+    t1 <- t_at(unname(geo$hw[from]))
+    t2 <- t_at(unname(geo$hw[to]))
+    list(x1 = x1 + dx * t1, y1 = y1 + dy * t1, x2 = x2 - dx * t2, y2 = y2 - dy * t2)
   }
   g <- ggplot2::ggplot()
   reg <- e[e$type == "regression", , drop = FALSE]
   cov <- e[e$type == "covariance", , drop = FALSE]
   if (nrow(reg)) {
-    s <- shrink(reg$x1, reg$y1, reg$x2, reg$y2)
+    s <- shrink(reg$from, reg$to, reg$x1, reg$y1, reg$x2, reg$y2)
     reg[c("sx1", "sy1", "sx2", "sy2")] <- s
     # Arrows that skip a tier or stay in one column would cross the boxes in
     # between, so they bend; the label sits on the bend.
@@ -75,25 +103,42 @@ draw_graph <- function(layout, edges, title_legend = NULL) {
                                              size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
   }
   if (nrow(cov)) {
-    cov$sx1 <- cov$x1 + ifelse(cov$x1 == cov$x2, bw, 0)
-    cov$sx2 <- cov$x2 + ifelse(cov$x1 == cov$x2, bw, 0)
-    cov$sy1 <- cov$y1
-    cov$sy2 <- cov$y2
-    g <- g + ggplot2::geom_curve(data = cov, ggplot2::aes(x = .data$sx1, y = .data$sy1, xend = .data$sx2, yend = .data$sy2,
+    # Same column: from the right edge of one box to the right edge of the
+    # other, bowing outwards. Otherwise between the facing box edges.
+    same <- abs(cov$x1 - cov$x2) < 1e-9
+    # Same column: start at the upper box so one curvature sign bows right.
+    up <- same & cov$y2 > cov$y1
+    if (any(up)) {
+      sw <- cov[up, ]
+      cov[up, c("from", "to", "x1", "y1", "x2", "y2")] <- sw[, c("to", "from", "x2", "y2", "x1", "y1")]
+    }
+    s <- shrink(cov$from, cov$to, cov$x1, cov$y1, cov$x2, cov$y2)
+    cov$sx1 <- ifelse(same, cov$x1 + unname(geo$hw[cov$from]), s$x1)
+    cov$sx2 <- ifelse(same, cov$x2 + unname(geo$hw[cov$to]), s$x2)
+    cov$sy1 <- ifelse(same, cov$y1, s$y1)
+    cov$sy2 <- ifelse(same, cov$y2, s$y2)
+    # Curvature sign so that same-column links bow to the right (away from the box).
+    cov$curv <- ifelse(same, -0.35, -0.35)
+    for (cv in unique(cov$curv)) g <- g + ggplot2::geom_curve(data = cov[cov$curv == cv, ], ggplot2::aes(x = .data$sx1, y = .data$sy1, xend = .data$sx2, yend = .data$sy2,
                                                           colour = .data$colour, linetype = .data$linetype, linewidth = .data$width, alpha = .data$alpha),
-                                 curvature = -0.35, arrow = grid::arrow(length = grid::unit(0.07, "inches"), ends = "both", type = "closed"))
+                                 curvature = cv, arrow = grid::arrow(length = grid::unit(0.07, "inches"), ends = "both", type = "closed"))
     lab <- cov[nzchar(cov$label), , drop = FALSE]
-    if (nrow(lab)) g <- g + borderless_label(data = lab, ggplot2::aes(x = (.data$sx1 + .data$sx2) / 2 + ifelse(.data$sx1 == .data$sx2, 0.35, 0),
-                                                                          y = (.data$sy1 + .data$sy2) / 2, label = .data$label, colour = .data$colour),
-                                                size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
+    if (nrow(lab)) {
+      # The label sits on the middle of the arc.
+      k <- 0.5 * lab$curv
+      lab$lx <- (lab$sx1 + lab$sx2) / 2 + k * (lab$sy2 - lab$sy1)
+      lab$ly <- (lab$sy1 + lab$sy2) / 2 - k * (lab$sx2 - lab$sx1)
+      g <- g + borderless_label(data = lab, ggplot2::aes(x = .data$lx, y = .data$ly, label = .data$label, colour = .data$colour),
+                                size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
+    }
   }
   g + ggplot2::geom_label(data = layout, ggplot2::aes(x = .data$x, y = .data$y, label = .data$name),
-                          size = 3.6, label.r = grid::unit(0.12, "lines"), label.padding = grid::unit(0.35, "lines"),
+                          size = LABEL_SIZE, label.r = grid::unit(0.12, "lines"), label.padding = grid::unit(0.35, "lines"),
                           fill = "#f4f6f8", colour = "#1f2328") +
     ggplot2::scale_colour_identity() + ggplot2::scale_linetype_identity() + ggplot2::scale_linewidth_identity() +
     ggplot2::scale_alpha_identity() +
-    ggplot2::scale_x_continuous(expand = ggplot2::expansion(add = bw + 0.4)) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(add = 0.6)) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(add = geo$expand_x)) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(add = geo$expand_y)) +
     ggplot2::theme_void()
 }
 
