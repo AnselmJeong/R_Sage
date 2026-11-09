@@ -42,7 +42,7 @@ import { AnalysisService } from "./analysis/service";
 import { FigureService } from "./figures";
 import { airVersion, formatDocument, installAir } from "./format";
 
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 type Handler<M extends MethodName> = (params: Params<M>) => Promise<Result<M>> | Result<M>;
 export type Emit = <E extends EventName>(type: E, payload: HostEvents[E]) => void;

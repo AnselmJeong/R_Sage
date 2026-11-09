@@ -4,7 +4,7 @@ export default {
   app: {
     name: "R Sage",
     identifier: "dev.rsage.app",
-    version: "0.1.0",
+    version: "0.2.0",
     description: "R analysis and Quarto reports in one workspace",
     fileAssociations: [
       { ext: ["R", "r"], name: "R Script", role: "Editor" },
