@@ -461,6 +461,48 @@ live("missing-data analysis in a live session", async () => {
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 
+  test("a split-sample learned path model opens its structure as an editable path list", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.path" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText(
+      "set.seed(3); sim3 <- data.frame(a = rnorm(200)); sim3$x <- 0.5 * sim3$a + rnorm(200); sim3$m <- 0.6 * sim3$x + rnorm(200); sim3$y <- 0.5 * sim3$m + 0.3 * sim3$a + rnorm(200); invisible(NULL)",
+    );
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.path/path",
+      dataset: "sim3",
+      options: {
+        variables: { background: ["a"], early: ["x"], middle: ["m"], outcome: ["y"] },
+        structure: { source: "learned", bootstrap: 50 },
+        confirm: { enabled: true, fraction: "0.5" },
+        focus: { exposure: "x", outcome: "y" },
+        estimation: { inference: "standard" },
+      },
+    });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    const hint = done.result.hints.find((h: any) => h.id === "structure");
+    if (!hint) {
+      console.warn("skipping: bnlearn missing, no structure was learned");
+      await call("analysis.delete", { id: inst.id });
+      return;
+    }
+    const sample = done.result.tables.find((t: any) => t.id === "sample");
+    expect(sample.rows.find((r: any) => r.item === "추정에 쓴 행 (확인용)").n).toBe(100);
+    const sug = hint.suggestions[0];
+    expect(sug.analysis).toBe("org.rsage.path/path");
+    expect(sug.options.structure.source).toBe("specified");
+    expect(Array.isArray(sug.options.variables.outcome)).toBe(true);
+    const made = await call("analysis.create", { analysis: sug.analysis, dataset: "sim3", options: sug.options, title: sug.title });
+    const again = await call("analysis.run", { id: made.id });
+    expect(again.lastRun.status).toBe("ok");
+    expect(again.result.notes.some((n: any) => n.code === "path_split")).toBe(true);
+    await call("analysis.delete", { id: made.id });
+    await call("analysis.delete", { id: inst.id });
+  }, 240_000);
+
   test("the exploration guide finds signals and its suggestions open as valid analyses", async () => {
     const prep = await call("analysis.prepare", { moduleId: "org.rsage.explore" });
     if (!prep.ready) {

@@ -1,6 +1,6 @@
 Package: rsagePath
 Title: Path Analysis and Exploratory Causal Graph Module for R Sage
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
 Description: Path analysis for several observed variables, aimed at small
     samples where the covariates and the routes between variables are not

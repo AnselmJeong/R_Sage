@@ -14,6 +14,7 @@ defaults <- function() {
     focus = list(exposure = NULL, outcome = NULL),
     estimation = list(method = "ml", scale = "standardized", missing = "listwise", inference = "bootstrap", bootstrap = 1000L,
                       bayes = list(prior = "moderate", chains = 3L, burnin = 1000L, draws = 1000L)),
+    confirm = list(enabled = FALSE, fraction = "0.5"),
     seed = 2026L,
     output = list(coefficients = TRUE, r2 = TRUE, allEffects = TRUE),
     fit = list(indices = TRUE, bollenStine = FALSE, modindices = FALSE),
@@ -93,14 +94,29 @@ analyse <- function(data, options = list()) {
     return(finish())
   }
   standardized <- !identical(o$estimation$scale, "raw")
-  d <- raw[keep, , drop = FALSE]
+  # Split-sample confirmation: the structure is found on one part of the
+  # complete rows and estimated on the rest, so the fit does not reuse the
+  # rows that chose the structure.
+  split <- if (isTRUE(o$confirm$enabled)) split_rows(complete, keep, o) else NULL
+  if (!is.null(split$problem)) {
+    add(note(split$problem, "path_split_too_small"))
+    split <- NULL
+  }
+  find_rows <- if (is.null(split)) complete else split$find
+  fit_rows <- if (is.null(split)) keep else split$fit
+  d <- raw[fit_rows, , drop = FALSE]
   if (standardized) d <- standardize(d)
   add(rsage::rs_table("sample", "분석 표본", data.frame(
-    item = c("데이터 행", "모든 변수가 관측된 행", "추정에 쓴 행", if (fiml) "결측이 있는 행 (FIML로 사용)" else "결측으로 뺀 행"),
-    n = c(nrow(data), sum(complete), sum(keep), if (fiml) sum(keep & !complete) else sum(!complete))),
+    item = c("데이터 행", "모든 변수가 관측된 행",
+             if (!is.null(split)) c(sprintf("구조 찾기에 쓴 행 (찾기용 %.0f%%)", 100 * split$fraction), "추정에 쓴 행 (확인용)") else "추정에 쓴 행",
+             if (fiml) "결측이 있는 행 (FIML로 사용)" else "결측으로 뺀 행"),
+    n = c(nrow(data), sum(complete), if (!is.null(split)) c(sum(split$find), sum(split$fit)) else sum(keep),
+          if (fiml) sum(fit_rows & !complete) else sum(!complete))),
     labels = c(item = "항목", n = "행 수"), section = "분석 개요",
-    notes = if (standardized) "모든 변수를 평균 0, 표준편차 1로 바꿔 적합했습니다. 계수는 표준편차 단위입니다." else character(),
-    description = "경로 모형에 쓴 행입니다. 구조 찾기는 늘 결측이 없는 행으로 합니다."))
+    notes = c(if (standardized) "모든 변수를 평균 0, 표준편차 1로 바꿔 적합했습니다. 계수는 표준편차 단위입니다.",
+              if (!is.null(split)) sprintf("결측 없는 행을 seed %d로 무작위로 나눴습니다. 두 부분은 겹치지 않습니다. 같은 seed와 비율이면 늘 같은 행으로 나뉩니다.", as.integer(num(o$seed, 2026)))),
+    description = if (is.null(split)) "경로 모형에 쓴 행입니다. 구조 찾기는 늘 결측이 없는 행으로 합니다."
+                  else "찾기용 행으로 구조를 정하고, 겹치지 않는 확인용 행으로 계수·구간·적합도를 추정했습니다."))
 
   # Structure.
   learned <- NULL
@@ -132,10 +148,11 @@ analyse <- function(data, options = list()) {
     }
     if (src == "learned") {
       used <- c(used, "bnlearn")
-      if (sum(complete) < 5 * length(vars))
-        add(note(sprintf("변수 %d개에 결측 없는 행이 %d개입니다(변수당 5행 미만). 찾은 연결이 표본에 따라 크게 바뀔 수 있습니다. 연결 강도 표를 함께 보세요.",
-                         length(vars), sum(complete)), "path_unstable_learning"))
-      dl <- if (standardized) standardize(raw[complete, , drop = FALSE]) else raw[complete, , drop = FALSE]
+      if (sum(find_rows) < 5 * length(vars))
+        add(note(sprintf("변수 %d개에 구조 찾기에 쓴 행이 %d개입니다(변수당 5행 미만). 찾은 연결이 표본에 따라 크게 바뀔 수 있습니다. 연결 강도 표를 함께 보세요.",
+                         length(vars), sum(find_rows)), "path_unstable_learning"))
+      dl <- raw[find_rows, , drop = FALSE]
+      if (standardized) dl <- standardize(dl)
       learned <- tryCatch(learned_graph(dl, vars, tier, o), error = function(e) e)
       if (inherits(learned, "error")) {
         add(note(sprintf("구조를 찾지 못했습니다: %s. 가능한 경로를 모두 넣은 모형으로 대신합니다.", conditionMessage(learned)), "path_component_failed"))
@@ -152,7 +169,7 @@ analyse <- function(data, options = list()) {
       direction = ifelse(lt$basis == "데이터 (불안정)", lt$direction, NA_real_), basis = lt$basis,
       adopted = ifelse(lt$adopted, "채택", "")),
       labels = c(from = "변수 1", to = "변수 2", link = "연결", strength = "연결 강도", direction = "방향 비율", basis = "방향을 정한 근거", adopted = "모형에 넣음"),
-      notes = c(sprintf("%s 알고리즘, 재표집 %d회, 결측 없는 %d행. 채택 기준: 연결 강도 ≥ %.2f%s.", learned$algorithm, learned$R, learned$n, learned$threshold,
+      notes = c(sprintf("%s 알고리즘, 재표집 %d회, %s %d행. 채택 기준: 연결 강도 ≥ %.2f%s.", learned$algorithm, learned$R, if (is.null(split)) "결측 없는" else "찾기용", learned$n, learned$threshold,
                         if (learned$auto) " (자동, Scutari·Nagarajan)" else ""),
                 "연결 강도 = 재표집한 자료에서 두 변수가 직접 이어진 비율. 방향 비율 = 이어졌을 때 표의 방향인 비율(같은 단계 안에서 데이터로 방향을 정할 때만)."),
       section = "구조 찾기",
@@ -165,7 +182,12 @@ analyse <- function(data, options = list()) {
         description = "선이 굵고 진할수록 자주 나온 연결입니다. 회색 점선은 기준에 못 미쳐 모형에 넣지 않은 연결입니다. 숫자는 연결 강도입니다."))
     }
   }
-  if (src != "specified") add(note("찾은(또는 가정한) 구조는 확인할 가설입니다. 화살표 방향은 정한 단계 순서에서 왔고, 측정하지 않은 교란변수가 있으면 틀릴 수 있습니다. 같은 자료로 구조를 정하고 추정했으므로 구간과 적합도는 낙관적입니다.", "path_exploratory", "info"))
+  if (src != "specified") add(note(paste("찾은(또는 가정한) 구조는 확인할 가설입니다. 화살표 방향은 정한 단계 순서에서 왔고, 측정하지 않은 교란변수가 있으면 틀릴 수 있습니다.",
+    if (is.null(split)) "같은 자료로 구조를 정하고 추정했으므로 구간과 적합도는 낙관적입니다."
+    else if (src == "learned") "구조는 찾기용 행에서 정하고 추정은 겹치지 않는 확인용 행에서 했으므로, 같은 자료를 두 번 써서 생기는 낙관은 없습니다. 대신 행이 줄어 구간이 넓습니다."
+    else "구조를 데이터로 찾지 않았으므로 확인용 행만 쓴 것은 앞서 찾기용 행으로 구조를 정했을 때만 의미가 있습니다."), "path_exploratory", "info"))
+  if (!is.null(split) && src == "specified") add(note(sprintf("확인용 %d행만으로 추정했습니다. 찾기용 %d행은 쓰지 않았습니다. 이 경로 목록을 찾기용 행에서 얻었다면 이 결과가 그 구조의 확인입니다.",
+                                                      sum(split$fit), sum(split$find)), "path_split", "info"))
 
   parts <- model_parts(edges)
   isolated <- setdiff(vars, parts$vars)
@@ -215,11 +237,12 @@ analyse <- function(data, options = list()) {
 
   ct <- coef_table(f, parts, map, o)
   attr(ct, "fit") <- fit
+  if (!is.null(learned)) add(structure_hint(edges, ct, o, split))
   df <- tryCatch(as.numeric(lavaan::fitMeasures(fit, "df")), error = function(e) NA_real_)
 
   # Overview.
   ov <- data.frame(item = c("구조", "단계", "추정", "효과 구간", "N", "자유 모수 q", "N:q", "경로 · 상관"),
-    value = c(SOURCE_LABEL[[src]],
+    value = c(paste0(SOURCE_LABEL[[src]], if (!is.null(split)) sprintf(" · 확인용 분할 (찾기 %d행 / 추정 %d행)", sum(split$find), sum(split$fit)) else ""),
               paste(vapply(sort(unique(tier[mvars])), function(t) sprintf("%s: %s", if (t <= 4 && src != "specified") TIERS[[t]] else paste0(t, "열"), paste(mvars[tier[mvars] == t], collapse = ", ")), ""), collapse = " / "),
               if (bayes) sprintf("베이지안 (blavaan), 경로 사전분포 %s", f$prior) else sprintf("최대우도%s%s", if (identical(o$estimation$inference, "robust")) " (MLR)" else "", if (fiml) ", FIML" else ""),
               if (bayes) "사후분포 95% 신용구간" else if (identical(f$inference, "bootstrap")) sprintf("부트스트랩 백분위 (%d회)", nrow(f$draws %||% matrix(0, 0, 0))) else sprintf("몬테카를로 (%d회)", nrow(f$draws %||% matrix(0, 0, 0))),
@@ -321,6 +344,7 @@ analyse <- function(data, options = list()) {
           if (bayes) sprintf("blavaan::bsem, 사슬 %s, burn-in %s, 표본 %s, 사전분포 beta ~ %s, seed %d", o$estimation$bayes$chains, o$estimation$bayes$burnin, o$estimation$bayes$draws, f$prior, as.integer(num(o$seed, 2026)))
           else sprintf("lavaan::sem(%s%s), seed %d", switch(f$inference, bootstrap = sprintf("se = \"bootstrap\", bootstrap = %d", f$R), robust = "estimator = \"MLR\"", "se = \"standard\""),
                        if (fiml) ", missing = \"fiml\"" else "", as.integer(num(o$seed, 2026))),
+          if (!is.null(split)) sprintf("확인용 분할: 결측 없는 행의 %.0f%%로 구조 찾기, 나머지로 추정 (seed %d)", 100 * split$fraction, as.integer(num(o$seed, 2026))),
           sprintf("자료: %s, N = %d", if (standardized) "표준화" else "원래 단위", N))
   add(rsage::rs_table("provenance", "재현 정보", data.frame(item = pk), labels = c(item = "항목"), section = "재현 정보",
     description = "같은 결과를 다시 얻는 데 필요한 조건입니다. 패키지 버전은 아래 줄에 있습니다."))
@@ -463,4 +487,48 @@ bayes_fit_measures <- function(fit) {
   }
   if (is.null(fm) || !length(fm)) return(paste(unique(errors), collapse = " / ") %||% "알 수 없는 오류")
   fm
+}
+
+# Split the complete rows at random into a part that finds the structure and
+# a part that estimates it. Under FIML the incomplete rows join the
+# estimation part (structure learning never uses them).
+split_rows <- function(complete, keep, o) {
+  fraction <- min(max(num(o$confirm$fraction, 0.5), 0.2), 0.8)
+  idx <- which(complete)
+  n_find <- round(length(idx) * fraction)
+  pick <- if (n_find > 0) with_seed(as.integer(num(o$seed, 2026)), idx[sample.int(length(idx), n_find)]) else integer()
+  find <- seq_along(complete) %in% pick
+  fit <- keep & !find
+  if (sum(find) < 10 || sum(fit & complete) < 10)
+    return(list(problem = sprintf("결측 없는 행이 %d개라 나누면 한쪽이 10행보다 작습니다. 나누지 않고 모든 행으로 찾고 추정했습니다.", length(idx))))
+  list(find = find, fit = fit, fraction = fraction)
+}
+
+# The learned graph as a card, with a button that opens it as an editable
+# path list (specified mode) in a new tab: same tiers, focus, estimation and
+# split, so a confirmation run uses the same held-out rows.
+structure_hint <- function(edges, ct, o, split) {
+  if (!nrow(edges)) return(NULL)
+  arrows <- edges[edges$type == "regression", , drop = FALSE]
+  paths <- lapply(seq_len(nrow(edges)), function(i) list(from = edges$from[i], type = edges$type[i], to = edges$to[i]))
+  opts <- list(variables = lapply(o$variables, function(v) I(as.character(unlist(v)))),
+               structure = list(source = "specified"), paths = paths,
+               estimation = o$estimation, seed = as.integer(num(o$seed, 2026)))
+  fx <- one(o$focus$exposure)
+  fy <- one(o$focus$outcome)
+  if (!is.null(fx) || !is.null(fy)) opts$focus <- Filter(Negate(is.null), list(exposure = fx, outcome = fy))
+  if (!is.null(split)) opts$confirm <- list(enabled = TRUE, fraction = format(split$fraction))
+  shown <- utils::head(paste(arrows$from, "→", arrows$to), 6)
+  sure <- NA_integer_
+  if (!is.null(split)) {
+    reg <- ct[ct$type == "regression", , drop = FALSE]
+    sure <- sum(!is.na(reg$ci.lower) & (reg$ci.lower > 0 | reg$ci.upper < 0))
+  }
+  rsage::rs_hint("structure", sprintf("찾은 구조: 화살표 %d개, 상관 %d개", nrow(arrows), nrow(edges) - nrow(arrows)),
+    text = paste0(if (!is.null(split)) sprintf("확인용 행에서 화살표 %d개 중 %d개의 95%% 구간이 0을 포함하지 않았습니다. ", nrow(arrows), sure) else "",
+                  "경로 목록으로 열면 화살표를 더하거나 빼고 방향을 바꿔 가설 모형으로 다시 추정할 수 있습니다.",
+                  if (!is.null(split)) " 같은 분할을 유지하므로 확인용 행으로만 추정합니다." else ""),
+    evidence = paste0(paste(shown, collapse = ", "), if (nrow(arrows) > length(shown)) sprintf(" 외 %d개", nrow(arrows) - length(shown)) else ""),
+    kind = "structure", variables = unique(c(edges$from, edges$to)), plot = if (isTRUE(o$plots$diagram)) "diagram",
+    suggestions = list(rsage::rs_suggest("이 구조를 경로 목록으로 열기", "org.rsage.path/path", opts, title = "경로 분석: 찾은 구조 고치기")))
 }

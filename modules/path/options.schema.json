@@ -325,6 +325,29 @@
       "default": {},
       "description": "Estimation."
     },
+    "confirm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Split-sample confirmation: split the complete rows at random (seed) into a discovery part, where the structure is learned, and a non-overlapping confirmation part, where the model is estimated and its fit judged. In saturated/specified mode only the confirmation part is used, so a path list found on the discovery part can be re-estimated on held-out rows with the same seed and fraction."
+        },
+        "fraction": {
+          "type": "string",
+          "enum": [
+            "0.5",
+            "0.6",
+            "0.7"
+          ],
+          "default": "0.5",
+          "description": "Share of the complete rows used to find the structure; the rest estimate it."
+        }
+      },
+      "default": {},
+      "description": "Find the structure on one part of the data and confirm it on the other."
+    },
     "seed": {
       "type": "integer",
       "default": 2026,
