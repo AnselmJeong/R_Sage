@@ -213,8 +213,13 @@ tidysem_plot <- function(ct, layout, how, map, exo = NULL) {
       add$to <- unname(map[exo$to[missing_exo]])
       if (!is.null(add$arrow)) add$arrow <- "both"
       if (!is.null(add$curvature)) add$curvature <- 60
-      if (!is.null(add$connect_from)) add$connect_from <- NA
-      if (!is.null(add$connect_to)) add$connect_to <- NA
+      # Real anchors (NA breaks tidySEM's plot): same column joins the right
+      # sides, otherwise the facing sides.
+      cf <- stats::setNames(layout$col, unname(map[layout$name]))
+      c1 <- cf[add$from]
+      c2 <- cf[add$to]
+      add$connect_from <- ifelse(c1 == c2 | c1 < c2, "right", "left")
+      add$connect_to <- ifelse(c1 == c2 | c1 > c2, "right", "left")
       if (!is.null(add$est_std)) add$est_std <- formatC(exo$r[missing_exo], digits = 2, format = "f")
       if (!is.null(add$est)) add$est <- formatC(exo$r[missing_exo], digits = 2, format = "f")
       add$label <- formatC(exo$r[missing_exo], digits = 2, format = "f")
@@ -230,6 +235,9 @@ tidysem_plot <- function(ct, layout, how, map, exo = NULL) {
     ed$linetype <- ifelse(ci_ok, 1, 2)
     if (how == "std") ed$label <- formatC(est, digits = 2, format = "f")
     if (any(is_exo)) {
+      # tidySEM lists fixed exogenous covariances but hides them (show = FALSE).
+      if (!is.null(ed$show)) ed$show[is_exo] <- TRUE
+      if (!is.null(ed$arrow)) ed$arrow[is_exo] <- "both"
       ed$colour[is_exo] <- GREY
       ed$linetype[is_exo] <- 1
       if (how != "none") ed$label[is_exo] <- formatC(est[is_exo], digits = 2, format = "f")
