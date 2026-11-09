@@ -42,6 +42,7 @@ at_least_medium <- function(size) !is.na(size) && size %in% c("중간", "큼")
 
 KEY <- list(
   regression = "org.rsage.regression/regression",
+  path = "org.rsage.path/path",
   missing = "org.rsage.missing/missing",
   integrity = "org.rsage.integrity/integrity",
   descriptives = "org.rsage.descriptives/descriptives",
@@ -70,6 +71,17 @@ sug_regression <- function(outcome, family, continuous = character(), categorica
             models = list(list(id = "m1", label = "모형 1", termIds = I(ids), intercept = TRUE)))
   if (!is.null(event)) o$outcome$event <- event
   rsage::rs_suggest(paste(FAMILY_LABEL[[family]], "열기"), KEY$regression, o, title = paste0(FAMILY_LABEL[[family]], ": ", outcome))
+}
+# Several numeric variables go with the target: a path model can sort out
+# which of them act directly and which through the others. The user fixes
+# the tiers (order) in the form; here they all start in one early tier.
+sug_path <- function(target, numeric_vars, family) {
+  v <- utils::head(as.character(numeric_vars), 6)
+  if (length(v) < 3 || !family %in% c("gaussian", "binomial")) return(list())
+  list(rsage::rs_suggest("경로 탐색 열기", KEY$path,
+                         list(variables = list(early = I(v), outcome = I(target)), structure = list(source = "learned"),
+                              focus = list(exposure = v[1], outcome = target)),
+                         title = paste0("경로 탐색: ", target)))
 }
 sug_integrity <- function() rsage::rs_suggest("데이터 점검 열기", KEY$integrity)
 sug_missing <- function(var = NULL, other = NULL, other_numeric = TRUE) {
@@ -460,7 +472,8 @@ target_signals <- function(d, kinds, target, ta) {
               paste(sprintf("%s(%s)", use$variable, use$size), collapse = ", "), FAMILY_LABEL[[fam]]),
       measure = "관련 변수 수", value = nrow(top), n = sum(!is.na(d[[target]])), score = 3,
       draw = list(type = "target_rank", y = target),
-      suggestions = list(sug_regression(target, fam, use$variable[use$numeric], use$variable[!use$numeric], ta$model$event)))
+      suggestions = c(list(sug_regression(target, fam, use$variable[use$numeric], use$variable[!use$numeric], ta$model$event)),
+                      sug_path(target, top$variable[top$numeric], fam)))
   } else if (is.null(ta$model)) {
     out[[length(out) + 1]] <- signal(
       "target_model", target, sprintf("'%s'는 범주가 셋 이상인 결과 변수입니다", target),

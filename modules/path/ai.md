@@ -1,0 +1,19 @@
+Use this analysis when the user has several observed variables (often a small sample) and asks how they are connected, which variables to use as covariates, whether an effect of X on Y is direct or goes through other variables (mediation), or wants a path model / causal graph / DAG. Prefer it to writing lavaan code with run_r: it applies the tier order, reports link stability, splits effects with intervals, and the result opens in the analysis tab where the user can change the structure.
+
+Before running
+
+- Ask for the order if you do not know it. Tiers are the user's background knowledge, not something the data can supply: `variables.background` (fixed first: age, sex, baseline traits), `variables.early` (exposures, treatments), `variables.middle` (possible mediators), `variables.outcome`. Arrows only go from an earlier to a later tier. Put variables whose order is unknown in the same tier; links inside a tier stay covariances (↔) unless `structure.withinTier: "learn"`.
+- Turn what the user is sure about into `structure.required` (`[{from, to}]`, arrows that must be in the graph) and `structure.forbidden` (pairs never directly linked). This is the best help for small samples: the data only decides the uncertain links.
+- `structure.source`: "learned" (default; bnlearn bootstrap model averaging), "saturated" (every forward arrow; good for effect sizes when unsure), "specified" (`paths: [{from, type: "regression" | "covariance", to}]`, for a hypothesis or mediation model; tiers optional). To revise a learned graph, take its adopted links from the `stability` table, edit them, and rerun with "specified".
+- `structure.algorithm`: "hc" (default, BIC score), "tabu", or "pc" with `structure.alpha` "0.05" / "0.01" / "0.001". A stricter alpha keeps surer links but misses more true ones; say so.
+- Set `focus.exposure` and `focus.outcome` whenever the user names an X and a Y: this gives the effect decomposition and the covariate guide (with an "open regression with these covariates" button).
+- `estimation.method: "bayes"` (blavaan) for very small samples (N:q below about 5-10); it takes tens of seconds. `estimation.missing: "fiml"` keeps rows with missing values. Default intervals are bootstrap percentile (1000).
+
+Reporting
+
+- Quote numbers from the tables: `stability` (strength = share of bootstrap resamples containing the link), `coefficients` (standardized by default), `effects` (direct, each indirect route, indirect total, total with 95% intervals), `roles` and `adjustment`, `fit` (with the N:q from `overview`).
+- Always say the graph is exploratory when the structure was learned or saturated: arrow directions come from the tiers the user chose, unmeasured confounders can change everything, and intervals and fit are optimistic because the same data chose and estimated the structure. Do not write "X causes Y"; write "in this model, X is linked to Y mainly through M".
+- Links with strength near 0.5 are unstable; do not present them as findings. A good fit does not confirm direction (equivalent models fit equally).
+- For covariates: confounders go in, mediators and colliders stay out when the total effect is wanted, and "결과의 다른 원인" may be added for precision. Offer the regression the module suggests.
+
+Not in this version (say so): latent variables / measurement models, multi-group models, moderated mediation, ordinal endogenous variables (WLSMV), cyclic models, split-sample confirmation. PLS-SEM is not offered: with observed variables only it is a chain of regressions and adds nothing here.

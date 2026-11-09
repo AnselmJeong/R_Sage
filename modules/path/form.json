@@ -1,0 +1,684 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "변수 여러 개가 서로 어떻게 이어지는지, X가 Y에 주는 영향이 직접인지 다른 변수를 거치는지, X와 Y를 볼 때 무엇을 공변인으로 넣어야 하는지를 경로 모형으로 살펴봅니다. 변수를 먼저 정해지는 순서(단계)에 넣으면 화살표는 앞 단계에서 뒤 단계로만 갑니다. 작은 표본에서는 결과를 확인할 가설로 읽습니다.",
+    "links": [
+      {
+        "label": "lavaan 튜토리얼",
+        "url": "https://lavaan.ugent.be/tutorial/"
+      },
+      {
+        "label": "blavaan",
+        "url": "https://ecmerkle.github.io/blavaan/"
+      },
+      {
+        "label": "tidySEM 그림",
+        "url": "https://cjvanlissa.github.io/tidySEM/articles/Plotting_graphs.html"
+      },
+      {
+        "label": "lavaanExtra",
+        "url": "https://lavaanextra.remi-theriault.com/"
+      },
+      {
+        "label": "bnlearn 구조 학습",
+        "url": "https://www.bnlearn.com/examples/"
+      },
+      {
+        "label": "dagitty",
+        "url": "https://www.dagitty.net/"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "변수들이 어떻게 이어지는지 찾기",
+        "description": "단계 순서를 지키며 데이터에서 연결을 찾고, 재표집 200번 중 몇 번 나왔는지(연결 강도)로 안정성을 봅니다.",
+        "fn": [
+          "bnlearn::boot.strength",
+          "bnlearn::tiers2blacklist"
+        ],
+        "enable": {
+          "structure.source": "learned",
+          "plots.stability": true
+        }
+      },
+      {
+        "title": "아는 것을 먼저 넣고 나머지를 찾기",
+        "description": "확실한 경로는 '꼭 넣을 경로', 아닐 것이 분명한 연결은 '넣지 않을 경로'에 적습니다. 애매한 연결만 데이터가 정해 작은 표본에서도 덜 흔들립니다.",
+        "fn": [
+          "bnlearn::boot.strength"
+        ],
+        "enable": {
+          "structure.source": "learned"
+        },
+        "needs": "'구조 정하기'의 경로 목록에 적으세요.",
+        "needsFilled": [
+          "structure.required"
+        ]
+      },
+      {
+        "title": "엄격한 독립성 검정으로 확실한 연결만 남기기",
+        "description": "PC 알고리즘의 유의수준을 0.01로 낮춥니다. 가짜 연결은 줄지만 진짜 연결도 놓치기 쉬우니 연결 강도와 함께 봅니다.",
+        "fn": [
+          "bnlearn::pc.stable"
+        ],
+        "enable": {
+          "structure.source": "learned",
+          "structure.algorithm": "pc",
+          "structure.alpha": "0.01"
+        }
+      },
+      {
+        "title": "직접효과와 간접효과 나누기",
+        "description": "X → Y 효과를 직접효과, 경로별 간접효과(X → M → Y), 총효과로 나누고 부트스트랩 구간을 붙입니다.",
+        "fn": [
+          "lavaan::sem",
+          "lavaan::parameterEstimates"
+        ],
+        "enable": {
+          "estimation.inference": "bootstrap",
+          "plots.effects": true
+        },
+        "needs": "'효과 나누기'에서 X와 Y를 고르세요.",
+        "needsFilled": [
+          "focus.exposure",
+          "focus.outcome"
+        ]
+      },
+      {
+        "title": "공변인 고르기",
+        "description": "그래프에서 교란변수(넣는다), 매개변수·충돌변수(넣지 않는다)를 가리고 최소 보정 집합을 구합니다. 그 공변인으로 회귀를 바로 엽니다.",
+        "fn": [
+          "dagitty::adjustmentSets"
+        ],
+        "enable": {
+          "covariates.guide": true
+        },
+        "needs": "X와 Y를 고르세요.",
+        "needsFilled": [
+          "focus.exposure",
+          "focus.outcome"
+        ]
+      },
+      {
+        "title": "가설 모형 검정하기 (매개 모형 등)",
+        "description": "경로를 직접 적어 모형을 세우고 적합도와 효과를 봅니다. lavaan 튜토리얼의 매개 분석 예제와 같습니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {
+          "structure.source": "specified"
+        },
+        "needs": "'경로 직접 지정'에 경로를 적으세요.",
+        "needsFilled": [
+          "paths"
+        ]
+      },
+      {
+        "title": "가능한 경로를 모두 넣고 크기 보기",
+        "description": "단계 순서상 가능한 화살표를 모두 넣은 포화 모형입니다. 어떤 경로가 0과 구별되는지 구간으로 봅니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {
+          "structure.source": "saturated"
+        }
+      },
+      {
+        "title": "작은 표본을 베이지안으로 추정하기",
+        "description": "약한 정보 사전분포로 계수를 안정시키고, 사후분포로 간접효과 구간을 얻습니다. 수십 초 걸립니다.",
+        "fn": [
+          "blavaan::bsem",
+          "blavaan::dpriors"
+        ],
+        "enable": {
+          "estimation.method": "bayes"
+        }
+      },
+      {
+        "title": "결측이 있는 행도 쓰기 (FIML)",
+        "description": "값이 일부 빠진 행을 버리지 않고 완전정보 최대우도로 추정합니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {
+          "estimation.missing": "fiml"
+        }
+      },
+      {
+        "title": "작은 표본의 χ² 대신 부트스트랩 p",
+        "description": "Bollen-Stine 부트스트랩으로 모형 적합 p를 구합니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {
+          "fit.bollenStine": true
+        }
+      },
+      {
+        "title": "빠졌을 수 있는 경로 찾기",
+        "description": "수정지수로 더하면 적합이 크게 나아지는 경로를 봅니다. 단계를 거스르는 제안은 뺍니다.",
+        "fn": [
+          "lavaan::modindices"
+        ],
+        "enable": {
+          "fit.modindices": true
+        }
+      },
+      {
+        "title": "찾기와 확인을 다른 표본으로",
+        "description": "데이터를 나눠 한쪽에서 구조를 찾고 다른 쪽에서 확인합니다.",
+        "fn": [
+          "rsample::initial_split"
+        ],
+        "enable": {},
+        "planned": true
+      },
+      {
+        "title": "집단별 경로 비교",
+        "description": "성별 등 집단마다 경로 계수가 다른지 봅니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {},
+        "planned": true
+      },
+      {
+        "title": "잠재변수가 있는 구조방정식",
+        "description": "설문 문항으로 잠재변수를 만들고 그 사이의 경로를 봅니다.",
+        "fn": [
+          "lavaan::sem"
+        ],
+        "enable": {},
+        "planned": true
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variables",
+      "bind": "variables.background",
+      "label": "1단계: 배경",
+      "hint": "먼저 정해진 것 (나이, 성별)"
+    },
+    {
+      "type": "variables",
+      "bind": "variables.early",
+      "label": "2단계: 앞선 변수",
+      "hint": "원인·노출 후보"
+    },
+    {
+      "type": "variables",
+      "bind": "variables.middle",
+      "label": "3단계: 중간 변수",
+      "hint": "매개 후보"
+    },
+    {
+      "type": "variables",
+      "bind": "variables.outcome",
+      "label": "4단계: 결과"
+    }
+  ],
+  "sections": [
+    {
+      "title": "구조 정하기",
+      "open": true,
+      "description": "화살표는 앞 단계에서 뒤 단계로만 갑니다. 같은 단계 안의 연결은 방향을 정하지 않고 상관(↔)으로 둡니다.",
+      "controls": [
+        {
+          "type": "select",
+          "bind": "structure.source",
+          "label": "구조",
+          "labels": {
+            "learned": "데이터에서 찾기",
+            "saturated": "가능한 경로 모두",
+            "specified": "직접 지정"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "structure.algorithm",
+          "label": "찾는 방법",
+          "labels": {
+            "hc": "점수 기반 (언덕 오르기)",
+            "tabu": "점수 기반 (타부 탐색)",
+            "pc": "독립성 검정 (PC-stable)"
+          },
+          "fn": "bnlearn::hc / pc.stable",
+          "requires": [
+            "bnlearn"
+          ],
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "learned"
+          },
+          "disabledHint": "구조를 '데이터에서 찾기'로 바꾸면 켜집니다."
+        },
+        {
+          "type": "select",
+          "bind": "structure.score",
+          "label": "점수",
+          "labels": {
+            "bic": "BIC (보수적, 작은 표본)",
+            "aic": "AIC (연결 더 많이)",
+            "bge": "BGe (베이지안)"
+          },
+          "enabledWhen": {
+            "bind": "structure.algorithm",
+            "in": [
+              "hc",
+              "tabu"
+            ]
+          },
+          "disabledHint": "점수 기반 방법일 때 씁니다."
+        },
+        {
+          "type": "select",
+          "bind": "structure.alpha",
+          "label": "유의수준",
+          "labels": {
+            "0.05": "0.05",
+            "0.01": "0.01 (엄격)",
+            "0.001": "0.001 (매우 엄격)"
+          },
+          "description": "낮출수록 확실한 연결만 남지만 진짜 연결도 놓치기 쉽습니다.",
+          "enabledWhen": {
+            "bind": "structure.algorithm",
+            "equals": "pc"
+          },
+          "disabledHint": "찾는 방법이 PC-stable일 때 씁니다."
+        },
+        {
+          "type": "number",
+          "bind": "structure.bootstrap",
+          "label": "재표집",
+          "unit": "회",
+          "fn": "bnlearn::boot.strength",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "learned"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "structure.threshold",
+          "label": "채택할 연결 강도",
+          "labels": {
+            "auto": "자동",
+            "0.5": "0.5 이상",
+            "0.6": "0.6 이상",
+            "0.7": "0.7 이상",
+            "0.8": "0.8 이상",
+            "0.9": "0.9 이상"
+          },
+          "description": "재표집에서 이 비율 이상 나온 연결만 모형에 넣습니다.",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "learned"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "structure.withinTier",
+          "label": "같은 단계 안",
+          "labels": {
+            "covary": "상관으로 둠",
+            "learn": "데이터로 방향 정함 (불안정)"
+          },
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "learned"
+          }
+        },
+        {
+          "type": "rows",
+          "bind": "structure.required",
+          "label": "꼭 넣을 경로",
+          "description": "확실하다고 아는 화살표입니다. 늘 모형에 들어갑니다.",
+          "addLabel": "경로 추가",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "in": [
+              "learned",
+              "saturated"
+            ]
+          },
+          "fields": [
+            {
+              "key": "from",
+              "label": "보내는 변수",
+              "type": "column"
+            },
+            {
+              "key": "to",
+              "label": "받는 변수",
+              "type": "column"
+            }
+          ]
+        },
+        {
+          "type": "rows",
+          "bind": "structure.forbidden",
+          "label": "넣지 않을 경로",
+          "description": "직접 이어질 리 없는 두 변수입니다. 어느 방향으로도 잇지 않습니다.",
+          "addLabel": "쌍 추가",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "in": [
+              "learned",
+              "saturated"
+            ]
+          },
+          "fields": [
+            {
+              "key": "from",
+              "label": "변수 1",
+              "type": "column"
+            },
+            {
+              "key": "to",
+              "label": "변수 2",
+              "type": "column"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "경로 직접 지정",
+      "description": "가설 모형의 화살표(→)와 상관(↔)을 한 줄에 하나씩 적습니다. 단계 상자는 비워도 됩니다.",
+      "controls": [
+        {
+          "type": "rows",
+          "bind": "paths",
+          "label": "경로",
+          "addLabel": "경로 추가",
+          "fn": "lavaan::sem",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "specified"
+          },
+          "disabledHint": "구조를 '직접 지정'으로 바꾸면 켜집니다.",
+          "fields": [
+            {
+              "key": "from",
+              "label": "보내는 변수",
+              "type": "column"
+            },
+            {
+              "key": "type",
+              "label": "",
+              "type": "select",
+              "labels": {
+                "regression": "→",
+                "covariance": "↔"
+              }
+            },
+            {
+              "key": "to",
+              "label": "받는 변수",
+              "type": "column"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "효과 나누기 (X → Y)",
+      "open": true,
+      "controls": [
+        {
+          "type": "column",
+          "bind": "focus.exposure",
+          "label": "노출 X",
+          "emptyLabel": "고르지 않음"
+        },
+        {
+          "type": "column",
+          "bind": "focus.outcome",
+          "label": "결과 Y",
+          "emptyLabel": "고르지 않음"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.effects",
+          "label": "효과 분해 그림",
+          "description": "직접효과, 경로별 간접효과, 총효과와 구간.",
+          "fn": "lavaan::sem",
+          "enabledWhen": {
+            "bind": "focus.exposure",
+            "filled": true
+          },
+          "disabledHint": "X와 Y를 고르면 켜집니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "covariates.guide",
+          "label": "공변인 안내",
+          "description": "교란·매개·충돌 변수를 가리고, 최소 보정 집합과 회귀 열기 버튼을 줍니다.",
+          "fn": "dagitty::adjustmentSets",
+          "requires": [
+            "dagitty"
+          ],
+          "enabledWhen": {
+            "bind": "focus.exposure",
+            "filled": true
+          },
+          "disabledHint": "X와 Y를 고르면 켜집니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "output.allEffects",
+          "label": "모든 변수 쌍의 효과",
+          "description": "경로로 이어진 모든 쌍의 직접·간접·총효과."
+        }
+      ]
+    },
+    {
+      "title": "추정",
+      "controls": [
+        {
+          "type": "select",
+          "bind": "estimation.method",
+          "label": "방법",
+          "labels": {
+            "ml": "최대우도 (lavaan)",
+            "bayes": "베이지안 (blavaan)"
+          },
+          "fn": "lavaan::sem / blavaan::bsem"
+        },
+        {
+          "type": "select",
+          "bind": "estimation.scale",
+          "label": "단위",
+          "labels": {
+            "standardized": "표준화 (SD 단위)",
+            "raw": "원래 단위"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "estimation.missing",
+          "label": "결측",
+          "labels": {
+            "listwise": "결측 행 빼기",
+            "fiml": "FIML (결측 행도 사용)"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "estimation.inference",
+          "label": "구간",
+          "labels": {
+            "bootstrap": "부트스트랩",
+            "standard": "ML 표준오차 (몬테카를로)",
+            "robust": "MLR 강건 (몬테카를로)"
+          },
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "ml"
+          },
+          "disabledHint": "베이지안은 사후분포로 구간을 냅니다."
+        },
+        {
+          "type": "number",
+          "bind": "estimation.bootstrap",
+          "label": "반복",
+          "unit": "회",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "ml"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "estimation.bayes.prior",
+          "label": "경로 사전분포",
+          "labels": {
+            "weak": "약함 normal(0, 10)",
+            "moderate": "중간 normal(0, 1)",
+            "strong": "강함 normal(0, 0.5)"
+          },
+          "fn": "blavaan::dpriors",
+          "requires": [
+            "blavaan"
+          ],
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "bayes"
+          },
+          "disabledHint": "방법을 베이지안으로 바꾸면 켜집니다."
+        },
+        {
+          "type": "number",
+          "bind": "estimation.bayes.chains",
+          "label": "사슬",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "bayes"
+          }
+        },
+        {
+          "type": "number",
+          "bind": "estimation.bayes.burnin",
+          "label": "burn-in",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "bayes"
+          }
+        },
+        {
+          "type": "number",
+          "bind": "estimation.bayes.draws",
+          "label": "사후 표본",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "bayes"
+          }
+        },
+        {
+          "type": "number",
+          "bind": "seed",
+          "label": "난수 seed"
+        }
+      ]
+    },
+    {
+      "title": "표와 그림",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "output.coefficients",
+          "label": "경로 계수",
+          "fn": "lavaan::parameterEstimates"
+        },
+        {
+          "type": "checkbox",
+          "bind": "output.r2",
+          "label": "설명된 분산 (R²)"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.diagram",
+          "label": "경로 그림",
+          "description": "단계를 왼쪽에서 오른쪽으로 놓은 그림.",
+          "fn": "tidySEM::prepare_graph",
+          "requires": [
+            "tidySEM"
+          ],
+          "controls": [
+            {
+              "type": "select",
+              "bind": "plots.labels",
+              "label": "화살표 숫자",
+              "labels": {
+                "std": "계수",
+                "stars": "계수와 별표",
+                "none": "없음"
+              }
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.stability",
+          "label": "연결 강도 그림",
+          "description": "찾은 연결을 강도에 따라 굵기로.",
+          "enabledWhen": {
+            "bind": "structure.source",
+            "equals": "learned"
+          }
+        }
+      ]
+    },
+    {
+      "title": "모형 적합",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "fit.indices",
+          "label": "적합도",
+          "description": "χ², CFI, TLI, RMSEA, SRMR, AIC·BIC (베이지안: PPP).",
+          "fn": "lavaan::fitMeasures"
+        },
+        {
+          "type": "checkbox",
+          "bind": "fit.bollenStine",
+          "label": "Bollen-Stine 부트스트랩 p",
+          "description": "작은 표본이나 비정규 자료에서 χ² p 대신 봅니다.",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "ml"
+          }
+        },
+        {
+          "type": "checkbox",
+          "bind": "fit.modindices",
+          "label": "더할 만한 경로 (수정지수)",
+          "fn": "lavaan::modindices",
+          "enabledWhen": {
+            "bind": "estimation.method",
+            "equals": "ml"
+          }
+        }
+      ]
+    },
+    {
+      "title": "R 세션에 저장",
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "export.model.enabled",
+          "label": "적합한 모형",
+          "description": "lavaan(blavaan) 객체를 저장합니다. 콘솔에서 summary()나 lavaan 함수에 씁니다.",
+          "controls": [
+            {
+              "type": "text",
+              "bind": "export.model.saveAs",
+              "label": "이름"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

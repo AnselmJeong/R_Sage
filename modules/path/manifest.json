@@ -1,0 +1,96 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.path",
+  "version": "0.1.0",
+  "title": "경로 분석",
+  "description": "여러 변수가 어떻게 이어지는지 경로 모형으로 살펴봅니다. 변수를 순서(단계)에 넣고 데이터에서 구조를 찾거나 직접 지정한 뒤, 직접·간접·총효과를 나누고 공변인을 안내합니다. 작은 표본을 위한 연결 안정성과 베이지안 추정을 함께 씁니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsagePath",
+    "packageVersion": "0.1.0",
+    "source": "rsagePath",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [
+      {
+        "package": "bnlearn",
+        "role": "데이터에서 구조 찾기, 연결 안정성",
+        "required": false
+      },
+      {
+        "package": "dagitty",
+        "role": "공변인 최소 보정 집합",
+        "required": false
+      },
+      {
+        "package": "tidySEM",
+        "role": "경로 그림",
+        "required": false
+      },
+      {
+        "package": "blavaan",
+        "role": "베이지안 추정 (작은 표본)",
+        "required": false
+      },
+      {
+        "package": "lavaanExtra",
+        "role": "모형 문법 만들기",
+        "required": false
+      }
+    ],
+    "requires": [
+      "lavaan",
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "path",
+      "title": "경로 분석",
+      "menu": [
+        "구조방정식",
+        "경로 탐색"
+      ],
+      "entries": [
+        {
+          "menu": [
+            "구조방정식",
+            "경로 탐색"
+          ],
+          "title": "경로 탐색",
+          "preset": {
+            "structure": {
+              "source": "learned"
+            }
+          }
+        },
+        {
+          "menu": [
+            "구조방정식",
+            "경로 분석"
+          ],
+          "title": "경로 분석",
+          "preset": {
+            "structure": {
+              "source": "specified"
+            }
+          }
+        }
+      ],
+      "entrypoint": "analyse",
+      "optionsSchema": "options.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Path analysis / exploratory causal graph for several observed variables, aimed at small samples where covariates and routes are unknown. Variables go into ordered tiers (background, early, middle, outcome); arrows only run forward. The graph is learned from the data under the tier order (bnlearn bootstrap model averaging, hc/tabu/PC-stable, with required and forbidden links), taken as every forward path (saturated), or given as a path list (hypothesis/mediation models). Estimated with lavaan (ML, bootstrap or Monte Carlo intervals, FIML) or blavaan (Bayesian). Reports link stability, path coefficients, R², a tidySEM path diagram, the direct / path-specific indirect / total effect decomposition of a chosen X -> Y, covariate roles (confounder, mediator, collider) with dagitty minimal adjustment sets and a button to open the adjusted regression, fit indices, Bollen-Stine p and modification indices.",
+        "guide": "ai.md"
+      }
+    }
+  ],
+  "homepage": "https://lavaan.ugent.be/"
+}

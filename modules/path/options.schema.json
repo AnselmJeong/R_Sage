@@ -1,0 +1,455 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "variables": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Tier 1: variables fixed first (age, sex, baseline traits). Arrows only run from earlier to later tiers."
+        },
+        "early": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Tier 2: exposures or putative causes."
+        },
+        "middle": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Tier 3: possible mediators."
+        },
+        "outcome": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Tier 4: outcomes."
+        }
+      },
+      "default": {},
+      "description": "Variables in ordered tiers. Numeric and logical columns are used as is, two-level categories become 0/1, ordered factors their level number; other categories are dropped."
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "learned",
+            "saturated",
+            "specified"
+          ],
+          "default": "learned",
+          "description": "Where the graph comes from: learned from the data under the tier order (bnlearn bootstrap model averaging), every forward arrow the tiers allow (saturated), or the `paths` list."
+        },
+        "algorithm": {
+          "type": "string",
+          "enum": [
+            "hc",
+            "tabu",
+            "pc"
+          ],
+          "default": "hc",
+          "description": "Learning algorithm: score-based hill climbing (bnlearn::hc), tabu search (bnlearn::tabu) or constraint-based PC-stable (bnlearn::pc.stable, partial-correlation tests)."
+        },
+        "score": {
+          "type": "string",
+          "enum": [
+            "bic",
+            "aic",
+            "bge"
+          ],
+          "default": "bic",
+          "description": "Score for hc/tabu: BIC (conservative, default for small samples), AIC (more links), BGe (Bayesian Gaussian)."
+        },
+        "alpha": {
+          "type": "string",
+          "enum": [
+            "0.05",
+            "0.01",
+            "0.001"
+          ],
+          "default": "0.05",
+          "description": "Significance level of the conditional-independence tests for pc. Lower keeps fewer, surer links but misses more true ones in small samples."
+        },
+        "bootstrap": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 20,
+          "maximum": 2000,
+          "description": "Bootstrap resamples for link strength (bnlearn::boot.strength)."
+        },
+        "threshold": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "0.5",
+            "0.6",
+            "0.7",
+            "0.8",
+            "0.9"
+          ],
+          "default": "auto",
+          "description": "Minimum link strength (share of resamples containing the link) to keep a link. auto = Scutari & Nagarajan's estimate."
+        },
+        "withinTier": {
+          "type": "string",
+          "enum": [
+            "covary",
+            "learn"
+          ],
+          "default": "covary",
+          "description": "Links between variables of the same tier: kept as covariances (direction not decided), or oriented by the data (unreliable)."
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column at the start of the arrow."
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column at the end of the arrow."
+              }
+            }
+          },
+          "default": [],
+          "description": "Links that must be in the graph, from -> to (bnlearn whitelist; also added to the saturated graph). Must follow the tier order."
+        },
+        "forbidden": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column at the start of the arrow."
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null,
+                "description": "Column at the end of the arrow."
+              }
+            }
+          },
+          "default": [],
+          "description": "Pairs that are never directly linked, in either direction (bnlearn blacklist; removed from the saturated graph)."
+        }
+      },
+      "default": {},
+      "description": "How the graph is built."
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Arrow start (predictor) or one end of a covariance."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "regression",
+              "covariance"
+            ],
+            "default": "regression",
+            "description": "regression = arrow from -> to; covariance = undirected residual covariance."
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Arrow end (outcome) or the other end of a covariance."
+          }
+        }
+      },
+      "default": [],
+      "description": "Specified structure: the model's arrows and covariances. Used when structure.source is specified. Tiers are optional then (layout follows the arrows)."
+    },
+    "focus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exposure": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Exposure X: effects of X on Y are split into direct, path-specific indirect and total effects, and the other variables are classified relative to X and Y."
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Outcome Y."
+        }
+      },
+      "default": {},
+      "description": "The pair whose effect is decomposed and whose covariates are suggested."
+    },
+    "estimation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "ml",
+            "bayes"
+          ],
+          "default": "ml",
+          "description": "Maximum likelihood (lavaan::sem) or Bayesian (blavaan::bsem)."
+        },
+        "scale": {
+          "type": "string",
+          "enum": [
+            "standardized",
+            "raw"
+          ],
+          "default": "standardized",
+          "description": "standardized fits z-scored data, so coefficients and effects are in SD units; raw keeps original units."
+        },
+        "missing": {
+          "type": "string",
+          "enum": [
+            "listwise",
+            "fiml"
+          ],
+          "default": "listwise",
+          "description": "Rows with missing values: drop, or full-information ML (missing = 'fiml'). Structure learning always uses complete rows."
+        },
+        "inference": {
+          "type": "string",
+          "enum": [
+            "bootstrap",
+            "standard",
+            "robust"
+          ],
+          "default": "bootstrap",
+          "description": "Intervals: bootstrap percentile (se = 'bootstrap'), or Monte Carlo from ML (standard) or MLR (robust) standard errors."
+        },
+        "bootstrap": {
+          "type": "integer",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Bootstrap resamples (Monte Carlo uses at least 5000 draws)."
+        },
+        "bayes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prior": {
+              "type": "string",
+              "enum": [
+                "weak",
+                "moderate",
+                "strong"
+              ],
+              "default": "moderate",
+              "description": "Prior on path coefficients: normal(0,10), normal(0,1), normal(0,0.5) (on standardized data)."
+            },
+            "chains": {
+              "type": "integer",
+              "default": 3,
+              "minimum": 1,
+              "maximum": 8,
+              "description": "MCMC chains."
+            },
+            "burnin": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 20000,
+              "description": "Warm-up iterations per chain."
+            },
+            "draws": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 100,
+              "maximum": 20000,
+              "description": "Posterior draws per chain."
+            }
+          },
+          "default": {},
+          "description": "blavaan settings."
+        }
+      },
+      "default": {},
+      "description": "Estimation."
+    },
+    "seed": {
+      "type": "integer",
+      "default": 2026,
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Random seed for resampling and MCMC."
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coefficients": {
+          "type": "boolean",
+          "default": true,
+          "description": "Path and covariance estimates (lavaan::parameterEstimates)."
+        },
+        "r2": {
+          "type": "boolean",
+          "default": true,
+          "description": "Explained variance of each endogenous variable."
+        },
+        "allEffects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Direct, indirect and total effect for every pair joined by a route."
+        }
+      },
+      "default": {},
+      "description": "Tables."
+    },
+    "fit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "indices": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fit indices (lavaan::fitMeasures; blavaan PPP)."
+        },
+        "bollenStine": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bollen-Stine bootstrap p for the chi-square (test = 'bollen.stine')."
+        },
+        "modindices": {
+          "type": "boolean",
+          "default": false,
+          "description": "Top 10 modification indices that respect the tiers (lavaan::modindices)."
+        }
+      },
+      "default": {},
+      "description": "Model fit."
+    },
+    "covariates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "guide": {
+          "type": "boolean",
+          "default": true,
+          "description": "Classify other variables (confounder, mediator, collider, ...) relative to X -> Y and give minimal adjustment sets (dagitty::adjustmentSets)."
+        }
+      },
+      "default": {},
+      "description": "Covariate guide."
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "diagram": {
+          "type": "boolean",
+          "default": true,
+          "description": "Path diagram (tidySEM::prepare_graph, or ggplot2)."
+        },
+        "stability": {
+          "type": "boolean",
+          "default": true,
+          "description": "Learned links drawn by strength."
+        },
+        "effects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Effect decomposition of X -> Y."
+        },
+        "labels": {
+          "type": "string",
+          "enum": [
+            "std",
+            "stars",
+            "none"
+          ],
+          "default": "std",
+          "description": "Numbers on the diagram arrows: coefficient, coefficient with significance stars, none."
+        }
+      },
+      "default": {},
+      "description": "Plots."
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Save the fitted lavaan/blavaan object in the R session."
+            },
+            "saveAs": {
+              "type": "string",
+              "pattern": "^[A-Za-z.][A-Za-z0-9._]*$",
+              "default": "path_model",
+              "description": "Object name."
+            }
+          },
+          "default": {},
+          "description": "Fitted model."
+        }
+      },
+      "default": {},
+      "description": "Objects left in the R session."
+    }
+  }
+}

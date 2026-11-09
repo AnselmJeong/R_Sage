@@ -1,0 +1,23 @@
+Package: rsagePath
+Title: Path Analysis and Exploratory Causal Graph Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Path analysis for several observed variables, aimed at small
+    samples where the covariates and the routes between variables are not
+    known in advance. Variables are placed in ordered tiers (background,
+    early, middle, outcome); arrows only run forward. The structure is
+    learned from the data with 'bnlearn' bootstrap model averaging under the
+    tier order, taken as every forward path (saturated), or given as a path
+    list. The model is estimated with 'lavaan' (ML with bootstrap or Monte
+    Carlo intervals, FIML for missing data) or 'blavaan' (Bayesian), drawn
+    with 'tidySEM', split into direct, path-specific indirect and total
+    effects, and used to sort the other variables into confounders,
+    mediators and colliders with 'dagitty' adjustment sets.
+    analyse() returns an 'rsage' result that prints in the console and
+    renders in Quarto documents.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), lavaan, ggplot2, stats, utils
+Suggests: bnlearn, dagitty, tidySEM, blavaan, lavaanExtra, testthat (>= 3.0.0)
+Config/testthat/edition: 3

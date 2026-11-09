@@ -13,7 +13,7 @@ import { newAnalysis, openAnalysisTab, useAnalyses } from "../analysis";
 type Item = { label: string; hint?: string; indent?: boolean; run: () => void } | "-" | { heading: string };
 
 /** Category order in the 분석 menu, as in JASP's toolbar; other categories follow in module order. */
-const CATEGORIES = ["데이터 준비", "기술통계", "T 검정", "분산분석", "회귀", "빈도", "요인분석"];
+const CATEGORIES = ["데이터 준비", "기술통계", "T 검정", "분산분석", "회귀", "빈도", "요인분석", "구조방정식"];
 
 /** Commands grouped under their category (the first element of each menu path). */
 function analysisMenu(modules: AnalysisModuleInfo[]): Item[] {
