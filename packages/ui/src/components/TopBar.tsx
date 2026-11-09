@@ -1,8 +1,8 @@
-// The bar across the top of the window: the project chooser, New and 분석
-// menus, Save, the command field and the app-wide buttons. It doubles as the
+// The bar across the top of the window: the project chooser, New, 분석 and
+// 분석 기록 menus, Save, the command field and the app-wide buttons. It doubles as the
 // macOS title bar (draggable).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { runCommand } from "../commands";
 import { activeEditor, saveFile } from "../editor/files";
@@ -15,24 +15,68 @@ type Item = { label: string; hint?: string; indent?: boolean; run: () => void } 
 /** Category order in the 분석 menu, as in JASP's toolbar; other categories follow in module order. */
 const CATEGORIES = ["데이터 준비", "기술통계", "T 검정", "분산분석", "회귀", "빈도", "요인분석", "구조방정식"];
 
-/** Commands grouped under their category (the first element of each menu path). */
-function analysisMenu(modules: AnalysisModuleInfo[]): Item[] {
-  const groups = new Map<string, Item[]>();
+type Cmd = { label: string; run: () => void };
+
+/** Commands grouped under their category (the first element of each menu path), in JASP's order. */
+function analysisGroups(modules: AnalysisModuleInfo[]): [string, Cmd[]][] {
+  const groups = new Map<string, Cmd[]>();
   for (const m of modules)
     for (const a of m.analyses)
       for (const e of a.entries) {
         const [cat, ...rest] = e.menu.length > 1 ? e.menu : ["기타", ...e.menu];
         if (!groups.has(cat!)) groups.set(cat!, []);
-        groups.get(cat!)!.push({ label: rest.join(" › "), indent: true, run: () => void newAnalysis(a.key, e) });
+        groups.get(cat!)!.push({ label: rest.join(" › "), run: () => void newAnalysis(a.key, e) });
       }
   const rank = (c: string) => (CATEGORIES.includes(c) ? CATEGORIES.indexOf(c) : CATEGORIES.length);
-  const cats = [...groups.keys()].sort((x, y) => rank(x) - rank(y));
-  return cats.flatMap((c, i) => [...(i ? (["-"] as Item[]) : []), { heading: c }, ...groups.get(c)!]);
+  return [...groups.entries()].sort(([x], [y]) => rank(x) - rank(y));
 }
 
-function Menu({ label, icon, items, className = "" }: { label: string; icon: JSX.Element; items: () => Item[]; className?: string }) {
+/** Most categories side by side before the panel wraps to a new row. */
+const MAX_COLUMNS = 4;
+
+/** The 분석 panel: one column per category, wrapping into rows as modules add categories. */
+function AnalysisPanel({ groups, close }: { groups: [string, Cmd[]][]; close: () => void }) {
+  if (!groups.length) return <div className="tb-heading">설치된 분석 모듈이 없습니다</div>;
+  return (
+    <div className="tb-mega" style={{ gridTemplateColumns: `repeat(${Math.min(groups.length, MAX_COLUMNS)}, minmax(140px, auto))` }}>
+      {groups.map(([cat, cmds]) => (
+        <div key={cat} className="tb-mega-col">
+          <div className="tb-heading">{cat}</div>
+          {cmds.map((c, i) => (
+            <div
+              key={i}
+              className="menu-item"
+              onClick={() => {
+                close();
+                c.run();
+              }}
+            >
+              <span className="ellipsis">{c.label}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type MenuProps = { label: string; icon: JSX.Element; className?: string; title?: string; iconOnly?: boolean } & (
+  | { items: () => Item[]; panel?: never }
+  | { panel: (close: () => void) => JSX.Element; items?: never }
+);
+
+function Menu({ label, icon, items, panel, className = "", title, iconOnly }: MenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const drop = useRef<HTMLDivElement>(null);
+  // Keep the dropdown inside the window: shift it left when it would run past the right edge.
+  useLayoutEffect(() => {
+    const el = drop.current;
+    if (!open || !el) return;
+    el.style.left = "0px";
+    const over = el.getBoundingClientRect().right - (window.innerWidth - 8);
+    if (over > 0) el.style.left = `${-over}px`;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -46,15 +90,16 @@ function Menu({ label, icon, items, className = "" }: { label: string; icon: JSX
   }, [open]);
   return (
     <div className="tb-menu" ref={ref}>
-      <button className={`tb-btn ${className} ${open ? "active" : ""}`} onClick={() => setOpen(!open)}>
+      <button className={`tb-btn ${className} ${open ? "active" : ""}`} title={title} onClick={() => setOpen(!open)}>
         {icon}
-        <span className="tb-label">{label}</span>
+        {!iconOnly && <span className="tb-label">{label}</span>}
         <svg viewBox="0 0 24 24" className="tb-icon tb-caret">
           <path d="M7 10l5 5 5-5" />
         </svg>
       </button>
-      {open && (
-        <div className="tb-dropdown">
+      {open && panel && <div className="tb-dropdown tb-dropdown-wide" ref={drop}>{panel(() => setOpen(false))}</div>}
+      {open && items && (
+        <div className="tb-dropdown" ref={drop}>
           {items().map((it, i) =>
             it === "-" ? (
               <div key={i} className="tb-sep" />
@@ -92,6 +137,12 @@ const Icon = {
   folder: (
     <svg viewBox="0 0 24 24" className="tb-icon">
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  ),
+  history: (
+    <svg viewBox="0 0 24 24" className="tb-icon">
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+      <path d="M3 4v4h4M12 7.5V12l3 2" />
     </svg>
   ),
   chart: (
@@ -162,15 +213,15 @@ export function TopBar() {
           { label: "새 프로젝트…", run: () => void newProjectDialog() },
         ]}
       />
+      <Menu label="분석" icon={Icon.chart} panel={(close) => <AnalysisPanel groups={analysisGroups(modules)} close={close} />} />
       <Menu
-        label="분석"
-        icon={Icon.chart}
+        label="분석 기록"
+        title="이 프로젝트의 분석"
+        icon={Icon.history}
         items={() => {
           const saved = Object.values(instances).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-          const items = analysisMenu(modules);
-          if (!items.length) items.push({ heading: "설치된 분석 모듈이 없습니다" });
-          if (saved.length) items.push("-", { heading: "이 프로젝트의 분석" }, ...saved.slice(0, 10).map((i) => ({ label: i.title, hint: analysisHint(i), run: () => openAnalysisTab(i.id) })));
-          return items;
+          if (!saved.length) return [{ heading: "아직 이 프로젝트에서 만든 분석이 없습니다" }];
+          return [{ heading: "이 프로젝트의 분석" }, ...saved.slice(0, 20).map((i) => ({ label: i.title, hint: analysisHint(i), run: () => openAnalysisTab(i.id) }))];
         }}
       />
       <button
