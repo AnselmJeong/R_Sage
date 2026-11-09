@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "org.rsage.path",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "경로 분석",
   "description": "여러 변수가 어떻게 이어지는지 경로 모형으로 살펴봅니다. 변수를 순서(단계)에 넣고 데이터에서 구조를 찾거나 직접 지정한 뒤, 직접·간접·총효과를 나누고 공변인을 안내합니다. 작은 표본을 위한 연결 안정성과 베이지안 추정을 함께 씁니다.",
   "publisherId": "org.rsage",
@@ -9,7 +9,7 @@
   "runtime": {
     "kind": "r-package",
     "package": "rsagePath",
-    "packageVersion": "0.1.0",
+    "packageVersion": "0.2.0",
     "source": "rsagePath",
     "rVersion": ">=4.2.0",
     "rsageRuntime": ">=0.1.0 <0.2.0",

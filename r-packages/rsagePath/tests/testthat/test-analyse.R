@@ -160,3 +160,38 @@ test_that("the tidySEM layout is a grid of names with short tiers centred", {
   skip_if_not_installed("tidySEM")
   expect_no_error(do.call(tidySEM::get_layout, c(as.list(as.vector(t(m))), list(rows = 3))))
 })
+
+test_that("split-sample: structure from one part, estimates from the other", {
+  skip_if_not_installed("bnlearn")
+  r <- analyse(sim(), modifyList(fast, list(variables = TIERS, confirm = list(enabled = TRUE, fraction = "0.5"))))
+  s <- tab(r, "sample")
+  expect_equal(s$n[grepl("^구조 찾기", s$item)], 150)
+  expect_equal(s$n[s$item == "추정에 쓴 행 (확인용)"], 150)
+  expect_match(r$notes[[which(codes(r) == "path_exploratory")]]$text, "확인용 행")
+  expect_equal(r$data_info$n, 150)
+  # The rows are the same on every run with the same seed.
+  r2 <- analyse(sim(), modifyList(fast, list(variables = TIERS, confirm = list(enabled = TRUE))))
+  expect_equal(tab(r, "coefficients")$est, tab(r2, "coefficients")$est)
+  # Too few rows to split: a note, and no split.
+  small <- analyse(sim(15), modifyList(fast, list(variables = TIERS, confirm = list(enabled = TRUE))))
+  expect_true("path_split_too_small" %in% codes(small))
+})
+
+test_that("the found structure opens as an editable path list with the same split", {
+  skip_if_not_installed("bnlearn")
+  o <- modifyList(fast, list(variables = TIERS, focus = list(exposure = "x", outcome = "y"), confirm = list(enabled = TRUE)))
+  r <- analyse(sim(), o)
+  h <- Filter(function(h) h$id == "structure", r$hints)[[1]]
+  s <- h$suggestions[[1]]
+  expect_equal(s$analysis, "org.rsage.path/path")
+  expect_equal(s$options$structure$source, "specified")
+  expect_true(s$options$confirm$enabled)
+  keys <- vapply(s$options$paths, function(p) paste(p$from, p$to), "")
+  st <- tab(r, "stability")
+  expect_setequal(keys, paste(st$from, st$to)[st$adopted == "채택"])
+  # Running the suggestion re-estimates the same graph on the same held-out rows.
+  r2 <- analyse(sim(), s$options)
+  expect_equal(sort(tab(r2, "coefficients")$est), sort(tab(r, "coefficients")$est), tolerance = 1e-8)
+  expect_true("path_split" %in% codes(r2))
+  expect_equal(jsonlite::fromJSON(jsonlite::toJSON(s$options$variables, auto_unbox = TRUE), simplifyVector = FALSE)$outcome, list("y"))
+})
