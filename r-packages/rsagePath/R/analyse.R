@@ -373,7 +373,8 @@ regression_suggestion <- function(y, preds, data, prep) {
             predictors = list(continuous = I(as.character(continuous)), categorical = I(as.character(categorical))),
             terms = terms, models = list(list(id = "m1", label = "모형 1", termIds = I(paste0("m:", preds)), intercept = TRUE)))
   if (family == "binomial" && (is.factor(data[[y]]) || is.character(data[[y]]))) o$outcome$event <- prep$info[[y]]$levels[2]
-  rsage::rs_suggest(sprintf("이 공변인으로 %s 열기", if (family == "binomial") "로지스틱 회귀" else "선형 회귀"), REGRESSION, o,
+  model <- if (family == "binomial") "로지스틱 회귀" else "선형 회귀"
+  rsage::rs_suggest(if (length(preds) > 1) sprintf("이 공변인으로 %s 열기", model) else sprintf("%s 열기 (공변인 없이)", model), REGRESSION, o,
                     title = sprintf("%s ← %s (보정)", y, preds[1]))
 }
 

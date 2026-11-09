@@ -121,14 +121,24 @@ diagram_plot <- function(ct, layout, how, map) {
   list(plot = tidy$plot %||% draw_graph(layout, e), backend = if (!is.null(tidy$plot)) "tidySEM" else "ggplot2", error = tidy$error)
 }
 
+# tidySEM reads a layout as a grid of node names (NA = empty cell), not
+# coordinates. Half-row steps keep short tiers centred, so the grid has
+# 2 * rows - 1 rows.
+layout_grid <- function(layout, map) {
+  m <- matrix(NA_character_, 2 * attr(layout, "nrow") - 1, attr(layout, "ncol"))
+  m[cbind(as.integer(round(2 * layout$row - 1)), layout$col)] <- unname(map[layout$name])
+  m
+}
+
 # tidySEM graph with the tier layout; edges limited to the graph's paths.
 tidysem_plot <- function(ct, layout, how, map) {
   if (!has("tidySEM")) return(list(plot = NULL))
   r <- quietly({
     fit <- attr(ct, "fit")
-    lay <- data.frame(name = unname(map[layout$name]), x = layout$x, y = layout$y)
+    m <- layout_grid(layout, map)
+    lay <- do.call(tidySEM::get_layout, c(as.list(as.vector(t(m))), list(rows = nrow(m))))
     g <- tidySEM::prepare_graph(model = fit, layout = lay, label = "est_sig_std",
-                                rect_width = 1.6, rect_height = 0.7, spacing_x = 1, spacing_y = 1, text_size = 3.6)
+                                rect_width = 1.6, rect_height = 0.7, spacing_x = 2.4, spacing_y = 0.75, text_size = 3.6)
     g <- tidySEM::hide_var(g)
     ed <- tidySEM::edges(g)
     inv <- stats::setNames(names(map), map)

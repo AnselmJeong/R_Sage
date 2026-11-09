@@ -95,7 +95,9 @@ fit_bayes <- function(syntax, d, o) {
                n.chains = as.integer(num(b$chains, 3)), burnin = as.integer(num(b$burnin, 1000)),
                sample = as.integer(num(b$draws, 1000)), seed = seed,
                dp = blavaan::dpriors(beta = prior), bcontrol = list(cores = 1L))
-  r <- with_seed(seed, quietly(do.call(blavaan::bsem, args)))
+  # blavaan reads the name of the function it was called as, so it must be
+  # called by name ("bsem"), not as a function object or blavaan::bsem.
+  r <- with_seed(seed, quietly(do.call("bsem", args, envir = asNamespace("blavaan"))))
   if (!is.null(r$error)) return(list(error = r$error, warnings = r$warnings))
   fit <- r$value
   est <- lavaan::coef(fit)

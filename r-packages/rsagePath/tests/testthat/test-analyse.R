@@ -150,3 +150,13 @@ test_that("diagram and stability plots are drawn, with Korean names", {
     expect_true(file.size(f) > 1000)
   }
 })
+
+test_that("the tidySEM layout is a grid of names with short tiers centred", {
+  lay <- node_layout(c("a", "b", "c", "d"), c(a = 1, b = 2, c = 2, d = 3))
+  m <- layout_grid(lay, c(a = "a", b = "b", c = "v3", d = "d"))
+  expect_equal(dim(m), c(3, 3))
+  expect_equal(m[, 1], c(NA, "a", NA))
+  expect_equal(m[, 2], c("b", NA, "v3"))
+  skip_if_not_installed("tidySEM")
+  expect_no_error(do.call(tidySEM::get_layout, c(as.list(as.vector(t(m))), list(rows = 3))))
+})
