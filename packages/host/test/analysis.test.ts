@@ -70,6 +70,34 @@ describe("regression module", () => {
   });
 });
 
+const pathMod = loadModules().find((m) => m.id === "org.rsage.path")!;
+const pdef = pathMod.analyses[0]!;
+
+describe("path module", () => {
+  test("loads under 구조방정식 with a consistent form and default options", () => {
+    expect(pdef.key).toBe("org.rsage.path/path");
+    expect(pathMod.requires).toEqual(expect.arrayContaining(["lavaan", "ggplot2"]));
+    expect(pathMod.backends.map((b) => b.package)).toEqual(expect.arrayContaining(["bnlearn", "dagitty", "tidySEM", "blavaan", "lavaanExtra"]));
+    expect(formProblems(pdef.form, pdef.schema)).toEqual([]);
+    expect(validateOptions(pdef.schema, fillDefaults(pdef.schema, {}))).toEqual([]);
+    expect(pdef.entries.map((e) => e.menu)).toEqual([
+      ["구조방정식", "경로 탐색"],
+      ["구조방정식", "경로 분석"],
+    ]);
+    expect(pdef.entries[1]!.preset).toEqual({ structure: { source: "specified" } });
+  });
+
+  test("paths and known links are structured rows", () => {
+    const o = fillDefaults(pdef.schema, {
+      structure: { source: "specified", required: [{ from: "a", to: "b" }], forbidden: [{ from: "a", to: "c" }] },
+      paths: [{ from: "x", type: "regression", to: "y" }, { from: "y", type: "covariance", to: "z" }],
+    });
+    expect(validateOptions(pdef.schema, o)).toEqual([]);
+    expect(validateOptions(pdef.schema, { ...o, paths: [{ from: "x", type: "causes", to: "y" }] }).length).toBeGreaterThan(0);
+    expect(columnsUsed(pdef.form, o)).toEqual(expect.arrayContaining(["x", "y", "z", "a", "b", "c"]));
+  });
+});
+
 const integrity = loadModules().find((m) => m.id === "org.rsage.integrity")!;
 const idef = integrity.analyses[0]!;
 
@@ -400,6 +428,36 @@ live("missing-data analysis in a live session", async () => {
     expect(tests.rows[0].test).toBe("F");
     expect(tests.rows[0].p).toBeCloseTo(0.0014512, 6);
     expect(done.result.plots.some((p: any) => p.id === "coefficients")).toBe(true);
+    await call("analysis.delete", { id: inst.id });
+  }, 240_000);
+
+  test("a learned path model on mtcars splits the effect and suggests an adjusted regression", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.path" });
+    if (!prep.ready) {
+      console.warn(`skipping: R packages missing: ${prep.missing.join(", ")}`);
+      return;
+    }
+    await host.session.evalText("cars2 <- mtcars; invisible(NULL)");
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.path/path",
+      dataset: "cars2",
+      options: {
+        variables: { background: ["cyl"], early: ["wt"], middle: ["hp"], outcome: ["mpg"] },
+        structure: { source: "saturated" },
+        focus: { exposure: "wt", outcome: "mpg" },
+        estimation: { inference: "standard" },
+      },
+    });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    const eff = done.result.tables.find((t: any) => t.id === "effects");
+    const row = (c: string) => eff.rows.find((r: any) => r.component === c);
+    expect(row("총효과").est).toBeCloseTo(row("직접효과").est + row("간접효과 합").est, 8);
+    expect(done.result.plots.some((p: any) => p.id === "diagram")).toBe(true);
+    const sug = done.result.hints.flatMap((h: any) => h.suggestions).find((s: any) => s.analysis === "org.rsage.regression/regression");
+    expect(sug.options.outcome.variable).toBe("mpg");
+    const r = await call("analysis.create", { analysis: sug.analysis, dataset: "cars2", options: sug.options });
+    await call("analysis.delete", { id: r.id });
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 
