@@ -153,6 +153,18 @@ tidysem_plot <- function(ct, layout, how, map) {
     ed$linetype <- ifelse(ci_ok, 1, 2)
     if (how == "std") ed$label <- formatC(est, digits = 2, format = "f")
     if (how == "none") ed$label <- ""
+    # Arrows that skip a tier would run straight behind the boxes in
+    # between; bend them (tidySEM curvature is in degrees).
+    col <- stats::setNames(layout$col, unname(map[layout$name]))
+    skip <- !is.na(col[ed$from]) & !is.na(col[ed$to]) & abs(col[ed$to] - col[ed$from]) > 1 & ed$from != ed$to
+    if (any(skip)) {
+      if (is.null(ed$curvature)) ed$curvature <- NA_real_
+      ed$curvature[skip] <- 50
+      row <- stats::setNames(layout$row, unname(map[layout$name]))
+      level <- skip & row[ed$from] == row[ed$to]
+      if (!is.null(ed$connect_from)) ed$connect_from[level] <- "top"
+      if (!is.null(ed$connect_to)) ed$connect_to[level] <- "top"
+    }
     tidySEM::edges(g) <- ed
     nd <- tidySEM::nodes(g)
     nd$label <- unname(inv[nd$name] %||% nd$name)

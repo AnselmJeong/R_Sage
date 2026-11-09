@@ -381,8 +381,8 @@ regression_suggestion <- function(y, preds, data, prep) {
 fit_items <- function(f, df, bayes) {
   fit <- f$fit
   if (bayes) {
-    fm <- tryCatch(lavaan::fitMeasures(fit), error = function(e) NULL)
-    if (is.null(fm)) return(NULL)
+    fm <- bayes_fit_measures(fit)
+    if (is.character(fm)) return(note(paste("베이지안 적합도(PPP)를 계산하지 못했습니다:", fm), "path_component_failed"))
     pick <- intersect(c("ppp", "bic", "dic", "waic", "looic"), names(fm))
     guide <- c(ppp = "0.05~0.95면 자료와 크게 어긋나지 않음 (0.5에 가까울수록 좋음)", bic = "작을수록 좋음 (모형끼리 비교)",
                dic = "작을수록 좋음 (모형끼리 비교)", waic = "작을수록 좋음 (모형끼리 비교)", looic = "작을수록 좋음 (모형끼리 비교)")
@@ -433,4 +433,34 @@ modindices_table <- function(fit, tier, inv, o) {
     labels = c(path = "경로", mi = "수정지수 (χ² 감소)", epc = "예상 계수", sepc = "예상 표준화 계수"), section = "모형 적합",
     notes = "단계 순서를 거스르는 화살표는 뺐습니다.",
     description = "이 경로를 더하면 χ²가 대략 수정지수만큼 줄어듭니다. 3.84를 넘으면 p < .05 수준입니다. 자료에 맞춰 경로를 더하면 과적합이 되므로, 이론적으로 말이 되는 것만 직접 지정 모드에서 더해 보세요.")
+}
+
+# blavaan's fit measures. lavaan::fitMeasures() can fail when the lavaan and
+# blavaan versions do not match, so blavaan's own function and the PPP kept
+# in the fit are tried next. Returns a named vector or the error text.
+bayes_fit_measures <- function(fit) {
+  errors <- character()
+  try_fm <- function(f) {
+    r <- tryCatch(f(fit), error = function(e) {
+      errors <<- c(errors, conditionMessage(e))
+      NULL
+    })
+    if (is.null(r)) return(NULL)
+    r <- unlist(r)
+    if (is.numeric(r) && length(r) && !is.null(names(r))) r else NULL
+  }
+  fm <- try_fm(lavaan::fitMeasures)
+  if (is.null(fm)) {
+    own <- get0("blav_fit_measures", envir = asNamespace("blavaan"), inherits = FALSE)
+    if (is.function(own)) fm <- try_fm(own)
+  }
+  if (is.null(fm) || !"ppp" %in% names(fm)) {
+    ppp <- tryCatch({
+      t <- Filter(function(x) identical(x$test, "ppp"), fit@test)
+      if (length(t)) as.numeric(t[[1]]$stat) else NA_real_
+    }, error = function(e) NA_real_)
+    if (is.finite(ppp)) fm <- c(fm, ppp = ppp)
+  }
+  if (is.null(fm) || !length(fm)) return(paste(unique(errors), collapse = " / ") %||% "알 수 없는 오류")
+  fm
 }
