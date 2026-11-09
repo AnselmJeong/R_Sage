@@ -177,7 +177,7 @@ analyse <- function(data, options = list()) {
     if (isTRUE(o$plots$stability)) {
       lay <- node_layout(vars, tier)
       sp <- stability_plot(learned$table, lay, learned$threshold)
-      if (!is.null(sp)) add(rsage::rs_plot("stability", "찾은 연결과 강도", sp, size = diagram_size(lay, max(nchar(vars))), section = "구조 찾기",
+      if (!is.null(sp)) add(rsage::rs_plot("stability", "찾은 연결과 강도", sp, size = diagram_size(lay), section = "구조 찾기",
         alt = "단계별로 놓인 변수와 재표집 연결 강도를 선 굵기로 그린 그림",
         description = "선이 굵고 진할수록 자주 나온 연결입니다. 회색 점선은 기준에 못 미쳐 모형에 넣지 않은 연결입니다. 숫자는 연결 강도입니다."))
     }
@@ -273,7 +273,7 @@ analyse <- function(data, options = list()) {
     dp <- diagram_plot(ct, lay, o$plots$labels %||% "std", map)
     if (dp$backend == "tidySEM") used <- c(used, "tidySEM")
     else if (has("tidySEM") && !is.null(dp$error)) add(note(paste("tidySEM으로 그리지 못해 ggplot2로 그렸습니다:", dp$error), "path_component_failed", "info"))
-    add(rsage::rs_plot("diagram", "경로 그림", dp$plot, size = diagram_size(lay, max(nchar(mvars))), section = "경로 계수",
+    add(rsage::rs_plot("diagram", "경로 그림", dp$plot, size = diagram_size(lay), section = "경로 계수",
       alt = "단계별로 놓인 변수와 추정한 경로 계수를 그린 경로 그림",
       description = "왼쪽에서 오른쪽으로 단계 순서입니다. 파랑은 양, 빨강은 음의 관계이고, 실선은 95% 구간이 0을 포함하지 않는 경로, 점선은 포함하는 경로입니다. 숫자는 표준화 계수입니다."))
   }
