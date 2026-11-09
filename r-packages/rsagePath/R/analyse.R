@@ -538,6 +538,6 @@ structure_hint <- function(edges, ct, o, split) {
                   "경로 목록으로 열면 화살표를 더하거나 빼고 방향을 바꿔 가설 모형으로 다시 추정할 수 있습니다.",
                   if (!is.null(split)) " 같은 분할을 유지하므로 확인용 행으로만 추정합니다." else ""),
     evidence = paste0(paste(shown, collapse = ", "), if (nrow(arrows) > length(shown)) sprintf(" 외 %d개", nrow(arrows) - length(shown)) else ""),
-    kind = "structure", variables = unique(c(edges$from, edges$to)), plot = if (isTRUE(o$plots$diagram)) "diagram",
+    kind = "structure", variables = unique(c(edges$from, edges$to)),
     suggestions = list(rsage::rs_suggest("이 구조를 경로 목록으로 열기", "org.rsage.path/path", opts, title = "경로 분석: 찾은 구조 고치기")))
 }
