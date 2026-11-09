@@ -2,7 +2,7 @@
 // 분석 기록 menus, Save, the command field and the app-wide buttons. It doubles as the
 // macOS title bar (draggable).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { runCommand } from "../commands";
 import { activeEditor, saveFile } from "../editor/files";
@@ -68,6 +68,15 @@ type MenuProps = { label: string; icon: JSX.Element; className?: string; title?:
 function Menu({ label, icon, items, panel, className = "", title, iconOnly }: MenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const drop = useRef<HTMLDivElement>(null);
+  // Keep the dropdown inside the window: shift it left when it would run past the right edge.
+  useLayoutEffect(() => {
+    const el = drop.current;
+    if (!open || !el) return;
+    el.style.left = "0px";
+    const over = el.getBoundingClientRect().right - (window.innerWidth - 8);
+    if (over > 0) el.style.left = `${-over}px`;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -88,9 +97,9 @@ function Menu({ label, icon, items, panel, className = "", title, iconOnly }: Me
           <path d="M7 10l5 5 5-5" />
         </svg>
       </button>
-      {open && panel && <div className="tb-dropdown tb-dropdown-wide">{panel(() => setOpen(false))}</div>}
+      {open && panel && <div className="tb-dropdown tb-dropdown-wide" ref={drop}>{panel(() => setOpen(false))}</div>}
       {open && items && (
-        <div className="tb-dropdown">
+        <div className="tb-dropdown" ref={drop}>
           {items().map((it, i) =>
             it === "-" ? (
               <div key={i} className="tb-sep" />

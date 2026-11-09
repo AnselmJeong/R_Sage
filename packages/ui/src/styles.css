@@ -5204,3 +5204,11 @@ input[type="checkbox"] {
   max-height: calc(100vh - 60px);
   overflow-y: auto;
 }
+.tb-btn,
+.tb-label {
+  white-space: nowrap;
+}
+.tb-menu,
+.tb-btn {
+  flex-shrink: 0;
+}
