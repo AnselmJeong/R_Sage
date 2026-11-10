@@ -461,6 +461,27 @@ live("missing-data analysis in a live session", async () => {
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 
+  test("a module package loaded from an older install is reloaded before the next run", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.path" });
+    if (!prep.ready) return;
+    await host.session.evalText("cars3 <- mtcars; invisible(NULL)");
+    const inst = await call("analysis.create", {
+      analysis: "org.rsage.path/path",
+      dataset: "cars3",
+      options: { variables: { early: ["wt"], outcome: ["mpg"] }, structure: { source: "saturated" }, estimation: { inference: "standard" } },
+    });
+    expect((await call("analysis.run", { id: inst.id })).lastRun.status).toBe("ok");
+    // Another process reinstalled the package while this session kept the old one.
+    await host.session.evalText(
+      'rsage_unloaded <- FALSE; setHook(packageEvent("rsagePath", "onUnload"), function(...) rsage_unloaded <<- TRUE); o <- getOption("rsage.loaded"); o$rsagePath <- "older"; options(rsage.loaded = o); invisible(NULL)',
+    );
+    expect((await call("analysis.run", { id: inst.id })).lastRun.status).toBe("ok");
+    const out = await host.session.evalText('cat(rsage_unloaded, identical(getOption("rsage.loaded")$rsagePath, utils::packageDescription("rsagePath", fields = "RSageHash")))');
+    expect(out.trim()).toBe("TRUE TRUE");
+    await host.session.evalText('setHook(packageEvent("rsagePath", "onUnload"), NULL, "replace"); invisible(NULL)');
+    await call("analysis.delete", { id: inst.id });
+  }, 240_000);
+
   test("a split-sample learned path model opens its structure as an editable path list", async () => {
     const prep = await call("analysis.prepare", { moduleId: "org.rsage.path" });
     if (!prep.ready) {
