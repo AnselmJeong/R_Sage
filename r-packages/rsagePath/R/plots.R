@@ -102,6 +102,9 @@ draw_graph <- function(layout, edges, title_legend = NULL) {
     arr <- grid::arrow(length = grid::unit(0.09, "inches"), type = "closed")
     if (any(!reg$bend)) g <- g + ggplot2::geom_segment(data = reg[!reg$bend, ], aes_e, arrow = arr)
     for (cv in unique(reg$curv[reg$bend])) g <- g + ggplot2::geom_curve(data = reg[reg$bend & reg$curv == cv, ], aes_e, curvature = cv, arrow = arr)
+    # The midpoints of the bends join the scales, so a bend without a label
+    # is not clipped at the edge of the figure.
+    g <- g + ggplot2::geom_blank(data = reg, ggplot2::aes(x = .data$lx, y = .data$ly))
     lab <- reg[nzchar(reg$label), , drop = FALSE]
     if (nrow(lab)) g <- g + borderless_label(data = lab, ggplot2::aes(x = .data$lx, y = .data$ly, label = .data$label, colour = .data$colour),
                                              size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
@@ -126,14 +129,15 @@ draw_graph <- function(layout, edges, title_legend = NULL) {
     for (cv in unique(cov$curv)) g <- g + ggplot2::geom_curve(data = cov[cov$curv == cv, ], ggplot2::aes(x = .data$sx1, y = .data$sy1, xend = .data$sx2, yend = .data$sy2,
                                                           colour = .data$colour, linetype = .data$linetype, linewidth = .data$width, alpha = .data$alpha),
                                  curvature = cv, arrow = grid::arrow(length = grid::unit(0.07, "inches"), ends = "both", type = "closed"))
+    # Labels sit on the middle of the arc. The bow is drawn in inches, so
+    # the offset is converted between the x and y scales (they differ, and
+    # a same-column arc is vertical).
+    k <- 0.5 * cov$curv
+    cov$lx <- (cov$sx1 + cov$sx2) / 2 + k * (cov$sy2 - cov$sy1) * geo$sy / geo$sx
+    cov$ly <- (cov$sy1 + cov$sy2) / 2 - k * (cov$sx2 - cov$sx1) * geo$sx / geo$sy
+    g <- g + ggplot2::geom_blank(data = cov, ggplot2::aes(x = .data$lx, y = .data$ly))
     lab <- cov[nzchar(cov$label), , drop = FALSE]
     if (nrow(lab)) {
-      # The label sits on the middle of the arc.
-      # The bow is drawn in inches, so the offset is converted between the
-      # x and y scales (they differ, and a same-column arc is vertical).
-      k <- 0.5 * lab$curv
-      lab$lx <- (lab$sx1 + lab$sx2) / 2 + k * (lab$sy2 - lab$sy1) * geo$sy / geo$sx
-      lab$ly <- (lab$sy1 + lab$sy2) / 2 - k * (lab$sx2 - lab$sx1) * geo$sx / geo$sy
       g <- g + borderless_label(data = lab, ggplot2::aes(x = .data$lx, y = .data$ly, label = .data$label, colour = .data$colour),
                                 size = 3, label.padding = grid::unit(0.08, "lines"), fill = "white")
     }
@@ -272,13 +276,18 @@ tidysem_plot <- function(ct, layout, how, map, exo = NULL) {
 }
 
 stability_plot <- function(table, layout, threshold) {
-  e <- table[table$strength >= min(0.2, threshold) | table$adopted, , drop = FALSE]
+  # Adopted links carry the picture; links below the threshold are drawn
+  # faint, without numbers, and only from strength 0.3 (their numbers are
+  # in the table), so they do not tangle the graph.
+  e <- table[table$adopted | table$strength >= 0.3, , drop = FALSE]
   if (!nrow(e)) return(NULL)
-  e$label <- formatC(e$strength, digits = 2, format = "f")
+  e$label <- ifelse(e$adopted, formatC(e$strength, digits = 2, format = "f"), "")
   e$colour <- ifelse(e$adopted, "#1f2328", GREY)
   e$linetype <- ifelse(e$adopted, "solid", "dashed")
-  e$width <- 0.3 + 1.8 * e$strength
-  e$alpha <- 0.35 + 0.65 * e$strength
+  e$width <- ifelse(e$adopted, 0.4 + 1.6 * e$strength, 0.35)
+  e$alpha <- ifelse(e$adopted, 0.45 + 0.55 * e$strength, 0.45)
+  # Faint links first, so adopted ones are drawn on top.
+  e <- e[order(e$adopted), , drop = FALSE]
   draw_graph(layout, e[, c("from", "to", "type", "label", "colour", "linetype", "width", "alpha")])
 }
 

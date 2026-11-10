@@ -179,7 +179,7 @@ analyse <- function(data, options = list()) {
       sp <- stability_plot(learned$table, lay, learned$threshold)
       if (!is.null(sp)) add(rsage::rs_plot("stability", "찾은 연결과 강도", sp, size = diagram_size(lay), section = "구조 찾기",
         alt = "단계별로 놓인 변수와 재표집 연결 강도를 선 굵기로 그린 그림",
-        description = "선이 굵고 진할수록 자주 나온 연결입니다. 회색 점선은 기준에 못 미쳐 모형에 넣지 않은 연결입니다. 숫자는 연결 강도입니다."))
+        description = "실선은 모형에 넣은 연결이고, 굵고 진할수록 자주 나온 연결입니다. 숫자는 연결 강도입니다. 옅은 회색 점선은 강도 0.3 이상이지만 기준에 못 미쳐 넣지 않은 연결이며, 강도는 위 표에 있습니다."))
     }
   }
   if (src != "specified") add(note(paste("찾은(또는 가정한) 구조는 확인할 가설입니다. 화살표 방향은 정한 단계 순서에서 왔고, 측정하지 않은 교란변수가 있으면 틀릴 수 있습니다.",
