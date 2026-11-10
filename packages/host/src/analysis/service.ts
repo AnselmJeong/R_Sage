@@ -406,7 +406,7 @@ export class AnalysisService {
         return end({ status: "error", error: { code: "missing_packages", message: msg } })!;
       }
       const prep = this.prepared.get(`${rHome}\n${mod.id}`)!;
-      const unload = prep.unload ? [mod.rPackage, "rsage"].map((p) => `if (${rString(p)} %in% loadedNamespaces()) try(unloadNamespace(${rString(p)}), silent = TRUE)`).join("\n") : "";
+      const unload = reloadCode(status.libPath!, mod.rPackage, prep.unload);
       const dir = this.runDir(runId);
       mkdirSync(dir, { recursive: true });
       const req = join(dir, "request.json");
@@ -458,4 +458,33 @@ function sortKeys(v: any): any {
   if (Array.isArray(v)) return v.map(sortKeys);
   if (v && typeof v === "object") return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]));
   return v;
+}
+
+/**
+ * R code that unloads the module package and rsage when the loaded copy is
+ * not the installed one. The app records the RSageHash it loaded in
+ * options(rsage.loaded); a namespace loaded before that, or reinstalled by
+ * another process (a second app, the dev build, a check run) while this
+ * session kept the old one, is unloaded so the run uses the code on disk.
+ * Packages that import rsage are unloaded before it. `force` unloads even
+ * when the hashes agree (this process just reinstalled them).
+ */
+export function reloadCode(lib: string, pkg: string, force: boolean): string {
+  return `local({
+  lib <- ${rString(lib)}
+  hash <- function(p) suppressWarnings(utils::packageDescription(p, lib.loc = lib, fields = "RSageHash"))
+  seen <- getOption("rsage.loaded", list())
+  pkgs <- c(${rString(pkg)}, "rsage")
+  stale <- vapply(pkgs, function(p) p %in% loadedNamespaces() && (${force ? "TRUE" : "FALSE"} || !identical(seen[[p]], hash(p))), TRUE)
+  if (stale[[1]]) try(unloadNamespace(pkgs[1]), silent = TRUE)
+  if (stale[[2]]) {
+    users <- Filter(function(n) "rsage" %in% names(getNamespaceImports(n)), setdiff(loadedNamespaces(), "rsage"))
+    for (u in users) try(unloadNamespace(u), silent = TRUE)
+    try(unloadNamespace("rsage"), silent = TRUE)
+  }
+  # Record what the run will load: a namespace still loaded after a failed
+  # unload keeps its old record, so the next run tries again.
+  for (i in seq_along(pkgs)) if (!stale[[i]] || !pkgs[i] %in% loadedNamespaces()) seen[[pkgs[i]]] <- hash(pkgs[i])
+  options(rsage.loaded = seen)
+})`;
 }
