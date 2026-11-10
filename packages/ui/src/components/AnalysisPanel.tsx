@@ -75,8 +75,10 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     if (found && runtime === undefined) void prepareModule(found.mod.id);
   }, [found?.mod.id, runtime]);
 
+  // Set once the session's data frames have been listed, so "not in the session" is not shown before that.
+  const [datasetsLoaded, setDatasetsLoaded] = useState(false);
   useEffect(() => {
-    void refreshDatasets();
+    void refreshDatasets().then(() => setDatasetsLoaded(true));
   }, [sessionState === "stopped"]);
 
   const roles = useMemo(() => (found ? formRoles(found.def.form) : []), [found?.def]);
@@ -149,6 +151,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
     pick && pick.name === draft.dataset ? `자동 선택: ${pick.reason}` : inst.createdBy === "assistant" && draft.dataset === inst.dataset ? "어시스턴트가 지정한 데이터" : null;
   const running = inst.lastRun?.status === "running";
   const stale = inst.result && inst.resultRevision !== inst.revision;
+  const failed = inst.lastRun?.status === "error";
   const rt = runtime === "checking" ? undefined : runtime;
 
   return (
@@ -176,6 +179,11 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
             {draft.dataset && !ds && <option value={draft.dataset}>{draft.dataset} (세션에 없음)</option>}
           </select>
         </label>
+        {draft.dataset && !ds && datasetsLoaded && (
+          <p className="an-note an-warning small">
+            지금 R 세션에 없는 데이터입니다: '{draft.dataset}'. 앱이나 R 세션을 다시 시작하면 불러온 데이터가 사라집니다. 데이터를 불러오는 코드를 먼저 실행하세요.
+          </p>
+        )}
         {reason && <p className="muted small an-pick-reason">{reason}. 다른 데이터는 위에서 고르세요.</p>}
         {!draft.dataset && datasets.length > 1 && <p className="muted small">세션에 데이터 프레임이 {datasets.length}개 있습니다. 분석할 것을 고르세요.</p>}
         {!datasets.length && <p className="muted small">R 세션에 데이터 프레임이 없습니다. 데이터를 먼저 불러오세요 (예: <code>df &lt;- read.csv(...)</code>).</p>}
@@ -205,7 +213,7 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
       <div className="analysis-results">
         <div className="analysis-toolbar">
           <span className={`an-status an-${inst.lastRun?.status ?? "none"}`}>
-            {running ? "실행 중…" : inst.lastRun?.status === "error" ? "실패" : inst.lastRun?.status === "cancelled" ? "취소됨" : stale ? "이전 옵션의 결과" : ""}
+            {running ? "실행 중…" : failed ? (inst.result ? "실패 · 이전 결과 표시 중" : "실패") : inst.lastRun?.status === "cancelled" ? "취소됨" : stale ? "이전 옵션의 결과" : ""}
           </span>
           <span className="spacer" />
           {running ? (
@@ -240,9 +248,22 @@ export function AnalysisPanel(props: IDockviewPanelProps<{ id: string }>) {
           </div>
         )}
         <RuntimeBanner moduleId={mod.id} />
-        {inst.lastRun?.status === "error" && <div className="an-note an-warning">{inst.lastRun.error?.message}</div>}
+        {failed && (
+          <div className="an-note an-warning an-failed">
+            <strong>마지막 실행 실패</strong>
+            {inst.lastRun?.finishedAt && <span className="muted small"> · {when(inst.lastRun.finishedAt)}</span>}
+            <div>{inst.lastRun!.error?.message}</div>
+            {inst.result && <div className="small">아래는 이전에 성공한 실행의 결과입니다.</div>}
+          </div>
+        )}
+        {!running && inst.result && inst.resultOutdated && (
+          <div className="an-note an-warning">
+            이전 버전의 {mod.title} 모듈로 만든 결과입니다. 다시 실행하면 지금 버전으로 다시 만듭니다.
+          </div>
+        )}
         {!draft.dataset && <p className="muted an-hint">왼쪽에서 분석할 데이터 프레임을 고르세요.</p>}
-        {inst.result && <ResultView inst={inst} result={inst.result} dim={running || !!stale} />}
+        {inst.result && inst.resultAt && <p className="muted small an-result-at">결과: {when(inst.resultAt)}에 실행</p>}
+        {inst.result && <ResultView inst={inst} result={inst.result} dim={running || !!stale || failed || !!inst.resultOutdated} />}
       </div>
     </div>
   );
@@ -1084,4 +1105,12 @@ function DeleteButton({ disabled, onDelete }: { disabled?: boolean; onDelete: ()
       {armed ? "한 번 더 누르면 삭제" : "삭제"}
     </button>
   );
+}
+
+/** Local date and time, e.g. "11월 10일 20:21". */
+function when(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

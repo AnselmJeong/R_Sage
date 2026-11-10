@@ -282,10 +282,10 @@ stability_plot <- function(table, layout, threshold) {
   e <- table[table$adopted | table$strength >= 0.3, , drop = FALSE]
   if (!nrow(e)) return(NULL)
   e$label <- ifelse(e$adopted, formatC(e$strength, digits = 2, format = "f"), "")
-  e$colour <- ifelse(e$adopted, "#1f2328", GREY)
+  e$colour <- ifelse(e$adopted, "#1f2328", "#8b929b")
   e$linetype <- ifelse(e$adopted, "solid", "dashed")
-  e$width <- ifelse(e$adopted, 0.4 + 1.6 * e$strength, 0.35)
-  e$alpha <- ifelse(e$adopted, 0.45 + 0.55 * e$strength, 0.45)
+  e$width <- ifelse(e$adopted, 0.4 + 1.6 * e$strength, 0.45 + 0.5 * e$strength)
+  e$alpha <- ifelse(e$adopted, 0.45 + 0.55 * e$strength, 0.85)
   # Faint links first, so adopted ones are drawn on top.
   e <- e[order(e$adopted), , drop = FALSE]
   draw_graph(layout, e[, c("from", "to", "type", "label", "colour", "linetype", "width", "alpha")])

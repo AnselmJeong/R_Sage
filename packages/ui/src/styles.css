@@ -3651,6 +3651,15 @@ label.check {
 .an-note.an-warning {
   border-left-color: var(--warn);
 }
+.an-note.an-failed {
+  border-left-color: var(--err);
+}
+.an-note.an-failed > div {
+  margin-top: 2px;
+}
+.an-result-at {
+  margin: 4px 0 0;
+}
 .an-hint {
   margin: 24px 0;
 }
