@@ -19,7 +19,7 @@ rs_run <- function(path) {
   }
   tryCatch({
     if (!exists(req$dataset, envir = globalenv(), inherits = FALSE)) {
-      return(invisible(write_error(sprintf("'%s' 객체가 R 세션에 없습니다.", req$dataset), "dataset_missing")))
+      return(invisible(write_error(sprintf("R 세션에 없는 데이터입니다: '%s'. 앱이나 R 세션을 다시 시작하면 불러온 데이터가 사라집니다. 데이터를 불러오는 코드(문서의 데이터 불러오기 청크 등)를 먼저 실행한 뒤 다시 실행하세요.", req$dataset), "dataset_missing")))
     }
     data <- get(req$dataset, envir = globalenv(), inherits = FALSE)
     if (!is.data.frame(data)) {

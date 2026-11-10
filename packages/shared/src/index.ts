@@ -664,6 +664,10 @@ export interface AnalysisInstance {
   result?: AnalysisResult;
   /** Revision the result was computed for. */
   resultRevision?: number;
+  /** When the shown result was made (end of its successful run). */
+  resultAt?: string;
+  /** The shown result was made by an older version of the module's R package. */
+  resultOutdated?: boolean;
   createdBy?: "user" | "assistant";
   /** The analysis (and hint card) this one was opened from, e.g. a 탐색 안내 suggestion. */
   from?: { analysis: string; hint?: string };

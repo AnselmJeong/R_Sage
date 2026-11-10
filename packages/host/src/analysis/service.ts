@@ -12,7 +12,7 @@ import type { AnalysisDataset, AnalysisDef, AnalysisFigureSize, AnalysisInstance
 import { fillDefaults, validateOptions } from "@rsage/shared";
 import { readJson, writeFileAtomic } from "../config";
 import type { Project } from "../project";
-import { columnsUsed, loadModules, rPackagesDir, type LoadedModule } from "./registry";
+import { columnsUsed, loadModules, rPackagesDir, sourceHash, type LoadedModule } from "./registry";
 import { prepareModule } from "./runtime";
 import { analysisCode, rString } from "./rcode";
 
@@ -20,7 +20,7 @@ const SEP = "\x1f";
 const REC = "\x1e";
 
 /** Instance as stored on disk: the result is read from its run folder. */
-type Stored = Omit<AnalysisInstance, "result"> & { resultRunId?: string };
+type Stored = Omit<AnalysisInstance, "result" | "resultOutdated"> & { resultRunId?: string; resultHash?: string };
 
 export interface AnalysisDeps {
   project: () => Project | undefined;
@@ -95,9 +95,27 @@ export class AnalysisService {
   }
 
   private withResult(s: Stored): AnalysisInstance {
-    const { resultRunId, ...rest } = s;
+    const { resultRunId, resultHash, ...rest } = s;
     const result = resultRunId ? this.readResult(resultRunId) : undefined;
-    return { ...rest, result };
+    // Results from before the hash was recorded count as current.
+    const now = result && resultHash ? this.moduleHash(s.analysis) : undefined;
+    return { ...rest, result, resultOutdated: !!(result && resultHash && now && now !== resultHash) };
+  }
+
+  /** Content hash of the R package of the analysis's module (cached per module). */
+  private hashes = new Map<string, string>();
+  private moduleHash(analysis: string): string | undefined {
+    try {
+      const { mod } = this.def(analysis);
+      let h = this.hashes.get(mod.id);
+      if (!h) {
+        h = sourceHash(mod.rSource);
+        this.hashes.set(mod.id, h);
+      }
+      return h;
+    } catch {
+      return undefined;
+    }
   }
 
   /** result.json with plot images inlined. */
@@ -393,6 +411,8 @@ export class AnalysisService {
         const old = cur.resultRunId;
         cur.resultRunId = resultRunId;
         cur.resultRevision = revision;
+        cur.resultAt = new Date().toISOString();
+        cur.resultHash = this.moduleHash(cur.analysis);
         if (old && old !== resultRunId) rmSync(this.runDir(old), { recursive: true, force: true });
       }
       return this.save(cur);

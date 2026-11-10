@@ -3,7 +3,7 @@
 // RSAGE_TEST_IRKERNEL=1, IRkernel standing in for it) and an R with the
 // module's CRAN dependencies installed.
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverR, findArk } from "@rsage/kernel";
@@ -365,6 +365,31 @@ live("missing-data analysis in a live session", async () => {
     expect(both.map((s: any) => s.error ?? s.ready)).toEqual([true, true]);
     expect(await hash()).not.toBe("stale");
   }, 240_000);
+
+  test("a failed run keeps the last result and says when it was made and by which module version", async () => {
+    if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
+    await host.session.evalText("aq9 <- airquality; invisible(NULL)");
+    const inst = await call("analysis.create", { analysis: "org.rsage.missing/missing", dataset: "aq9" });
+    const ok = await call("analysis.run", { id: inst.id });
+    expect(ok.lastRun.status).toBe("ok");
+    expect(ok.resultAt).toBeTruthy();
+    expect(ok.resultOutdated).toBe(false);
+    // As after a restart: the data frame is gone.
+    await host.session.evalText("rm(aq9); invisible(NULL)");
+    const failed = await call("analysis.run", { id: inst.id });
+    expect(failed.lastRun.status).toBe("error");
+    expect(failed.lastRun.error.code).toBe("dataset_missing");
+    expect(failed.lastRun.error.message).toContain("먼저 실행");
+    expect(failed.result).toBeTruthy();
+    expect(failed.resultAt).toBe(ok.resultAt);
+    // A result made by an older module package is flagged.
+    const f = join(proj, ".rsage", "analyses", `${inst.id}.json`);
+    const stored = JSON.parse(readFileSync(f, "utf8"));
+    expect(stored.resultHash).toBeTruthy();
+    writeFileSync(f, JSON.stringify({ ...stored, resultHash: "older" }));
+    expect((await call("analysis.get", { id: inst.id })).resultOutdated).toBe(true);
+    await call("analysis.delete", { id: inst.id });
+  }, 120_000);
 
   test("a missing data set is reported", async () => {
     if (!(await call("analysis.prepare", { moduleId: "org.rsage.missing" })).ready) return;
