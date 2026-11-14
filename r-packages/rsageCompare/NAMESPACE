@@ -1,0 +1,7 @@
+export(analyse_ttests)
+export(analyse_anova)
+export(analyse_frequencies)
+export(defaults_ttests)
+export(defaults_anova)
+export(defaults_frequencies)
+importFrom(ggplot2, .data)

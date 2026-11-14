@@ -626,6 +626,8 @@ export interface AnalysisResult {
   notes: { level: "info" | "warning"; code?: string; text: string; /** A file the analysis wrote, which the app offers to open. */ file?: string }[];
   /** Hint cards, shown first (plots they draw are not repeated in the sections). */
   hints?: AnalysisHint[];
+  /** Heading over the hint cards (default "살펴볼 만한 것"). */
+  hintsTitle?: string | null;
   dataInfo: { dataset?: string; rows?: number; columns?: number; [k: string]: unknown };
   exports: string[];
   provenance: { r?: string; packages?: Record<string, string>; created?: string };

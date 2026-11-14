@@ -1,0 +1,42 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.plan",
+  "version": "0.1.0",
+  "title": "분석 계획",
+  "description": "질문에 맞는 분석을 골라 줍니다. 변수의 유형, 집단 수와 크기, 분포, 짝 여부를 보고 정해진 규칙으로 분석과 옵션, 함께 볼 것, 대안, 먼저 확인할 것을 카드로 보여 주고, 버튼으로 옵션이 채워진 분석을 엽니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsagePlan",
+    "packageVersion": "0.1.0",
+    "source": "rsagePlan",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [],
+    "requires": [
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "plan",
+      "title": "분석 계획",
+      "menu": [
+        "데이터 준비",
+        "분석 계획"
+      ],
+      "entrypoint": "analyse",
+      "optionsSchema": "options.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Analysis planner: given a research question as roles (outcomes, groups/predictors, optional ID, goal, design), profiles those variables (kind, groups and their sizes, skew, Shapiro-Wilk, pairing, events per predictor, missing rows) and picks by fixed rules which analysis to run with which options (t test, ANOVA, rank tests, contingency table, regression family), what to run alongside, alternatives and checks. Returns plan cards whose suggestions are ready run_analysis calls, plus a table of the rules it applied. Fits nothing.",
+        "guide": "ai.md"
+      }
+    }
+  ]
+}

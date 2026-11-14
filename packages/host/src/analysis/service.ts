@@ -172,6 +172,7 @@ export class AnalysisService {
           dataset: g.dataset ?? undefined,
         })),
       })),
+      hintsTitle: typeof raw.hintsTitle === "string" ? raw.hintsTitle : undefined,
       dataInfo: raw.dataInfo ?? {},
       exports: raw.exports ?? [],
       provenance: raw.provenance ?? {},

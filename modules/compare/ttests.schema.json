@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "test": {
+      "type": "string",
+      "enum": [
+        "independent",
+        "paired",
+        "one_sample"
+      ],
+      "default": "independent",
+      "description": "independent: two groups of a grouping variable (variables + group). paired: two measurements of the same cases in two columns (pairs). one_sample: one variable against the value mu."
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Numeric dependent variables (independent and one_sample); one test each."
+    },
+    "group": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Grouping variable with exactly two levels (independent)."
+    },
+    "pairs": {
+      "type": "array",
+      "default": [],
+      "description": "Paired test: rows {first, second}, two numeric columns measured on the same cases (e.g. before and after). The difference is first - second.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "First measurement column."
+          },
+          "second": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Second measurement column."
+          }
+        }
+      }
+    },
+    "mu": {
+      "type": "number",
+      "default": 0,
+      "description": "One-sample test: the value the mean is compared with."
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "student": {
+          "type": "boolean",
+          "default": false,
+          "description": "Student t test (equal variances; for paired/one-sample this is the t test)."
+        },
+        "welch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Welch t test (stats::t.test var.equal = FALSE). Recommended default for two independent groups."
+        },
+        "nonparametric": {
+          "type": "boolean",
+          "default": false,
+          "description": "Rank test: Mann-Whitney U (independent) or Wilcoxon signed-rank (paired, one sample), with Hodges-Lehmann estimate."
+        }
+      },
+      "default": {},
+      "description": "Which tests to run."
+    },
+    "alternative": {
+      "type": "string",
+      "enum": [
+        "two.sided",
+        "less",
+        "greater"
+      ],
+      "default": "two.sided",
+      "description": "Alternative hypothesis; one-sided only when the direction was fixed before seeing the data."
+    },
+    "ciLevel": {
+      "type": "number",
+      "default": 0.95,
+      "description": "Confidence level for intervals.",
+      "minimum": 0.5,
+      "maximum": 0.999
+    },
+    "effectSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Effect size with CI (effectsize): Cohen's d (d_z for paired), rank-biserial r for rank tests."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "d",
+            "g"
+          ],
+          "default": "d",
+          "description": "d = Cohen's d, g = Hedges' g (small-sample corrected); independent groups only."
+        }
+      },
+      "default": {},
+      "description": "Effect size."
+    },
+    "descriptives": {
+      "type": "boolean",
+      "default": true,
+      "description": "Table of n, mean, SD, SE, CI, median and quartiles per group."
+    },
+    "assumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "normality": {
+          "type": "boolean",
+          "default": true,
+          "description": "Shapiro-Wilk per group (independent) or of the differences (paired)."
+        },
+        "variance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Brown-Forsythe test and SD ratio (independent)."
+        }
+      },
+      "default": {},
+      "description": "Assumption checks."
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "means": {
+          "type": "boolean",
+          "default": true,
+          "description": "Individual values with means and confidence intervals."
+        },
+        "qq": {
+          "type": "boolean",
+          "default": false,
+          "description": "Normal Q-Q plots."
+        }
+      },
+      "default": {},
+      "description": "Plots."
+    }
+  }
+}

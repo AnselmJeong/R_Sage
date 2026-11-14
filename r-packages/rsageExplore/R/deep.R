@@ -414,8 +414,7 @@ compare_signals <- function(cg, kinds, d) {
       "표 1에서 차이가 가장 큰 변수 가운데 하나입니다. 집단을 비교하는 분석에서 이 변수를 함께 보정하거나 나눠서 보세요.",
       measure = "SMD", value = cg$smd[[v]], n = sum(cg$n), size = size_d(cg$smd[[v]]), score = 2.3,
       draw = if (num) list(type = "box", x = cg$group, y = v) else list(type = "stack", x = cg$group, y = v),
-      suggestions = list(if (num) sug_planned(if (length(cg$levels) == 2) "t 검정 열기" else "분산분석 열기", if (length(cg$levels) == 2) "ttests" else "anova")
-                         else sug_planned("교차표 열기", "frequencies")))
+      suggestions = list(if (num) sug_compare(v, cg$group, length(cg$levels)) else sug_crosstab(cg$group, v)))
   }
   out
 }

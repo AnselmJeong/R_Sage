@@ -92,9 +92,10 @@ rs_hint <- function(id, title, text, evidence = NULL, kind = NULL, variables = c
 #' @param sections Order of the result sections. Tables and plots are shown
 #'   grouped by their `section`, in this order; items without one come first.
 #' @param hints List of rs_hint(), shown as cards above the sections.
+#' @param hints_title Heading over the cards (default "살펴볼 만한 것").
 rs_result <- function(analysis, title, tables = list(), plots = list(), notes = list(),
                       options = list(), data_info = list(), packages = character(), exports = list(),
-                      sections = character(), hints = list()) {
+                      sections = character(), hints = list(), hints_title = NULL) {
   pkgs <- unique(c("rsage", packages))
   versions <- vapply(pkgs, function(p) {
     v <- tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_)
@@ -112,6 +113,7 @@ rs_result <- function(analysis, title, tables = list(), plots = list(), notes = 
       exports = exports,
       sections = as.character(sections),
       hints = hints,
+      hints_title = hints_title,
       provenance = list(
         r = R.version.string,
         packages = as.list(versions),
@@ -192,7 +194,7 @@ draw_plot <- function(p) {
 print.rsage_result <- function(x, ...) {
   cat("# ", x$title, "\n\n", sep = "")
   if (length(x$hints)) {
-    cat("## 살펴볼 만한 것\n")
+    cat("## ", hints_heading(x), "\n", sep = "")
     for (i in seq_along(x$hints)) {
       h <- x$hints[[i]]
       cat(i, ". ", h$title, if (!is.null(h$evidence)) paste0(" (", h$evidence, ")"), "\n   ", h$text, "\n", sep = "")
@@ -219,7 +221,7 @@ knit_print.rsage_result <- function(x, options = list(), ...) {
     sprintf("![%s](%s){fig-alt=\"%s\"}", p$title, file, gsub("\"", "'", p$alt))
   }
   if (length(x$hints)) {
-    out <- c(out, "#### 살펴볼 만한 것", "")
+    out <- c(out, paste("####", hints_heading(x)), "")
     for (h in x$hints) {
       out <- c(out, paste0("**", h$title, "**", if (!is.null(h$evidence)) paste0(" (", h$evidence, ")")), "", h$text, "")
       p <- if (!is.null(h$plot)) x$plots[[h$plot]]
@@ -338,6 +340,7 @@ rs_write <- function(result, dir, run_id = NULL) {
     exports = as.list(names(result$exports)),
     sections = as.list(result$sections),
     hints = lapply(unname(result$hints), hint_json),
+    hintsTitle = result$hints_title,
     provenance = result$provenance
   )
   tmp <- file.path(dir, "result.json.tmp")
@@ -345,3 +348,5 @@ rs_write <- function(result, dir, run_id = NULL) {
   file.rename(tmp, file.path(dir, "result.json"))
   invisible(file.path(dir, "result.json"))
 }
+
+hints_heading <- function(x) if (is.null(x$hints_title)) "살펴볼 만한 것" else x$hints_title

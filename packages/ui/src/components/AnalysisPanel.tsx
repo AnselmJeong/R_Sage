@@ -775,7 +775,7 @@ function HintCards({ inst, result }: { inst: AnalysisInstance; result: AnalysisR
   return (
     <div className="an-rsection">
       <h2 className="an-rsection-title">
-        살펴볼 만한 것
+        {result.hintsTitle || "살펴볼 만한 것"}
         {inst.analysis === EXPLORE_KEY && (
           <button
             className="btn btn-small an-rsection-action"

@@ -1,0 +1,241 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "셋 이상 집단의 평균을 비교하거나(일원), 두 요인과 그 상호작용을 봅니다(이원). 효과크기(η², ω²)와 사후 비교, 정규성·분산 점검을 함께 보여 주고, 분산이 다르거나 작은 표본에서 정규성이 의심되면 Welch 분산분석이나 Kruskal–Wallis를 카드로 권합니다.",
+    "links": [
+      {
+        "label": "stats::oneway.test",
+        "url": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html"
+      },
+      {
+        "label": "car::Anova",
+        "url": "https://www.john-fox.ca/Companion/"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "셋 이상 집단 비교",
+        "description": "세 군의 종양 무게처럼 여러 집단의 평균이 같은지 봅니다.",
+        "fn": [
+          "stats::anova"
+        ],
+        "enable": {
+          "tests.classic": true
+        },
+        "needs": "종속변수와 요인을 넣으세요.",
+        "needsFilled": [
+          "dependent",
+          "factors"
+        ]
+      },
+      {
+        "title": "분산이 다를 때 (Welch + Games–Howell)",
+        "description": "집단의 퍼짐이나 크기가 다를 때도 맞는 검정과 사후 비교입니다.",
+        "fn": [
+          "stats::oneway.test"
+        ],
+        "enable": {
+          "tests.welch": true,
+          "posthoc.gamesHowell": true
+        }
+      },
+      {
+        "title": "순위로 비교 (Kruskal–Wallis + Dunn)",
+        "description": "작은 표본이거나 치우친 분포일 때 순위로 비교합니다.",
+        "fn": [
+          "stats::kruskal.test"
+        ],
+        "enable": {
+          "tests.kruskal": true,
+          "posthoc.dunn": true
+        }
+      },
+      {
+        "title": "두 요인과 상호작용",
+        "description": "약물과 용량처럼 두 요인의 효과와 상호작용을 봅니다(유형 III 제곱합). 요인에 변수 둘을 넣으세요.",
+        "fn": [
+          "car::Anova"
+        ],
+        "requires": [
+          "car"
+        ],
+        "enable": {
+          "tests.classic": true
+        }
+      },
+      {
+        "title": "어느 집단끼리 다른지 (사후 비교)",
+        "description": "집단 쌍마다 차이와 보정한 p값, 신뢰구간을 봅니다.",
+        "fn": [
+          "stats::TukeyHSD"
+        ],
+        "enable": {
+          "posthoc.tukey": true
+        }
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variable",
+      "bind": "dependent",
+      "label": "종속변수",
+      "types": [
+        "numeric"
+      ],
+      "hint": "비교할 수치 변수."
+    },
+    {
+      "type": "variables",
+      "bind": "factors",
+      "label": "요인",
+      "types": [
+        "factor",
+        "ordered",
+        "character",
+        "logical",
+        "numeric"
+      ],
+      "hint": "집단을 나누는 변수 하나 또는 둘."
+    }
+  ],
+  "sections": [
+    {
+      "title": "검정",
+      "open": true,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "tests.classic",
+          "label": "고전 F 검정",
+          "description": "집단의 분산이 같다고 가정합니다. 요인이 둘이면 유형 III 제곱합.",
+          "fn": "stats::anova"
+        },
+        {
+          "type": "checkbox",
+          "bind": "tests.welch",
+          "label": "Welch 분산분석",
+          "description": "분산이 달라도 맞습니다. 요인이 하나일 때.",
+          "fn": "stats::oneway.test"
+        },
+        {
+          "type": "checkbox",
+          "bind": "tests.kruskal",
+          "label": "Kruskal–Wallis",
+          "description": "순위로 비교합니다. 요인이 하나일 때.",
+          "fn": "stats::kruskal.test"
+        },
+        {
+          "type": "number",
+          "bind": "ciLevel",
+          "label": "신뢰수준"
+        }
+      ]
+    },
+    {
+      "title": "효과크기",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "effectSize.eta2",
+          "label": "η²",
+          "description": "결과의 분산 가운데 요인이 설명하는 비율(표본)."
+        },
+        {
+          "type": "checkbox",
+          "bind": "effectSize.partialEta2",
+          "label": "부분 η²",
+          "description": "다른 요인을 뺀 뒤의 비율. 요인이 둘일 때 흔히 보고합니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "effectSize.omega2",
+          "label": "ω²",
+          "description": "모집단 값을 덜 부풀린 추정."
+        }
+      ]
+    },
+    {
+      "title": "사후 비교",
+      "open": false,
+      "controls": [
+        {
+          "type": "column",
+          "bind": "posthoc.factor",
+          "label": "비교할 요인",
+          "from": [
+            "factors"
+          ],
+          "emptyLabel": "첫 요인"
+        },
+        {
+          "type": "checkbox",
+          "bind": "posthoc.tukey",
+          "label": "Tukey HSD",
+          "description": "분산이 같을 때.",
+          "fn": "stats::TukeyHSD"
+        },
+        {
+          "type": "checkbox",
+          "bind": "posthoc.gamesHowell",
+          "label": "Games–Howell",
+          "description": "분산과 집단 크기가 달라도 씁니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "posthoc.dunn",
+          "label": "Dunn",
+          "description": "Kruskal–Wallis 뒤의 순위 비교.",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "posthoc.adjust",
+              "label": "p 보정",
+              "labels": {
+                "holm": "Holm",
+                "bonferroni": "Bonferroni",
+                "BH": "Benjamini–Hochberg",
+                "none": "보정 안 함"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "기술통계와 가정 점검",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "descriptives",
+          "label": "기술통계 표"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.means",
+          "label": "평균과 신뢰구간 그림",
+          "description": "요인이 둘이면 상호작용 그림."
+        },
+        {
+          "type": "checkbox",
+          "bind": "assumptions.normality",
+          "label": "잔차 정규성 (Shapiro–Wilk)",
+          "fn": "stats::shapiro.test"
+        },
+        {
+          "type": "checkbox",
+          "bind": "assumptions.variance",
+          "label": "분산의 동질성 (Brown–Forsythe)"
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.qq",
+          "label": "잔차 Q-Q 그림",
+          "fn": "ggplot2::stat_qq"
+        }
+      ]
+    }
+  ]
+}
