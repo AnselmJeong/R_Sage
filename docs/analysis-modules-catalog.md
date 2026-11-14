@@ -44,10 +44,11 @@ R Sage의 분석 기능은 16개 모듈로 나눈다. 각 모듈은 계산을 �
 | 순서 | 모듈 ID | 포함 분석 | 백엔드 후보 | 상태 |
 | --- | --- | --- | --- | --- |
 | 1 | `org.rsage.descriptives` | 기술통계, 빈도표, 기본 그래프 | stats (공통 중간 단계만으로 충분) | 확정 |
-| 2 | `org.rsage.ttests` | 독립·대응·단일표본 t 검정, Mann–Whitney, Wilcoxon | stats | 후보 |
+| 2 | `org.rsage.compare/ttests` | 독립·대응·단일표본 t 검정(Welch 기본), Mann–Whitney, Wilcoxon, Cohen d·순위이연 r. 명세 [modules/compare.md](modules/compare.md) | stats, effectsize | 0.1 구현 |
 | 3 | `org.rsage.regression` | 선형·로지스틱·개수 회귀와 GLM (메뉴: 회귀 › 선형 회귀, 로지스틱 회귀, 개수 회귀, 일반화선형모형). 명세 [modules/regression.md](modules/regression.md) | stats, parameters, performance, modelbased, MASS, car | 1.0 구현 (1.1 예정) |
-| 4 | `org.rsage.anova` | 일원·이원·반복측정 분산분석, Kruskal–Wallis, Friedman, 사후검정 | stats, afex, emmeans, car | 후보 |
-| 5 | `org.rsage.frequencies` | 교차표, 카이제곱, Fisher 정확검정 | stats | 후보 |
+| 4 | `org.rsage.compare/anova` | 일원·이원 분산분석(유형 III), Welch, Kruskal–Wallis, 사후검정(Tukey, Games–Howell, Dunn), η²·ω². 반복측정·Friedman은 후속 | stats, effectsize, car | 0.1 구현 (반복측정 예정) |
+| 5 | `org.rsage.compare/frequencies` | 교차표, 카이제곱, Fisher 정확검정, Cramér V, 2×2 오즈비 | stats, effectsize | 0.1 구현 |
+| 5a | `org.rsage.plan` | 분석 계획: 질문(결과·집단·설계)과 변수 프로필로 분석·옵션·대안·점검을 고정 규칙으로 고름. 명세 [modules/plan.md](modules/plan.md) | base R, ggplot2 | 0.1 구현 |
 | 6 | `org.rsage.missing` | 결측 패턴 요약·시각화, MCAR 검정, 다중대체 | naniar(탐색·MCAR), mice(대체), UpSetR(조합 그림) | 확정 (시범 구현) |
 | 6a | `org.rsage.integrity` | 데이터 무결성·정제 점검: 변수명·빈 행, 숫자·날짜·코드 형식, 이상치와 범위·허용 값·선후 규칙, 결측 코드와 중복, 텍스트 표기, 정리한 사본, 진단 보고서 | dlookr(진단·보고서), 나머지는 base R·ggplot2 | 확정 (구현) |
 | 6b | `org.rsage.explore` | 탐색 안내: 변수 유형·자료 구조 추정, 데이터 상태, 분포, 관계·집단 차이·결측 관련 신호, 목표 변수 순위, 카드마다 다음 분석 제안. 명세 [modules/explore.md](modules/explore.md) | datawizard, 나머지는 base R·ggplot2 | 1.0 구현 (질문 맞춤 힌트, 확인용 데이터, 빠른 모형·하위집단·상호작용·무리·이상 행, 표 1, 탐색 기록, 환경 창 탐색 버튼) |

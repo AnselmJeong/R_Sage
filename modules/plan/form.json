@@ -1,0 +1,105 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "하고 싶은 질문에 맞는 분석을 골라 줍니다. 결과 변수와 집단·설명 변수를 넣으면 변수의 유형, 집단 수와 크기, 분포, 짝 여부를 보고 정해진 규칙으로 분석과 옵션, 함께 볼 것, 대안, 먼저 확인할 것을 카드로 보여 줍니다. 카드의 버튼은 옵션이 채워진 분석 탭을 엽니다. 같은 질문과 데이터면 언제나 같은 계획이 나옵니다.",
+    "links": [
+      {
+        "label": "분석 계획 규칙 (docs/modules/plan.md)",
+        "url": "https://github.com/AnselmJeong/R_Sage/blob/main/docs/modules/plan.md"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "집단 비교: 어떤 검정을 쓸까",
+        "description": "결과 변수와 집단 변수를 넣으면 t 검정, 분산분석, 순위 검정, 교차표 가운데 맞는 것을 고릅니다.",
+        "enable": {
+          "goal": "compare"
+        },
+        "needs": "결과 변수와 집단 변수를 넣으세요.",
+        "needsFilled": [
+          "outcomes",
+          "groups"
+        ]
+      },
+      {
+        "title": "전후 비교",
+        "description": "같은 대상의 두 측정(예: 치료 전·후 점수)을 결과 변수에 넣으면 대응 검정을 계획합니다.",
+        "enable": {
+          "design": "paired"
+        },
+        "needs": "결과 변수에 두 열을 넣으세요.",
+        "needsFilled": [
+          "outcomes"
+        ]
+      },
+      {
+        "title": "관련과 예측",
+        "description": "연속 설명변수나 여러 변수가 있으면 결과의 유형에 맞는 회귀(선형·로지스틱·개수)를 고르고, 표본 크기가 충분한지 봅니다.",
+        "enable": {
+          "goal": "relate"
+        }
+      },
+      {
+        "title": "어시스턴트에게 묻기",
+        "description": "어시스턴트에게 '세 군의 종양 무게를 비교하려면?'처럼 물으면 질문을 변수 역할로 바꿔 이 계획을 실행하고, 결과를 설명합니다. 원자료 행은 어시스턴트에게 가지 않습니다.",
+        "enable": {}
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variables",
+      "bind": "outcomes",
+      "label": "결과 변수",
+      "hint": "비교하거나 설명할 변수. 같은 대상의 전·후 측정이면 두 열을 넣습니다."
+    },
+    {
+      "type": "variables",
+      "bind": "groups",
+      "label": "집단·설명 변수",
+      "hint": "집단을 나누는 변수나 설명변수."
+    },
+    {
+      "type": "variable",
+      "bind": "id",
+      "label": "ID",
+      "optional": true,
+      "hint": "한 사람이 여러 행에 있으면(긴 형식) 그 사람의 ID."
+    }
+  ],
+  "sections": [
+    {
+      "title": "질문",
+      "open": true,
+      "controls": [
+        {
+          "type": "text",
+          "bind": "question",
+          "label": "질문",
+          "placeholder": "예: 세 군의 종양 무게가 다른가?", "hint": "계획 카드에 함께 남습니다."
+        },
+        {
+          "type": "select",
+          "bind": "goal",
+          "label": "목적",
+          "labels": {
+            "auto": "자동",
+            "compare": "집단·측정 비교",
+            "relate": "관련 보기",
+            "predict": "예측"
+          }
+        },
+        {
+          "type": "select",
+          "bind": "design",
+          "label": "결과 변수가 여럿일 때",
+          "labels": {
+            "auto": "자동 (이름으로 추정)",
+            "paired": "같은 대상의 반복 측정",
+            "independent": "서로 다른 변수"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+tab <- function(r, id) r$tables[[id]]$data
+
+test_that("independent t tests match stats::t.test and effectsize", {
+  r <- analyse_ttests(mtcars, list(variables = "mpg", group = "am", tests = list(student = TRUE, welch = TRUE, nonparametric = TRUE)))
+  t <- tab(r, "tests")
+  expect_equal(t$method, c("Student t", "Welch t", "Mann–Whitney U"))
+  s <- t.test(mpg ~ am, data = mtcars, var.equal = TRUE)
+  w <- t.test(mpg ~ am, data = mtcars)
+  expect_equal(t$statistic[1:2], unname(c(s$statistic, w$statistic)))
+  expect_equal(t$df[2], unname(w$parameter))
+  expect_equal(t$p[1:2], c(s$p.value, w$p.value))
+  expect_equal(t$estimate[1], unname(diff(rev(s$estimate))))
+  expect_equal(t$es[1], effectsize::cohens_d(mtcars$mpg[mtcars$am == 0], mtcars$mpg[mtcars$am == 1])$Cohens_d)
+  expect_equal(t$es_measure[3], "순위이연 r")
+  expect_equal(t$n, rep(32L, 3))
+  expect_true(all(c("descriptives", "normality", "variance") %in% names(r$tables)))
+  expect_equal(r$hints_title, "확인할 것")
+})
+
+test_that("paired and one-sample tests use the differences and mu", {
+  w <- data.frame(a = sleep$extra[1:10], b = sleep$extra[11:20])
+  r <- analyse_ttests(w, list(test = "paired", pairs = list(list(first = "a", second = "b")), tests = list(nonparametric = TRUE)))
+  t <- tab(r, "tests")
+  ref <- t.test(w$a, w$b, paired = TRUE)
+  expect_equal(t$statistic[1], unname(ref$statistic))
+  expect_equal(t$es_measure[1], "Cohen d_z")
+  expect_equal(t$es[1], mean(w$a - w$b) / sd(w$a - w$b), tolerance = 1e-8)
+  expect_equal(tab(r, "normality")$part, "차이")
+  o <- analyse_ttests(mtcars, list(test = "one_sample", variables = "mpg", mu = 20))
+  ot <- tab(o, "tests")
+  expect_equal(ot$estimate, mean(mtcars$mpg) - 20)
+  expect_equal(ot$p, t.test(mtcars$mpg, mu = 20)$p.value)
+})
+
+test_that("problems become notes and hints, not errors", {
+  r <- analyse_ttests(PlantGrowth, list(variables = "weight", group = "group"))
+  expect_true("ttests_group_levels" %in% vapply(r$notes, `[[`, "", "code"))
+  expect_length(r$tables, 0)
+  expect_error(analyse_ttests(mtcars, list(variables = "nope", group = "am")), "nope")
+  set.seed(3)
+  d <- data.frame(g = rep(c("a", "b"), each = 12), y = c(rexp(12), rexp(12) * 4))
+  r2 <- analyse_ttests(d, list(variables = "y", group = "g", tests = list(student = TRUE, welch = FALSE)))
+  ids <- vapply(r2$hints, `[[`, "", "id")
+  expect_true(all(c("normality", "variance") %in% ids))
+  sug <- r2$hints[[which(ids == "normality")]]$suggestions[[1]]
+  expect_equal(sug$analysis, "org.rsage.compare/ttests")
+  expect_true(sug$options$tests$nonparametric)
+})

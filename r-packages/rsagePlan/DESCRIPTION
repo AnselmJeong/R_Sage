@@ -1,0 +1,17 @@
+Package: rsagePlan
+Title: Analysis Planner Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Turns a research question (goal, outcome, groups or
+    predictors, design) into an analysis plan. It profiles the chosen
+    variables (kind, groups and their sizes, skew, normality, pairing,
+    events per predictor) and picks the analysis, its options, the checks
+    to run and the alternatives by fixed, documented rules, so the same
+    question on the same data always gets the same plan. The plan opens
+    the chosen analysis; nothing is fitted here.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), ggplot2, stats, utils
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3

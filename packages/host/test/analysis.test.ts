@@ -177,6 +177,34 @@ describe("exploration guide module", () => {
   });
 });
 
+const compare = loadModules().find((m) => m.id === "org.rsage.compare")!;
+const planMod = loadModules().find((m) => m.id === "org.rsage.plan")!;
+
+describe("group comparison and analysis plan modules", () => {
+  test("compare loads t tests, ANOVA and crosstab under their menus with consistent forms", () => {
+    expect(compare.analyses.map((a) => a.key)).toEqual(["org.rsage.compare/ttests", "org.rsage.compare/anova", "org.rsage.compare/frequencies"]);
+    expect(compare.analyses[0]!.entries.map((e) => e.menu[1])).toEqual(["독립표본 t 검정", "대응표본 t 검정", "일표본 t 검정"]);
+    expect(compare.requires).toEqual(expect.arrayContaining(["effectsize", "ggplot2"]));
+    for (const a of compare.analyses) {
+      expect(formProblems(a.form, a.schema)).toEqual([]);
+      expect(validateOptions(a.schema, fillDefaults(a.schema, {}))).toEqual([]);
+      for (const e of a.entries) if (e.preset) expect(validateOptions(a.schema, fillDefaults(a.schema, e.preset))).toEqual([]);
+    }
+    const tt = compare.analyses[0]!;
+    expect(validateOptions(tt.schema, fillDefaults(tt.schema, { test: "paired", pairs: [{ first: "a", second: "b" }] }))).toEqual([]);
+    expect(validateOptions(tt.schema, fillDefaults(tt.schema, { test: "two" })).map((i) => i.path)).toEqual(["test"]);
+  });
+
+  test("plan loads under 데이터 준비 with a consistent form", () => {
+    const p = planMod.analyses[0]!;
+    expect(p.key).toBe("org.rsage.plan/plan");
+    expect(p.entries[0]!.menu).toEqual(["데이터 준비", "분석 계획"]);
+    expect(formProblems(p.form, p.schema)).toEqual([]);
+    expect(validateOptions(p.schema, fillDefaults(p.schema, {}))).toEqual([]);
+    expect(p.guide).toContain("run_analysis");
+  });
+});
+
 describe("option schema", () => {
   test("fills nested defaults", () => {
     const o = fillDefaults(def.schema, { plots: { upset: true } });
@@ -620,6 +648,35 @@ live("missing-data analysis in a live session", async () => {
     expect(guided.guide.runId).toBe(done.result.runId);
     expect(formatResult(guided, guided.result)).toContain("Hints you wrote");
     expect((await call("analysis.clearGuide", { id: inst.id })).guide).toBeUndefined();
+    await call("analysis.delete", { id: inst.id });
+  }, 240_000);
+
+  test("an analysis plan picks the test and its card opens a valid analysis that runs", async () => {
+    const prep = await call("analysis.prepare", { moduleId: "org.rsage.plan" });
+    const prepC = await call("analysis.prepare", { moduleId: "org.rsage.compare" });
+    if (!prep.ready || !prepC.ready) {
+      console.warn(`skipping: R packages missing: ${[...prep.missing, ...prepC.missing].join(", ")}`);
+      return;
+    }
+    await host.session.evalText("pg <- PlantGrowth; invisible(NULL)");
+    const inst = await call("analysis.create", { analysis: "org.rsage.plan/plan", dataset: "pg", options: { outcomes: ["weight"], groups: ["group"], question: "세 군의 무게가 다른가?" } });
+    const done = await call("analysis.run", { id: inst.id });
+    expect(done.lastRun.status).toBe("ok");
+    expect(done.result.hintsTitle).toBe("분석 계획");
+    const main = done.result.hints.find((h: any) => h.kind === "main");
+    expect(main.title).toContain("Welch 분산분석");
+    const sug = main.suggestions[0];
+    expect(sug.analysis).toBe("org.rsage.compare/anova");
+    expect(done.result.tables.find((t: any) => t.id === "rules").rows.length).toBeGreaterThan(3);
+    const made = await call("analysis.create", { analysis: sug.analysis, dataset: "pg", options: sug.options, title: sug.title, from: { analysis: inst.id, hint: main.id } });
+    const ran = await call("analysis.run", { id: made.id });
+    expect(ran.lastRun.status).toBe("ok");
+    const an = ran.result.tables.find((t: any) => t.id === "anova").rows;
+    expect(an.map((r: any) => r.method)).toEqual(["고전 F", "Welch"]);
+    expect(ran.result.tables.find((t: any) => t.id === "posthoc").rows.length).toBe(3);
+    expect(ran.result.hintsTitle).toBe("확인할 것");
+    expect(formatResult(done, done.result)).toContain("org.rsage.compare/anova");
+    await call("analysis.delete", { id: made.id });
     await call("analysis.delete", { id: inst.id });
   }, 240_000);
 

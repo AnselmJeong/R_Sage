@@ -1,0 +1,181 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "두 범주 변수의 교차표를 만들고, 두 변수가 관련 있는지 카이제곱 또는 Fisher 정확 검정으로 봅니다. 관련의 크기는 Cramér V와(2×2이면) 오즈비로 보여 줍니다.",
+    "links": [
+      {
+        "label": "stats::chisq.test",
+        "url": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/chisq.test.html"
+      },
+      {
+        "label": "effectsize: 범주 자료",
+        "url": "https://easystats.github.io/effectsize/reference/phi.html"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "집단별 비율 비교",
+        "description": "치료군별 반응률처럼 집단마다 범주 비율이 다른지 봅니다.",
+        "fn": [
+          "stats::chisq.test"
+        ],
+        "enable": {
+          "cells.rowPct": true,
+          "tests.chisq": true
+        },
+        "needs": "행과 열 변수를 넣으세요.",
+        "needsFilled": [
+          "rows",
+          "columns"
+        ]
+      },
+      {
+        "title": "작은 표본: Fisher 정확 검정",
+        "description": "기대 빈도가 작은 칸이 많을 때 씁니다.",
+        "fn": [
+          "stats::fisher.test"
+        ],
+        "enable": {
+          "tests.fisher": "always"
+        }
+      },
+      {
+        "title": "2×2 표의 오즈비",
+        "description": "노출과 결과처럼 두 값씩인 변수의 오즈비와 신뢰구간.",
+        "enable": {
+          "effectSize.oddsRatio": true
+        }
+      },
+      {
+        "title": "어느 칸이 다른지 (표준화 잔차)",
+        "description": "기대보다 많거나 적은 칸을 찾습니다.",
+        "enable": {
+          "cells.residuals": true,
+          "cells.expected": true
+        }
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variable",
+      "bind": "rows",
+      "label": "행 (집단)",
+      "hint": "보통 집단을 나누는 변수."
+    },
+    {
+      "type": "variable",
+      "bind": "columns",
+      "label": "열 (결과)",
+      "hint": "보통 결과 범주."
+    }
+  ],
+  "sections": [
+    {
+      "title": "칸에 보일 값",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "cells.counts",
+          "label": "빈도"
+        },
+        {
+          "type": "checkbox",
+          "bind": "cells.rowPct",
+          "label": "행 %",
+          "description": "집단 안에서의 비율. 집단끼리 비교할 때."
+        },
+        {
+          "type": "checkbox",
+          "bind": "cells.colPct",
+          "label": "열 %"
+        },
+        {
+          "type": "checkbox",
+          "bind": "cells.totalPct",
+          "label": "전체 %"
+        },
+        {
+          "type": "checkbox",
+          "bind": "cells.expected",
+          "label": "기대 빈도",
+          "description": "두 변수가 관련 없을 때 기대되는 빈도."
+        },
+        {
+          "type": "checkbox",
+          "bind": "cells.residuals",
+          "label": "표준화 잔차",
+          "description": "절댓값 2 이상인 칸이 기대와 다른 칸입니다."
+        }
+      ]
+    },
+    {
+      "title": "검정과 효과크기",
+      "open": true,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "tests.chisq",
+          "label": "카이제곱 검정",
+          "fn": "stats::chisq.test",
+          "controls": [
+            {
+              "type": "checkbox",
+              "bind": "tests.continuity",
+              "label": "연속성 보정 (2×2)"
+            }
+          ]
+        },
+        {
+          "type": "select",
+          "bind": "tests.fisher",
+          "label": "Fisher 정확 검정",
+          "labels": {
+            "auto": "필요할 때 (기대 빈도 < 5가 20% 넘음)",
+            "always": "항상",
+            "never": "쓰지 않음"
+          }
+        },
+        {
+          "type": "checkbox",
+          "bind": "effectSize.cramersV",
+          "label": "Cramér V",
+          "fn": "effectsize::cramers_v"
+        },
+        {
+          "type": "checkbox",
+          "bind": "effectSize.oddsRatio",
+          "label": "오즈비 (2×2)"
+        },
+        {
+          "type": "number",
+          "bind": "ciLevel",
+          "label": "신뢰수준"
+        }
+      ]
+    },
+    {
+      "title": "그림",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "plots.bars",
+          "label": "집단별 비율 막대",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "plots.position",
+              "label": "모양",
+              "labels": {
+                "fill": "100% 누적 비율",
+                "dodge": "나란히 빈도"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

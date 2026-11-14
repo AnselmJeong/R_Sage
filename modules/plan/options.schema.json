@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "question": {
+      "type": "string",
+      "default": "",
+      "description": "The user's research question in their own words (shown on the plan; not used by the rules)."
+    },
+    "goal": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "compare",
+        "relate",
+        "predict"
+      ],
+      "default": "auto",
+      "description": "compare = do groups (or paired measurements) differ; relate = how the outcome goes with predictors; predict = predict the outcome. auto: compare when every group variable splits rows into groups (at most two), else relate."
+    },
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Outcome variable. Two or more numeric columns without groups = the same cases measured more than once (paired / repeated, wide form)."
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Grouping variables or predictors."
+    },
+    "id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Case ID column, when the data are long (one row per measurement): repeated IDs mean repeated measures."
+    },
+    "design": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "independent",
+        "paired"
+      ],
+      "default": "auto",
+      "description": "For two or more outcome columns: paired = same cases measured twice or more; independent = two different variables (relation). auto guesses from names such as x_pre/x_post."
+    }
+  }
+}

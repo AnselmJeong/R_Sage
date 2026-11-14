@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "dependent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Numeric dependent variable."
+    },
+    "factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "One or two between-subjects factors (categorical; numeric codes are treated as categories)."
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classic": {
+          "type": "boolean",
+          "default": true,
+          "description": "Classic F test (lm/anova; two factors: sum contrasts and type III sums of squares with car::Anova)."
+        },
+        "welch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Welch one-way ANOVA (stats::oneway.test), unequal variances. One factor only."
+        },
+        "kruskal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Kruskal-Wallis rank test with rank epsilon squared. One factor only."
+        }
+      },
+      "default": {},
+      "description": "Which tests to run."
+    },
+    "effectSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "eta2": {
+          "type": "boolean",
+          "default": true,
+          "description": "Eta squared."
+        },
+        "partialEta2": {
+          "type": "boolean",
+          "default": false,
+          "description": "Partial eta squared."
+        },
+        "omega2": {
+          "type": "boolean",
+          "default": true,
+          "description": "Omega squared (partial omega squared with two factors)."
+        }
+      },
+      "default": {},
+      "description": "Effect sizes for the classic F test."
+    },
+    "posthoc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "factor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Factor for the post hoc comparisons; null = the first factor."
+        },
+        "tukey": {
+          "type": "boolean",
+          "default": false,
+          "description": "Tukey HSD (equal variances; stats::TukeyHSD)."
+        },
+        "gamesHowell": {
+          "type": "boolean",
+          "default": false,
+          "description": "Games-Howell (unequal variances and sizes)."
+        },
+        "dunn": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dunn rank comparisons after Kruskal-Wallis, p adjusted by `adjust`."
+        },
+        "adjust": {
+          "type": "string",
+          "enum": [
+            "holm",
+            "bonferroni",
+            "BH",
+            "none"
+          ],
+          "default": "holm",
+          "description": "P-value adjustment for Dunn."
+        }
+      },
+      "default": {},
+      "description": "Post hoc pairwise comparisons."
+    },
+    "ciLevel": {
+      "type": "number",
+      "default": 0.95,
+      "description": "Confidence level for intervals.",
+      "minimum": 0.5,
+      "maximum": 0.999
+    },
+    "descriptives": {
+      "type": "boolean",
+      "default": true,
+      "description": "Table of n, mean, SD, CI, median per group (cell)."
+    },
+    "assumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "normality": {
+          "type": "boolean",
+          "default": true,
+          "description": "Shapiro-Wilk of the residuals."
+        },
+        "variance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Brown-Forsythe test across groups (cells) and SD ratio."
+        }
+      },
+      "default": {},
+      "description": "Assumption checks."
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "means": {
+          "type": "boolean",
+          "default": true,
+          "description": "Individual values with group means and CIs (interaction plot with two factors)."
+        },
+        "qq": {
+          "type": "boolean",
+          "default": false,
+          "description": "Normal Q-Q plot of the residuals."
+        }
+      },
+      "default": {},
+      "description": "Plots."
+    }
+  }
+}

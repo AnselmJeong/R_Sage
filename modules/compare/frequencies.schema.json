@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rows": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Row variable (categorical), usually the group."
+    },
+    "columns": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null,
+      "description": "Column variable (categorical), usually the outcome."
+    },
+    "cells": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "counts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Observed counts."
+        },
+        "rowPct": {
+          "type": "boolean",
+          "default": true,
+          "description": "Row percentages."
+        },
+        "colPct": {
+          "type": "boolean",
+          "default": false,
+          "description": "Column percentages."
+        },
+        "totalPct": {
+          "type": "boolean",
+          "default": false,
+          "description": "Percent of total."
+        },
+        "expected": {
+          "type": "boolean",
+          "default": false,
+          "description": "Expected counts under independence."
+        },
+        "residuals": {
+          "type": "boolean",
+          "default": false,
+          "description": "Standardized (adjusted) residuals."
+        }
+      },
+      "default": {},
+      "description": "Cell statistics."
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chisq": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pearson chi-squared test."
+        },
+        "continuity": {
+          "type": "boolean",
+          "default": false,
+          "description": "Yates continuity correction (2x2)."
+        },
+        "fisher": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ],
+          "default": "auto",
+          "description": "Fisher's exact test: auto = when more than 20% of expected counts are below 5."
+        }
+      },
+      "default": {},
+      "description": "Tests of independence."
+    },
+    "effectSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cramersV": {
+          "type": "boolean",
+          "default": true,
+          "description": "Cramer's V with CI (effectsize::cramers_v, not bias-adjusted)."
+        },
+        "oddsRatio": {
+          "type": "boolean",
+          "default": true,
+          "description": "Odds ratio with Woolf CI (2x2 tables)."
+        }
+      },
+      "default": {},
+      "description": "Effect sizes."
+    },
+    "ciLevel": {
+      "type": "number",
+      "default": 0.95,
+      "description": "Confidence level for intervals.",
+      "minimum": 0.5,
+      "maximum": 0.999
+    },
+    "plots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bars": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bar chart of the column categories within each row."
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "fill",
+            "dodge"
+          ],
+          "default": "fill",
+          "description": "fill = 100% stacked proportions, dodge = side-by-side counts."
+        }
+      },
+      "default": {},
+      "description": "Plots."
+    }
+  }
+}

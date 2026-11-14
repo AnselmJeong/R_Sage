@@ -46,9 +46,9 @@ KEY <- list(
   missing = "org.rsage.missing/missing",
   integrity = "org.rsage.integrity/integrity",
   descriptives = "org.rsage.descriptives/descriptives",
-  ttests = "org.rsage.ttests/ttests",
-  anova = "org.rsage.anova/anova",
-  frequencies = "org.rsage.frequencies/frequencies",
+  ttests = "org.rsage.compare/ttests",
+  anova = "org.rsage.compare/anova",
+  frequencies = "org.rsage.compare/frequencies",
   reliability = "org.rsage.reliability/reliability",
   factor = "org.rsage.factor/factor",
   mixed = "org.rsage.mixed/mixed"
@@ -94,6 +94,20 @@ sug_missing <- function(var = NULL, other = NULL, other_numeric = TRUE) {
   rsage::rs_suggest("결측 데이터 분석 열기", KEY$missing, o, title = paste0("결측: ", var))
 }
 sug_planned <- function(label, key) rsage::rs_suggest(label, KEY[[key]])
+
+# Group comparisons (집단 비교 module): Welch by default, as the analysis plan does.
+sug_compare <- function(y, g, k) {
+  if (k == 2) rsage::rs_suggest("t 검정 열기", KEY$ttests, list(test = "independent", variables = I(y), group = g),
+                                title = paste0("t 검정: ", y, " ~ ", g))
+  else rsage::rs_suggest("분산분석 열기", KEY$anova,
+                         list(dependent = y, factors = I(g), tests = list(classic = TRUE, welch = TRUE), posthoc = list(gamesHowell = TRUE)),
+                         title = paste0("분산분석: ", y, " ~ ", g))
+}
+sug_crosstab <- function(rows, cols) rsage::rs_suggest("교차표 열기", KEY$frequencies, list(rows = rows, columns = cols),
+                                                       title = paste0("교차표: ", rows, " × ", cols))
+sug_paired <- function(cols) rsage::rs_suggest("대응 t 검정 열기", KEY$ttests,
+                                               list(test = "paired", pairs = list(list(first = cols[1], second = cols[2]))),
+                                               title = paste0("대응 t: ", cols[1], " − ", cols[2]))
 
 # Family and event for a variable used as a regression outcome.
 outcome_model <- function(x, kind) {
@@ -317,7 +331,7 @@ structure_signals <- function(d, kinds, scales, rep, wide) {
               paste(cols, collapse = ", ")),
       measure = "열 수", value = length(cols), n = sum(stats::complete.cases(d[cols])), score = 1.1,
       draw = list(type = "wide_means", vars = cols),
-      suggestions = list(sug_planned("대응 t 검정", "ttests"), sug_planned("혼합모형", "mixed")))
+      suggestions = list(sug_paired(cols), sug_planned("혼합모형", "mixed")))
   }
   out
 }
@@ -372,7 +386,7 @@ relation_signals <- function(d, kinds, rel, skip_pair, groups = TRUE) {
       if (!at_least_medium(p$size)) next
       y <- if (is_num_kind(kinds[[a]], d[[a]])) a else b
       g <- setdiff(c(a, b), y)
-      planned <- if (p$groups == 2) sug_planned("독립 t 검정", "ttests") else sug_planned("일원분산분석", "anova")
+      planned <- sug_compare(y, g, p$groups)
       out[[length(out) + 1]] <- signal(
         "group_diff", c(y, g), sprintf("'%s'는 '%s'에 따라 다릅니다", y, g),
         sprintf("'%s'의 차이 가운데 %s를 '%s' 집단이 설명합니다. 집단별 평균과 분포를 비교해 보세요.", y, pct(p$value), g),
@@ -386,7 +400,7 @@ relation_signals <- function(d, kinds, rel, skip_pair, groups = TRUE) {
           measure = p$measure, value = p$value, n = p$n, size = "큼", score = 0.7, draw = list(type = "stack", x = a, y = b))
       } else if (at_least_medium(p$size)) {
         bin <- c(a, b)[vapply(c(a, b), function(v) kinds[[v]] == "binary", TRUE)]
-        sug <- list(sug_planned("교차표와 카이제곱 검정", "frequencies"))
+        sug <- list(sug_crosstab(a, b))
         if (length(bin)) {
           om <- outcome_model(d[[bin[1]]], "binary")
           sug <- c(sug, list(sug_regression(bin[1], "binomial", categorical = setdiff(c(a, b), bin[1]), event = om$event)))

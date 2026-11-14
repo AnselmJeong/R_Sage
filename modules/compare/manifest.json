@@ -1,0 +1,154 @@
+{
+  "manifestVersion": 1,
+  "id": "org.rsage.compare",
+  "version": "0.1.0",
+  "title": "집단 비교",
+  "description": "두 집단·짝지은 측정·기준값을 비교하는 t 검정, 셋 이상 집단과 두 요인을 비교하는 분산분석, 두 범주 변수의 교차표. 효과크기와 신뢰구간, 가정 점검을 함께 보여 주고 가정이 맞지 않으면 대안을 카드로 권합니다.",
+  "publisherId": "org.rsage",
+  "moduleApi": ">=0.1.0 <0.2.0",
+  "runtime": {
+    "kind": "r-package",
+    "package": "rsageCompare",
+    "packageVersion": "0.1.0",
+    "source": "rsageCompare",
+    "rVersion": ">=4.2.0",
+    "rsageRuntime": ">=0.1.0 <0.2.0",
+    "execution": "shared-session",
+    "backends": [
+      {
+        "package": "effectsize",
+        "role": "효과크기와 신뢰구간 (Cohen d, 순위이연 r, Cramér V)",
+        "required": true
+      },
+      {
+        "package": "car",
+        "role": "이원 분산분석의 유형 III 제곱합",
+        "required": false
+      }
+    ],
+    "requires": [
+      "effectsize",
+      "ggplot2"
+    ]
+  },
+  "analyses": [
+    {
+      "id": "ttests",
+      "title": "t 검정",
+      "menu": [
+        "T 검정",
+        "독립표본 t 검정"
+      ],
+      "entries": [
+        {
+          "menu": [
+            "T 검정",
+            "독립표본 t 검정"
+          ],
+          "title": "독립표본 t 검정",
+          "preset": {
+            "test": "independent"
+          }
+        },
+        {
+          "menu": [
+            "T 검정",
+            "대응표본 t 검정"
+          ],
+          "title": "대응표본 t 검정",
+          "preset": {
+            "test": "paired"
+          }
+        },
+        {
+          "menu": [
+            "T 검정",
+            "일표본 t 검정"
+          ],
+          "title": "일표본 t 검정",
+          "preset": {
+            "test": "one_sample"
+          }
+        }
+      ],
+      "entrypoint": "analyse_ttests",
+      "optionsSchema": "ttests.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "ttests.form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "T tests: compare the means of two independent groups (Welch by default, Student optional), two paired measurements in two columns (before/after), or one variable against a value; optional Mann-Whitney / Wilcoxon rank tests; Cohen's d or Hedges' g (d_z for paired, rank-biserial r) with CIs; descriptives; Shapiro-Wilk, Brown-Forsythe; means/CI plot and Q-Q plots. Assumption problems come back as hint cards with the option to switch on.",
+        "guide": "ai.md"
+      }
+    },
+    {
+      "id": "anova",
+      "title": "분산분석",
+      "menu": [
+        "분산분석",
+        "분산분석"
+      ],
+      "entries": [
+        {
+          "menu": [
+            "분산분석",
+            "일원 분산분석"
+          ],
+          "title": "일원 분산분석"
+        },
+        {
+          "menu": [
+            "분산분석",
+            "이원 분산분석"
+          ],
+          "title": "이원 분산분석"
+        },
+        {
+          "menu": [
+            "분산분석",
+            "Kruskal–Wallis"
+          ],
+          "title": "Kruskal–Wallis",
+          "preset": {
+            "tests": {
+              "classic": false,
+              "kruskal": true
+            },
+            "posthoc": {
+              "dunn": true
+            }
+          }
+        }
+      ],
+      "entrypoint": "analyse_anova",
+      "optionsSchema": "anova.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "anova.form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Between-subjects analysis of variance for one numeric outcome and one or two factors: classic F (type III with two factors), Welch one-way ANOVA, Kruskal-Wallis; eta squared, partial eta squared, omega squared, rank epsilon squared; post hoc Tukey HSD, Games-Howell, Dunn; descriptives, residual normality, Brown-Forsythe; means/interaction plot. Not repeated measures.",
+        "guide": "ai.md"
+      }
+    },
+    {
+      "id": "frequencies",
+      "title": "교차표",
+      "menu": [
+        "빈도",
+        "교차표"
+      ],
+      "entrypoint": "analyse_frequencies",
+      "optionsSchema": "frequencies.schema.json",
+      "optionsSchemaVersion": 1,
+      "ui": "frequencies.form.json",
+      "resultSchemaVersion": 1,
+      "requiresDataset": true,
+      "assistant": {
+        "summary": "Contingency table of two categorical variables: counts, row/column/total percentages, expected counts, standardized residuals; Pearson chi-squared (optional Yates), Fisher's exact test (automatic when expected counts are small); Cramer's V with CI and the 2x2 odds ratio; proportion bar chart.",
+        "guide": "ai.md"
+      }
+    }
+  ]
+}

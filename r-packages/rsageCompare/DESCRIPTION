@@ -1,0 +1,18 @@
+Package: rsageCompare
+Title: Group Comparison Module for R Sage
+Version: 0.1.0
+Authors@R: person("R Sage contributors", role = c("aut", "cre"), email = "noreply@rsage.dev")
+Description: Compares groups and conditions: independent, paired and
+    one-sample t tests with Welch's correction and rank-based
+    alternatives, one- and two-way analysis of variance with Welch's
+    test, Kruskal-Wallis and post hoc comparisons (Tukey, Games-Howell,
+    Dunn), and contingency tables with chi-squared and Fisher's exact
+    tests. Each analysis reports effect sizes with confidence intervals
+    and checks its assumptions, pointing to the alternative when one
+    does not hold.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Imports: rsage (>= 0.1.0), ggplot2, effectsize, stats, utils
+Suggests: car, testthat (>= 3.0.0)
+Config/testthat/edition: 3

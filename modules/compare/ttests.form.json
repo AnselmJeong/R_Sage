@@ -1,0 +1,265 @@
+{
+  "formVersion": 2,
+  "about": {
+    "summary": "두 집단의 평균, 같은 대상의 두 측정, 또는 한 변수와 기준값을 비교합니다. 기본은 분산이 달라도 맞는 Welch t 검정이고, 효과크기(Cohen d)와 신뢰구간, 정규성과 분산 점검을 함께 보여 줍니다. 점검에서 문제가 보이면 위에 카드로 무엇을 켤지 알려 줍니다.",
+    "links": [
+      {
+        "label": "stats::t.test",
+        "url": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html"
+      },
+      {
+        "label": "effectsize: 표준화 차이",
+        "url": "https://easystats.github.io/effectsize/articles/standardized_differences.html"
+      }
+    ],
+    "showcase": [
+      {
+        "title": "두 집단 평균 비교 (Welch)",
+        "description": "치료군과 대조군처럼 서로 다른 두 집단의 평균을 비교합니다. 분산이 같다고 가정하지 않습니다.",
+        "fn": [
+          "stats::t.test"
+        ],
+        "enable": {
+          "test": "independent",
+          "tests.welch": true
+        },
+        "needs": "검정 변수와 집단 변수를 넣으세요.",
+        "needsFilled": [
+          "variables",
+          "group"
+        ]
+      },
+      {
+        "title": "전후 비교 (대응표본)",
+        "description": "같은 사람의 치료 전과 후처럼 짝지은 두 측정을 비교합니다. '짝지은 변수'에 두 열을 넣습니다.",
+        "fn": [
+          "stats::t.test"
+        ],
+        "enable": {
+          "test": "paired"
+        },
+        "needs": "짝지은 변수에 두 열을 넣으세요.",
+        "needsFilled": [
+          "pairs"
+        ]
+      },
+      {
+        "title": "기준값과 비교 (일표본)",
+        "description": "평균이 정해진 값(예: 정상 기준 100)과 다른지 봅니다.",
+        "fn": [
+          "stats::t.test"
+        ],
+        "enable": {
+          "test": "one_sample"
+        }
+      },
+      {
+        "title": "순위 검정 함께 보기",
+        "description": "작은 표본이거나 치우친 분포일 때 Mann–Whitney 또는 Wilcoxon 검정을 함께 봅니다.",
+        "fn": [
+          "stats::wilcox.test",
+          "effectsize::rank_biserial"
+        ],
+        "enable": {
+          "tests.nonparametric": true
+        }
+      },
+      {
+        "title": "효과크기와 신뢰구간",
+        "description": "차이가 얼마나 큰지 Cohen d(또는 Hedges g)와 신뢰구간으로 보고합니다.",
+        "fn": [
+          "effectsize::cohens_d",
+          "effectsize::hedges_g"
+        ],
+        "enable": {
+          "effectSize.enabled": true
+        }
+      }
+    ]
+  },
+  "roles": [
+    {
+      "type": "variables",
+      "bind": "variables",
+      "label": "검정 변수",
+      "types": [
+        "numeric"
+      ],
+      "hint": "독립표본·일표본: 비교할 수치 변수. 여럿이면 하나씩 검정합니다."
+    },
+    {
+      "type": "variable",
+      "bind": "group",
+      "label": "집단 변수",
+      "optional": true,
+      "hint": "독립표본: 두 수준인 변수 (예: 성별, 치료군)."
+    }
+  ],
+  "sections": [
+    {
+      "title": "검정",
+      "open": true,
+      "controls": [
+        {
+          "type": "select",
+          "bind": "test",
+          "label": "비교 방식",
+          "labels": {
+            "independent": "서로 다른 두 집단 (독립표본)",
+            "paired": "같은 대상의 두 측정 (대응표본)",
+            "one_sample": "기준값과 비교 (일표본)"
+          }
+        },
+        {
+          "type": "rows",
+          "bind": "pairs",
+          "label": "짝지은 변수",
+          "description": "같은 대상을 두 번 잰 두 열. 차이는 첫째 − 둘째입니다.",
+          "addLabel": "짝 추가",
+          "fields": [
+            {
+              "key": "first",
+              "label": "첫째",
+              "type": "column",
+              "types": [
+                "numeric"
+              ]
+            },
+            {
+              "key": "second",
+              "label": "둘째",
+              "type": "column",
+              "types": [
+                "numeric"
+              ]
+            }
+          ],
+          "enabledWhen": {
+            "bind": "test",
+            "equals": "paired"
+          },
+          "disabledHint": "비교 방식이 대응표본일 때 씁니다."
+        },
+        {
+          "type": "number",
+          "bind": "mu",
+          "label": "기준값",
+          "enabledWhen": {
+            "bind": "test",
+            "equals": "one_sample"
+          },
+          "disabledHint": "비교 방식이 일표본일 때 씁니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "tests.welch",
+          "label": "Welch t 검정",
+          "description": "두 집단의 분산이 달라도 맞습니다. 독립표본의 기본입니다.",
+          "fn": "stats::t.test",
+          "enabledWhen": {
+            "bind": "test",
+            "equals": "independent"
+          },
+          "disabledHint": "독립표본에서 씁니다. 대응·일표본은 t 검정 하나입니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "tests.student",
+          "label": "Student t 검정",
+          "description": "분산이 같다고 가정합니다. 대응·일표본에서는 이것이 t 검정입니다.",
+          "fn": "stats::t.test"
+        },
+        {
+          "type": "checkbox",
+          "bind": "tests.nonparametric",
+          "label": "순위 검정",
+          "description": "Mann–Whitney U(독립) 또는 Wilcoxon 부호순위(대응·일표본). 평균 대신 순위를 비교합니다.",
+          "fn": "stats::wilcox.test"
+        },
+        {
+          "type": "select",
+          "bind": "alternative",
+          "label": "대립가설",
+          "labels": {
+            "two.sided": "양측 (다르다)",
+            "less": "첫째가 작다",
+            "greater": "첫째가 크다"
+          }
+        },
+        {
+          "type": "number",
+          "bind": "ciLevel",
+          "label": "신뢰수준"
+        }
+      ]
+    },
+    {
+      "title": "효과크기와 기술통계",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "effectSize.enabled",
+          "label": "효과크기",
+          "description": "Cohen d와 신뢰구간. 대응표본은 차이의 d_z, 순위 검정은 순위이연 r.",
+          "fn": "effectsize::cohens_d",
+          "controls": [
+            {
+              "type": "select",
+              "bind": "effectSize.type",
+              "label": "측도",
+              "labels": {
+                "d": "Cohen d",
+                "g": "Hedges g (작은 표본 보정)"
+              }
+            }
+          ]
+        },
+        {
+          "type": "checkbox",
+          "bind": "descriptives",
+          "label": "기술통계 표",
+          "description": "집단마다 n, 평균, SD, 신뢰구간, 중앙값, 사분위수."
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.means",
+          "label": "평균과 신뢰구간 그림",
+          "description": "개별 값 위에 평균과 신뢰구간. 대응표본은 같은 대상을 선으로 잇습니다.",
+          "fn": "ggplot2::geom_errorbar"
+        }
+      ]
+    },
+    {
+      "title": "가정 점검",
+      "open": false,
+      "controls": [
+        {
+          "type": "checkbox",
+          "bind": "assumptions.normality",
+          "label": "정규성 (Shapiro–Wilk)",
+          "description": "집단마다(대응표본은 차이의) 정규성.",
+          "fn": "stats::shapiro.test"
+        },
+        {
+          "type": "checkbox",
+          "bind": "assumptions.variance",
+          "label": "분산의 동질성 (Brown–Forsythe)",
+          "description": "두 집단의 퍼짐이 같은지. 독립표본에서만.",
+          "enabledWhen": {
+            "bind": "test",
+            "equals": "independent"
+          },
+          "disabledHint": "독립표본에서 씁니다."
+        },
+        {
+          "type": "checkbox",
+          "bind": "plots.qq",
+          "label": "Q-Q 그림",
+          "description": "정규분포를 따르면 점이 직선 위에 놓입니다.",
+          "fn": "ggplot2::stat_qq"
+        }
+      ]
+    }
+  ]
+}
