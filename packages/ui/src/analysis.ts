@@ -7,7 +7,7 @@ import type { AnalysisDataset, AnalysisDef, AnalysisInstance, AnalysisModuleInfo
 import { host } from "./host/client";
 import { useStore } from "./store";
 import { getDockApi, getModel, editorsByPath, visualFlushers } from "./editor/files";
-import { isVisual, visualEditors } from "./editor/views";
+import { isVisual, pendingVisualCursor, visualEditors } from "./editor/views";
 import { toQmd, type PMNode } from "./quarto/qmd";
 import { suggestDataset, type DatasetPick } from "./analysisData";
 import { insertLineAfter, uniqueLabel } from "./docInsert";
@@ -115,22 +115,24 @@ export function insertIntoDocument(code: string, label?: string): boolean {
 }
 
 /**
- * Inserts text into the open document after the cursor line (or at the end).
- * `make` gets whether the document is Quarto/Markdown and its text, and
- * returns the text to insert, or null when the text only fits a document
- * (the user is told why).
+ * Inserts text into a document (the open one unless `target` names another
+ * open file) after the cursor line, or at the end. `make` gets whether the
+ * document is Quarto/Markdown and its text, and returns the text to insert,
+ * or null when the text only fits a document (the user is told why).
+ * The cursor moves past the inserted text, so the next insert follows it.
  */
-export function insertText(make: (qmd: boolean, doc: string) => string | null, what = "내용을"): boolean {
-  const path = useStore.getState().activeFile;
+export function insertText(make: (qmd: boolean, doc: string) => string | null, what = "내용을", target?: string): boolean {
+  const path = target ?? useStore.getState().activeFile;
   const model = path ? getModel(path) : null;
   if (!path || !model) {
     useStore.getState().notify(`${what} 넣을 .qmd나 R 파일을 먼저 여세요.`, "error");
     return false;
   }
   const qmd = /\.(qmd|rmd|md)$/i.test(path);
-  // The visual view writes to the model after a pause: bring the model up to date first.
+  // The visual view writes to the model after a pause, and reads it back after
+  // one: bring both up to date first.
   visualFlushers.get(path)?.();
-  const text = make(qmd, model.getValue());
+  let text = make(qmd, model.getValue());
   if (text === null) {
     useStore.getState().notify(`${what} 넣을 .qmd 문서를 먼저 여세요.`, "error");
     return false;
@@ -138,10 +140,26 @@ export function insertText(make: (qmd: boolean, doc: string) => string | null, w
   const end = model.getFullModelRange().getEndPosition();
   // In a document, after the line the cursor is on (past the YAML header or a
   // chunk it is inside); otherwise at the end.
-  const cursor = isVisual(path) ? visualCursorLine(path, model.getValue()) : editorsByPath.get(path)?.getSelection()?.endLineNumber;
+  const visual = isVisual(path);
+  const editor = editorsByPath.get(path);
+  const cursor = visual ? visualCursorLine(path, model.getValue()) : editor?.getSelection()?.endLineNumber;
   const line = cursor ? (qmd ? insertLineAfter(model.getLinesContent(), cursor) : cursor) : end.lineNumber;
   const col = cursor ? model.getLineMaxColumn(line) : end.column;
+  // Text that starts with a blank line also gets one after it when the next
+  // line has text (or at the end of the file), and one line break less on an empty line.
+  if (text.startsWith("\n\n")) {
+    if (!model.getLineContent(line).trim()) text = text.slice(1);
+    if (line === model.getLineCount() || model.getLineContent(line + 1).trim()) text += "\n";
+  }
+  const start = model.getOffsetAt({ lineNumber: line, column: col });
   model.pushEditOperations([], [{ range: { startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: col }, text }], () => null);
+  // The last line of the inserted text.
+  const last = model.getPositionAt(start + text.replace(/\n$/, "").length);
+  if (visual) pendingVisualCursor.set(path, last.lineNumber);
+  else if (editor) {
+    editor.setPosition({ lineNumber: last.lineNumber, column: model.getLineMaxColumn(last.lineNumber) });
+    editor.revealLineInCenterIfOutsideViewport(last.lineNumber);
+  }
   useStore.getState().notify(`${path.split("/").pop()}에 ${what} 넣었습니다.`);
   return true;
 }

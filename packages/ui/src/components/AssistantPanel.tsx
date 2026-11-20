@@ -4,7 +4,9 @@ import DOMPurify from "dompurify";
 import { diffLines } from "diff";
 import type { AssistantContext, AssistantImage, AssistantItem, AssistantRef, EditApprovalScope } from "@rsage/shared";
 import { host } from "../host/client";
-import { activeEditor, openFile } from "../editor/files";
+import { activeEditor, getModel, openFile, openInEditor } from "../editor/files";
+import { insertText } from "../analysis";
+import { piecesForRun, piecesForTurn, renderPieces, runsInTurn, aroundRun } from "../assistantInsert";
 import { useStore } from "../store";
 import { newConversation, send, setModel, useAssistant } from "../assistant";
 import { HistoryMenu, groupOf } from "./AssistantHistory";
@@ -510,15 +512,29 @@ function ToolView({ item, conversationId }: { item: ToolItem; conversationId: st
     host.call("assistant.approve", { conversationId, itemId: item.id, approve: ok, always, scope });
   const target = item.input?.path ?? item.input?.dir ?? item.input?.query ?? item.input?.purpose ?? "";
   const isFile = item.name === "write_file" || item.name === "edit_file";
+  const canInsert = item.name === "run_r" && item.status === "done" && !!item.input?.code;
+  const [inserting, setInserting] = useState(false);
 
   return (
     <div className={`tool tool-${item.status}`}>
-      <button className="tool-head" onClick={() => setOpen(!open)}>
-        <span className="tool-twisty">{open ? "▾" : "▸"}</span>
-        <span className="tool-name">{TOOL_LABEL[item.name] ?? item.name}</span>
-        <span className="tool-target ellipsis">{target}</span>
-        <span className={`badge badge-${item.status}`}>{STATUS_LABEL[item.status]}</span>
-      </button>
+      <div className="tool-headrow">
+        <button className="tool-head" onClick={() => setOpen(!open)}>
+          <span className="tool-twisty">{open ? "▾" : "▸"}</span>
+          <span className="tool-name">{TOOL_LABEL[item.name] ?? item.name}</span>
+          <span className="tool-target ellipsis">{target}</span>
+          <span className={`badge badge-${item.status}`}>{STATUS_LABEL[item.status]}</span>
+        </button>
+        {canInsert && (
+          <button className={`tool-insert ${inserting ? "on" : ""}`} title="코드와 설명을 문서에 넣기" aria-label="문서에 넣기" onClick={() => setInserting((v) => !v)}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5z" />
+              <path d="M9.5 1.5V5H13" />
+              <path d="M8 7.5v4.5M5.75 9.75 8 12l2.25-2.25" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {inserting && <InsertBox itemId={item.id} conversationId={conversationId} onClose={() => setInserting(false)} />}
       {open && (
         <div className="tool-body">
           {item.name === "run_r" && <pre className="tool-code">{item.input?.code}</pre>}
@@ -563,6 +579,121 @@ function ToolView({ item, conversationId }: { item: ToolItem; conversationId: st
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const DOC_RE = /\.(qmd|rmd|md|r)$/i;
+const isQmd = (p: string) => /\.(qmd|rmd|md)$/i.test(p);
+let lastTarget: string | undefined;
+
+/**
+ * "문서에 넣기" on a finished R run: the run's code as a chunk with the
+ * explanation around it (or the whole answer), shown before it goes into the
+ * open document or one the user picks.
+ */
+function InsertBox({ itemId, conversationId, onClose }: { itemId: string; conversationId: string; onClose: () => void }) {
+  const items = useAssistant((s) => (s.current?.id === conversationId ? s.current.items : []));
+  const project = useStore((s) => s.project);
+  const activeFile = useStore((s) => s.activeFile);
+  const openFiles = useStore((s) => s.openFiles);
+  const [scope, setScope] = useState<"run" | "turn">("run");
+  const [before, setBefore] = useState(true);
+  const [after, setAfter] = useState(true);
+  const [projectDocs, setProjectDocs] = useState<string[]>([]);
+  const open = useMemo(() => Object.keys(openFiles).filter((p) => DOC_RE.test(p)), [openFiles]);
+  const [target, setTarget] = useState(() => {
+    const a = activeFile && DOC_RE.test(activeFile) ? activeFile : undefined;
+    return a ?? (lastTarget && open.includes(lastTarget) ? lastTarget : open[0]) ?? "";
+  });
+
+  useEffect(() => {
+    if (!project) return;
+    void host
+      .call("fs.walk")
+      .then((r) => setProjectDocs(r.files.filter((f) => /\.(qmd|rmd|r)$/i.test(f)).map((f) => `${project.path}/${f}`)))
+      .catch(() => {});
+  }, [project?.path]);
+
+  const runs = runsInTurn(items, itemId);
+  const around = aroundRun(items, itemId);
+  const pieces = scope === "turn" ? piecesForTurn(items, itemId) : piecesForRun(items, itemId, { before, after });
+  const text = target ? renderPieces(pieces, isQmd(target)) : "";
+  const rel = (p: string) => (project && p.startsWith(`${project.path}/`) ? p.slice(project.path.length + 1) : p);
+  const others = projectDocs.filter((p) => !open.includes(p));
+
+  const insert = async () => {
+    if (!target || !text) return;
+    lastTarget = target;
+    // A file that is not open (or not the one shown) is opened first, so the user sees where the text went.
+    if (!getModel(target) || target !== useStore.getState().activeFile) await openInEditor(target);
+    if (insertText((qmd) => renderPieces(pieces, qmd), "코드와 설명을", target)) onClose();
+  };
+
+  return (
+    <div className="tool-insert-box">
+      <div className="tib-row">
+        <span className="muted small">넣을 문서</span>
+        <select className="select-small tib-target" value={target} onChange={(e) => setTarget(e.target.value)}>
+          {!target && <option value="">문서를 고르세요</option>}
+          {open.length > 0 && (
+            <optgroup label="열린 문서">
+              {open.map((p) => (
+                <option key={p} value={p}>
+                  {rel(p)}
+                  {p === activeFile ? " (지금 문서)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {others.length > 0 && (
+            <optgroup label="프로젝트의 다른 문서">
+              {others.map((p) => (
+                <option key={p} value={p}>
+                  {rel(p)}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
+      <div className="tib-row">
+        {runs > 1 && (
+          <>
+            <label className="tib-check">
+              <input type="radio" checked={scope === "run"} onChange={() => setScope("run")} /> 이 코드
+            </label>
+            <label className="tib-check" title="이 답에서 성공한 R 코드 모두와 설명을 순서대로 넣습니다. 실패한 시도는 빠집니다.">
+              <input type="radio" checked={scope === "turn"} onChange={() => setScope("turn")} /> 이 답 전체 (코드 {runs}개)
+            </label>
+            <span className="tib-sep" />
+          </>
+        )}
+        {scope === "run" && (
+          <>
+            <label className={`tib-check ${around.before ? "" : "disabled"}`} title="코드를 실행하기 전에 조수가 쓴 설명">
+              <input type="checkbox" checked={before && !!around.before} disabled={!around.before} onChange={(e) => setBefore(e.target.checked)} /> 앞 설명
+            </label>
+            <label className={`tib-check ${around.after ? "" : "disabled"}`} title="실행 결과를 보고 조수가 쓴 설명">
+              <input type="checkbox" checked={after && !!around.after} disabled={!around.after} onChange={(e) => setAfter(e.target.checked)} /> 뒤 설명
+            </label>
+          </>
+        )}
+      </div>
+      {text && (
+        <div className="tib-preview">
+          <DiffView before="" after={text.replace(/^\n+/, "")} />
+        </div>
+      )}
+      <div className="tool-actions">
+        <button className="btn btn-small btn-primary" disabled={!target || !text} onClick={() => void insert()} title="커서가 있는 곳 다음에, 커서가 없으면 문서 끝에 넣습니다">
+          넣기
+        </button>
+        <button className="btn btn-small" onClick={onClose}>
+          취소
+        </button>
+        {target && <span className="muted small ellipsis tib-where">{isQmd(target) ? "커서 다음 줄에 넣습니다" : "R 파일에는 설명을 주석으로 넣습니다"}</span>}
+      </div>
     </div>
   );
 }
