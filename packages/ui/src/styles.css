@@ -5221,3 +5221,82 @@ input[type="checkbox"] {
 .tb-btn {
   flex-shrink: 0;
 }
+
+/* ---- assistant: insert a run into a document ---- */
+.tool-headrow {
+  display: flex;
+  align-items: center;
+}
+.tool-headrow .tool-head {
+  flex: 1;
+  min-width: 0;
+}
+.tool-insert {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.tool-insert:hover,
+.tool-insert.on {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.tool-insert svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tool-insert-box {
+  border-top: 1px solid var(--border);
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.tib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tib-target {
+  flex: 1;
+  min-width: 0;
+}
+.tib-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.tib-check.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tib-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+.tib-preview .diff {
+  max-height: 220px;
+}
+.tib-where {
+  margin-left: auto;
+  min-width: 0;
+}

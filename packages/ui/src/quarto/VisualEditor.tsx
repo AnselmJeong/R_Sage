@@ -15,7 +15,8 @@ import { host } from "../host/client";
 import { Footnote, FootnoteRef, FrontMatter, InlineMath, MathBlock, QImage, RawBlock, RCell, RoundTrip, insertFootnote, insertRCell, insertTopLevel, newCellId, runCellRange, setDocContext } from "./extensions";
 import { parseQmd, toQmd, withBaselines, type PMNode } from "./qmd";
 import { FindBar, FindInDoc } from "./find";
-import { visualEditors } from "../editor/views";
+import { pendingVisualCursor, visualEditors } from "../editor/views";
+import { Selection } from "@tiptap/pm/state";
 import { formDialog } from "../components/Dialogs";
 import { pickFile } from "../components/FolderPicker";
 import { useStore } from "../store";
@@ -66,6 +67,23 @@ function load(editor: Editor, text: string, prev?: PMNode) {
   return parsed.trailing;
 }
 
+/** Puts the cursor at the end of the top-level block holding a source line, without focusing the view. */
+function cursorToLine(editor: Editor, line: number) {
+  const doc = editor.getJSON() as PMNode;
+  const blocks = doc.content ?? [];
+  let idx = blocks.length - 1;
+  for (let i = 0; i < blocks.length; i++)
+    if (toQmd({ ...doc, content: blocks.slice(0, i + 1) }, "").split("\n").length >= line) {
+      idx = i;
+      break;
+    }
+  if (idx < 0) return;
+  const { state, view } = editor;
+  let pos = 0;
+  for (let i = 0; i <= idx; i++) pos += state.doc.child(i).nodeSize;
+  view.dispatch(state.tr.setSelection(Selection.near(state.doc.resolve(pos), -1)).setMeta("addToHistory", false).scrollIntoView());
+}
+
 export function VisualEditor({ path, active }: { path: string; active: boolean }) {
   const trailing = useRef("\n");
   const applying = useRef(false);
@@ -111,20 +129,30 @@ export function VisualEditor({ path, active }: { path: string; active: boolean }
     const model = getModel(path);
     if (!editor || !model) return;
     trailing.current = load(editor, model.getValue(), lastDocs.get(path));
+    let reload: ReturnType<typeof setTimeout> | undefined;
+    const reloadNow = () => {
+      clearTimeout(reload);
+      reload = undefined;
+      clearTimeout(timer.current);
+      timer.current = undefined;
+      trailing.current = load(editor, model.getValue(), editor.getJSON() as PMNode);
+      const line = pendingVisualCursor.get(path);
+      pendingVisualCursor.delete(path);
+      if (line) cursorToLine(editor, line);
+    };
+    // Called before others read or change the model: a pending reload first
+    // (so the cursor is where the last insert left it), else the last keystrokes.
     const flush = () => {
+      if (reload) return reloadNow();
       if (!timer.current) return;
       clearTimeout(timer.current);
       writeBack();
     };
     visualFlushers.set(path, flush);
-    let reload: ReturnType<typeof setTimeout> | undefined;
     const sub = model.onDidChangeContent(() => {
       if (applying.current) return;
       clearTimeout(reload);
-      reload = setTimeout(() => {
-        clearTimeout(timer.current);
-        trailing.current = load(editor, model.getValue(), editor.getJSON() as PMNode);
-      }, 150);
+      reload = setTimeout(reloadNow, 150);
     });
     return () => {
       if (visualFlushers.get(path) === flush) visualFlushers.delete(path);
