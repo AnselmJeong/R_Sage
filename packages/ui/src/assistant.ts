@@ -14,6 +14,8 @@ interface AssistantState {
   model?: string;
   /** Send the active editor file (and selection) with each message. */
   includeContext: boolean;
+  /** Text to put in the input box for the user to finish (e.g. a chunk to ask about). */
+  draft?: string;
 }
 
 export const useAssistant = create<AssistantState>(() => ({

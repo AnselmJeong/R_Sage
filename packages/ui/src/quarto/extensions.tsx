@@ -3,7 +3,8 @@
 // math, raw blocks that keep unsupported Quarto syntax as source, and the
 // round-trip attributes every top-level block carries (see qmd.ts).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Extension, Node, NodeViewWrapper, ReactNodeViewRenderer, mergeAttributes, type Editor, type NodeViewProps } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import katex from "katex";
@@ -14,6 +15,10 @@ import { addLocalCommand, monaco, registerRCellModel } from "../editor/monaco";
 import { formDialog } from "../components/Dialogs";
 import { focusedCells } from "../editor/views";
 import { editorFontOptions, monacoTheme } from "../editor/prefs";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { cellLabel, copyCell, mergeCellCode, readCellOptions, setCellOptions, splitCellCode, stripCellOptions } from "./chunkOps";
+import { useAssistant } from "../assistant";
+import { allCommands } from "../commands";
 
 const TOP_TYPES = [
   "paragraph",
@@ -126,7 +131,7 @@ export async function runCellRange(editor: Editor, path: string, range: CellRang
   return ok;
 }
 
-function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) {
+function RCellView({ node, updateAttributes, editor, selected, getPos }: NodeViewProps) {
   const hostEl = useRef<HTMLDivElement>(null);
   const ed = useRef<monaco.editor.IStandaloneCodeEditor>();
   const cid = node.attrs.cid as string;
@@ -137,7 +142,19 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   const latest = useRef(node.attrs.code as string);
   latest.current = node.attrs.code;
   const header = String(node.attrs.header ?? "{r}");
-  const label = /#\|\s*label:\s*(\S+)/.exec(node.attrs.code ?? "")?.[1] ?? /^\{r[ ,]+([^,}=\s]+)/.exec(header)?.[1];
+  const label = cellLabel(header, node.attrs.code ?? "");
+  const wrap = useRef<HTMLDivElement>(null);
+  const [popup, setPopup] = useState<{ kind: "options" | "more"; anchor: DOMRect }>();
+  const foldKey = `${path}#${cid}`;
+  const [folded, setFolded] = useState(() => foldedCells.has(foldKey));
+  const toggleFold = () => {
+    const f = !folded;
+    if (f) foldedCells.add(foldKey);
+    else foldedCells.delete(foldKey);
+    setFolded(f);
+  };
+  const pos = () => (typeof getPos === "function" ? getPos() : undefined);
+  const ops = () => cellOps(editor, pos, ed.current);
 
   const run = () => {
     focusedCells.set(path, cid);
@@ -224,7 +241,17 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   }, [node.attrs.code]);
 
   return (
-    <NodeViewWrapper className={`qv-cell ${selected ? "selected" : ""}`} data-cell={cid}>
+    <NodeViewWrapper ref={wrap} className={`qv-cell ${selected ? "selected" : ""} ${popup ? "tools-open" : ""} ${folded ? "folded" : ""}`} data-cell={cid}>
+      <div
+        className="qv-cell-handle"
+        contentEditable={false}
+        title="끌어서 청크 옮기기"
+        onPointerDown={(e) => wrap.current && dragCell(e, editor, pos, wrap.current)}
+      >
+        <svg viewBox="0 0 16 16" className="qv-grip-icon">
+          {[5, 8, 11].flatMap((y) => [6, 10].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.1" />))}
+        </svg>
+      </div>
       <div className="qv-cell-head" contentEditable={false}>
         <span className="qv-cell-lang">R</span>
         {label && <span className="qv-cell-label">{label}</span>}
@@ -251,13 +278,68 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
           </div>
         )}
         {result && !result.running && !result.queued && (result.text !== undefined || result.images) && (
-          <button className="qv-run" title="결과 지우기" onClick={() => useCellResults.setState({ [`${path}#${cid}`]: undefined as any })}>
+          <button className="qv-run" title="결과 지우기" onClick={() => clearResult(path, cid)}>
             <svg viewBox="0 0 16 16" className="qv-run-icon">
               <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
             </svg>
           </button>
         )}
+        <div className="qv-cell-tools">
+          <button className="qv-run" title="청크 옵션 (label, echo, 그림 크기…)" onClick={(e) => setPopup({ kind: "options", anchor: e.currentTarget.getBoundingClientRect() })}>
+            <ToolIcon kind="options" />
+          </button>
+          <button className="qv-run" title="아래에 복제" onClick={() => ops().duplicate()}>
+            <ToolIcon kind="copy" />
+          </button>
+          <button className="qv-run" title="청크 삭제 (⌘Z로 되돌리기)" onClick={() => ops().remove()}>
+            <ToolIcon kind="trash" />
+          </button>
+          <button className="qv-run" title="더 보기" onClick={(e) => setPopup({ kind: "more", anchor: e.currentTarget.getBoundingClientRect() })}>
+            <ToolIcon kind="more" />
+          </button>
+        </div>
       </div>
+      {popup?.kind === "options" && (
+        <Popup anchor={popup.anchor} onClose={() => setPopup(undefined)}>
+          <CellOptionsForm header={header} code={node.attrs.code ?? ""} update={(a) => updateAttributes(a)} />
+        </Popup>
+      )}
+      {popup?.kind === "more" && (
+        <Popup anchor={popup.anchor} onClose={() => setPopup(undefined)} menu>
+          {(() => {
+            const o = ops();
+            const item = (text: string, act: (() => void) | null, hint?: string) => (
+              <div
+                className={`menu-item ${act ? "" : "disabled"}`}
+                title={hint}
+                onClick={() => {
+                  if (!act) return;
+                  setPopup(undefined);
+                  act();
+                }}
+              >
+                {text}
+              </div>
+            );
+            const hasResult = !!result && (result.text !== undefined || !!result.images);
+            return (
+              <>
+                {item(folded ? "코드 펼치기" : "코드 접기", toggleFold)}
+                {item("커서 위치에서 나누기", o.canSplit() ? o.split : null, o.canSplit() ? undefined : "코드 안에 커서를 두면 그 줄부터 새 청크로 나눕니다")}
+                {item("아래 청크와 합치기", o.canMerge() ? o.merge : null, o.canMerge() ? undefined : "바로 아래가 R 청크일 때만 합칠 수 있습니다")}
+                {item("결과 지우기", hasResult ? () => clearResult(path, cid) : null)}
+                <div className="menu-sep" />
+                {item("어시스턴트에게 묻기", () => askAboutCell(path, label, ed.current?.getValue() ?? latest.current))}
+              </>
+            );
+          })()}
+        </Popup>
+      )}
+      {folded && (
+        <div className="qv-cell-fold" contentEditable={false} onClick={toggleFold} title="펼치기">
+          <span className="ellipsis">{foldSummary(node.attrs.code ?? "")}</span>
+        </div>
+      )}
       <div
         className="qv-cell-code"
         ref={hostEl}
@@ -279,6 +361,313 @@ function RCellView({ node, updateAttributes, editor, selected }: NodeViewProps) 
   );
 }
 
+// ---------------------------------------------------------------- chunk tools
+
+/** Chunks whose code is folded, by `${file}#${cellId}`. Not saved to the file. */
+const foldedCells = new Set<string>();
+
+const clearResult = (path: string, cid: string) => useCellResults.setState({ [`${path}#${cid}`]: undefined as any });
+
+function foldSummary(code: string) {
+  const lines = stripCellOptions(code).split("\n");
+  const first = lines.find((l) => l.trim()) ?? "";
+  const n = lines.filter((l) => l.trim()).length;
+  return n > 1 ? `${first.trim()}  … ${n}줄` : first.trim() || "(빈 청크)";
+}
+
+/** Labels used by the document's chunks. */
+function docLabels(editor: Editor) {
+  const out = new Set<string>();
+  editor.state.doc.forEach((n) => {
+    if (n.type.name !== "rCell") return;
+    const l = cellLabel(String(n.attrs.header ?? ""), n.attrs.code ?? "");
+    if (l) out.add(l);
+  });
+  return out;
+}
+
+/** Delete, duplicate, split and merge for the chunk at `pos()`, each one undo step. */
+function cellOps(editor: Editor, pos: () => number | undefined, code?: monaco.editor.IStandaloneCodeEditor) {
+  const at = () => {
+    const p = pos();
+    const node = p === undefined ? null : editor.state.doc.nodeAt(p);
+    return p !== undefined && node?.type.name === "rCell" ? { p, node } : null;
+  };
+  /** The next top-level chunk, if only empty paragraphs lie between. */
+  const nextCell = () => {
+    const c = at();
+    if (!c) return null;
+    const doc = editor.state.doc;
+    let q = c.p + c.node.nodeSize;
+    while (q < doc.content.size) {
+      const n = doc.nodeAt(q)!;
+      if (n.type.name === "rCell") return { p: q, node: n };
+      if (n.type.name !== "paragraph" || n.content.size) return null;
+      q += n.nodeSize;
+    }
+    return null;
+  };
+  const splitAt = () => {
+    const c = at();
+    const line = code?.getPosition()?.lineNumber;
+    return c && line ? splitCellCode(c.node.attrs.code ?? "", line) : null;
+  };
+  return {
+    remove() {
+      const c = at();
+      if (!c) return;
+      const tr = editor.state.tr.delete(c.p, c.p + c.node.nodeSize);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(c.p, tr.doc.content.size)), -1));
+      editor.view.dispatch(tr.scrollIntoView());
+      editor.view.focus();
+      useStore.getState().notify("청크를 지웠습니다. ⌘Z로 되돌릴 수 있습니다.");
+    },
+    duplicate() {
+      const c = at();
+      if (!c) return;
+      const copy = copyCell(String(c.node.attrs.header ?? "{r}"), c.node.attrs.code ?? "", docLabels(editor));
+      const cid = newCellId();
+      const node = c.node.type.create({ ...c.node.attrs, ...copy, cid, src: null, ser0: null, before: null });
+      const end = c.p + c.node.nodeSize;
+      const tr = editor.state.tr.insert(end, node);
+      tr.setSelection(NodeSelection.create(tr.doc, end));
+      editor.view.dispatch(tr.scrollIntoView());
+    },
+    canSplit: () => !!splitAt(),
+    split() {
+      const c = at();
+      const parts = splitAt();
+      if (!c || !parts) return;
+      const tr = editor.state.tr.setNodeMarkup(c.p, undefined, { ...c.node.attrs, code: parts[0] });
+      const end = c.p + c.node.nodeSize;
+      const cid = newCellId();
+      focusCell = cid;
+      tr.insert(end, c.node.type.create({ header: "{r}", code: parts[1], fence: c.node.attrs.fence, cid }));
+      editor.view.dispatch(tr.scrollIntoView());
+    },
+    canMerge: () => !!nextCell(),
+    merge() {
+      const c = at();
+      const n = nextCell();
+      if (!c || !n) return;
+      const tr = editor.state.tr.delete(c.p + c.node.nodeSize, n.p + n.node.nodeSize);
+      tr.setNodeMarkup(c.p, undefined, { ...c.node.attrs, code: mergeCellCode(c.node.attrs.code ?? "", n.node.attrs.code ?? "") });
+      editor.view.dispatch(tr);
+    },
+  };
+}
+
+/**
+ * Moves a chunk by dragging its handle. Done with pointer events and one
+ * transaction on drop rather than HTML drag and drop, which WebKit (the Mac
+ * app) and Chromium handle differently for ProseMirror node views.
+ */
+function dragCell(e: React.PointerEvent, editor: Editor, pos: () => number | undefined, cellEl: HTMLElement) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const view = editor.view;
+  const startY = e.clientY;
+  let lastY = e.clientY;
+  let started = false;
+  let target: number | null = null;
+  const line = document.createElement("div");
+  line.className = "qv-drop-line";
+  const scroller = scrollParent(view.dom);
+  let raf = 0;
+
+  const place = () => {
+    const blocks: { pos: number; rect: DOMRect }[] = [];
+    view.state.doc.forEach((_n, offset) => {
+      const dom = view.nodeDOM(offset) as HTMLElement | null;
+      if (dom?.getBoundingClientRect) blocks.push({ pos: offset, rect: dom.getBoundingClientRect() });
+    });
+    if (!blocks.length) return;
+    let i = blocks.findIndex((b) => lastY < b.rect.top + b.rect.height / 2);
+    if (i < 0) i = blocks.length;
+    target = i < blocks.length ? blocks[i]!.pos : view.state.doc.content.size;
+    const prev = blocks[i - 1]?.rect;
+    const next = blocks[i]?.rect;
+    const y = prev && next ? (prev.bottom + next.top) / 2 : next ? next.top - 4 : prev!.bottom + 4;
+    const box = view.dom.getBoundingClientRect();
+    const cs = getComputedStyle(view.dom);
+    const left = box.left + parseFloat(cs.paddingLeft);
+    line.style.top = `${y - 1}px`;
+    line.style.left = `${left}px`;
+    line.style.width = `${box.right - parseFloat(cs.paddingRight) - left}px`;
+  };
+  const tick = () => {
+    raf = 0;
+    if (!started) return;
+    // Scroll while the pointer is near the top or bottom edge.
+    const r = scroller.getBoundingClientRect();
+    const edge = 40;
+    const dy = lastY < r.top + edge ? -Math.ceil((r.top + edge - lastY) / 3) : lastY > r.bottom - edge ? Math.ceil((lastY - r.bottom + edge) / 3) : 0;
+    if (dy) scroller.scrollTop += dy;
+    place();
+    if (dy) raf = requestAnimationFrame(tick);
+  };
+  const move = (ev: PointerEvent) => {
+    lastY = ev.clientY;
+    if (!started) {
+      if (Math.abs(lastY - startY) < 4) return;
+      started = true;
+      cellEl.classList.add("dragging");
+      document.body.classList.add("qv-dragging");
+      document.body.appendChild(line);
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
+  };
+  const finish = (drop: boolean) => {
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", up, true);
+    window.removeEventListener("pointercancel", cancel, true);
+    window.removeEventListener("keydown", key, true);
+    cancelAnimationFrame(raf);
+    line.remove();
+    cellEl.classList.remove("dragging");
+    document.body.classList.remove("qv-dragging");
+    const from = pos();
+    if (!drop || !started || target === null || from === undefined) return;
+    const node = view.state.doc.nodeAt(from);
+    if (!node || target === from || target === from + node.nodeSize) return;
+    const tr = view.state.tr.delete(from, from + node.nodeSize);
+    const to = tr.mapping.map(target);
+    tr.insert(to, node);
+    tr.setSelection(NodeSelection.create(tr.doc, to));
+    view.dispatch(tr.scrollIntoView());
+    // So ⌘Z right after the drop undoes the move.
+    view.focus();
+  };
+  const up = () => finish(true);
+  const cancel = () => finish(false);
+  const key = (ev: KeyboardEvent) => {
+    if (ev.key !== "Escape") return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    finish(false);
+  };
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", up, true);
+  window.addEventListener("pointercancel", cancel, true);
+  window.addEventListener("keydown", key, true);
+}
+
+function scrollParent(el: HTMLElement): HTMLElement {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return document.scrollingElement as HTMLElement;
+}
+
+/** A small panel or menu under a chunk's button, on <body> so the dock does not clip or shift it. */
+function Popup({ anchor, onClose, menu, children }: { anchor: DOMRect; onClose: () => void; menu?: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({ top: anchor.bottom + 4, right: window.innerWidth - anchor.right, visibility: "hidden" });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    const top = anchor.bottom + 4 + h > window.innerHeight - 8 ? Math.max(8, anchor.top - 4 - h) : anchor.bottom + 4;
+    setStyle({ top, right: Math.max(8, window.innerWidth - anchor.right) });
+    if (!menu) el.querySelector<HTMLElement>("input, select")?.focus();
+  }, []);
+  return createPortal(
+    <>
+      <div className="dv-menu-shield" onMouseDown={onClose} />
+      <div
+        ref={ref}
+        className={menu ? "context-menu dv-menu qv-cell-menu" : "context-menu qv-cell-popup"}
+        style={style}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" || (e.key === "Enter" && !menu)) {
+            e.preventDefault();
+            onClose();
+          }
+        }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+const TRI: Record<string, [string, string]> = {
+  echo: ["보임", "숨김"],
+  eval: ["실행", "건너뜀"],
+  include: ["넣음", "뺌"],
+  warning: ["보임", "숨김"],
+  message: ["보임", "숨김"],
+};
+
+/** The chunk's common `#|` options, written back as you change them. */
+function CellOptionsForm({ header, code, update }: { header: string; code: string; update: (attrs: { header?: string; code?: string }) => void }) {
+  const opts = readCellOptions(code);
+  const headerLabel = /^\{r[ ,]+([^,}=\s]+)\s*(?:[,}])/.exec(header)?.[1];
+  const label = opts.label ?? headerLabel ?? "";
+  const set = (key: string, v: string) => update({ code: setCellOptions(code, { [key]: v.trim() || undefined }) });
+  const setLabel = (v: string) => {
+    v = v.trim().replace(/\s+/g, "-");
+    // A label written in the header stays there.
+    if (opts.label === undefined && headerLabel) update({ header: v ? header.replace(/^(\{r[ ,]+)[^,}=\s]+/, `$1${v}`) : header.replace(/^\{r[ ,]+[^,}=\s]+/, "{r") });
+    else set("label", v);
+  };
+  const headerOpts = /=/.test(header);
+  const tri = (key: string) => (
+    <label className="qv-opt" key={key}>
+      <span>{key}</span>
+      <select value={/^(true|false)$/i.test(opts[key] ?? "") ? opts[key]!.toLowerCase() : opts[key] ? "other" : ""} onChange={(e) => set(key, e.target.value)}>
+        <option value="">기본</option>
+        <option value="true">{TRI[key]![0]}</option>
+        <option value="false">{TRI[key]![1]}</option>
+        {opts[key] && !/^(true|false)$/i.test(opts[key]!) && <option value="other" disabled>{opts[key]}</option>}
+      </select>
+    </label>
+  );
+  const text = (key: string, value: string, onChange: (v: string) => void, placeholder?: string, title?: string) => (
+    <label className="qv-opt" key={key} title={title}>
+      <span>{key}</span>
+      <input className="text-input" defaultValue={value} placeholder={placeholder} spellCheck={false} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+  return (
+    <div className="qv-opts">
+      {text("label", label, setLabel, "예: fig-scatter", "그림은 fig-, 표는 tbl-로 시작하면 상호 참조할 수 있습니다")}
+      {(["echo", "eval", "include", "warning", "message"] as const).map(tri)}
+      {text("fig-width", opts["fig-width"] ?? "", (v) => set("fig-width", v), "인치, 예: 6")}
+      {text("fig-height", opts["fig-height"] ?? "", (v) => set("fig-height", v), "인치, 예: 4")}
+      {text("fig-cap", opts["fig-cap"] ?? "", (v) => set("fig-cap", v), "그림 설명")}
+      {headerOpts && <div className="qv-opt-note">머리글 {header}에 적힌 옵션도 함께 적용됩니다.</div>}
+    </div>
+  );
+}
+
+/** Opens the assistant with this chunk in the input box, for the user to say what they want. */
+function askAboutCell(path: string, label: string | undefined, code: string) {
+  allCommands().find((x) => x.id === "view.assistant")?.run();
+  const where = `${path.split("/").pop()}의 ${label ? `"${label}" 청크` : "청크"}`;
+  useAssistant.setState({ draft: `${where}:\n\`\`\`r\n${code.replace(/\n+$/, "")}\n\`\`\`\n` });
+}
+
+function ToolIcon({ kind }: { kind: "options" | "copy" | "trash" | "more" }) {
+  return (
+    <svg viewBox="0 0 16 16" className="qv-run-icon">
+      {kind === "options" && <path d="M3 5h5M11 5h2M3 11h2M8 11h5M9.5 3.5v3M6.5 9.5v3" />}
+      {kind === "copy" && <path d="M5.5 5.5h7v7h-7zM3.5 10.5v-7h7" />}
+      {kind === "trash" && <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4" />}
+      {kind === "more" && (
+        <>
+          <circle cx="4" cy="8" r=".6" />
+          <circle cx="8" cy="8" r=".6" />
+          <circle cx="12" cy="8" r=".6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export const RCell = Node.create({
   name: "rCell",
   group: "block",
@@ -296,7 +685,7 @@ export const RCell = Node.create({
   parseHTML: () => [{ tag: "div[data-rcell]" }],
   renderHTML: ({ HTMLAttributes }) => ["div", mergeAttributes(HTMLAttributes, { "data-rcell": "" })],
   addNodeView() {
-    return ReactNodeViewRenderer(RCellView, { stopEvent: ({ event }) => !!(event.target as HTMLElement)?.closest?.(".qv-cell-code, .qv-cell-head") });
+    return ReactNodeViewRenderer(RCellView, { stopEvent: ({ event }) => !!(event.target as HTMLElement)?.closest?.(".qv-cell-code, .qv-cell-head, .qv-cell-handle, .qv-cell-fold") });
   },
   addKeyboardShortcuts() {
     return { "Mod-Alt-i": () => insertRCell(this.editor) };
