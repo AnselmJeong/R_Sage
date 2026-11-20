@@ -12,7 +12,7 @@ export const ANALYSIS_TOOL_SPECS: ToolSpec[] = [
   {
     name: "list_analyses",
     description:
-      "List the built-in statistical analyses (analysis modules) R Sage can run, each with a one-line summary. Prefer these to hand-written R code when one fits the request: results are checked, reproducible and open in an analysis tab the user can adjust.",
+      "List the built-in statistical analyses (analysis modules) R Sage can run, each with a one-line summary. Use them only when the user explicitly asks for a module or analysis tab; otherwise analyse with run_r yourself.",
     parameters: { type: "object", properties: {}, required: [] },
   },
   {

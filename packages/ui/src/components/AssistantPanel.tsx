@@ -493,6 +493,12 @@ const TOOL_LABEL: Record<string, string> = {
   read_conversation: "지난 대화 읽기",
   write_file: "파일 쓰기",
   edit_file: "파일 수정",
+  list_analyses: "분석 모듈 목록",
+  list_datasets: "데이터 목록",
+  describe_analysis: "분석 옵션 보기",
+  run_analysis: "분석 모듈 실행",
+  get_analysis_result: "분석 결과 읽기",
+  set_exploration_hints: "탐색 안내 쓰기",
 };
 
 const STATUS_LABEL: Record<ToolItem["status"], string> = {
