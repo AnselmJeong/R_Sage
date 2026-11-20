@@ -95,7 +95,7 @@ diagnostics_items <- function(fits, o, prep) {
       t <- data.frame(model = f$label, ratio = r$dispersion_ratio, chisq = r$chisq_statistic, df = r$residual_df, p = r$p_value)
       out <- c(out, list(rsage::rs_table("dispersion", "과산포 점검", t,
         labels = c(model = "모형", ratio = "산포 비 (Pearson χ²/df)", chisq = "Pearson χ²", df = "잔차 df", p = "p"),
-        section = SEC_DIAG,
+        section = SEC_DIAG, split = "model",
         description = "산포 비가 1보다 크게 크면 자료가 모형이 가정한 것보다 더 퍼져 있어 표준오차가 작게 나옵니다 (과산포). 음이항이나 quasi-Poisson 모형을 비교 모형으로 더해 봅니다.")))
       if (s$family == "poisson" && isTRUE(r$p_value < 0.05))
         out <- c(out, list(note(sprintf("%s에 과산포가 있습니다 (산포 비 %.2f). 같은 항으로 음이항 모형을 더해 비교해 보세요. 모형 종류는 자동으로 바꾸지 않습니다.", f$label, r$dispersion_ratio), "regression_overdispersion")))
@@ -107,7 +107,7 @@ diagnostics_items <- function(fits, o, prep) {
       r <- zi$value
       t <- data.frame(model = f$label, observed = r$observed.zeros, predicted = r$predicted.zeros, ratio = r$ratio)
       out <- c(out, list(rsage::rs_table("zeros", "0의 개수", t,
-        labels = c(model = "모형", observed = "관측된 0", predicted = "모형이 예측한 0", ratio = "비 (예측/관측)"), section = SEC_DIAG,
+        labels = c(model = "모형", observed = "관측된 0", predicted = "모형이 예측한 0", ratio = "비 (예측/관측)"), section = SEC_DIAG, split = "model",
         description = "모형이 예측한 0의 수가 관측보다 많이 적으면 (비가 1보다 작으면) 0이 넘친다는 신호입니다. 0이 많다는 사실만으로 zero-inflated 모형이 맞다고 정하지는 않습니다.")))
       if (isTRUE(r$ratio < 0.95)) out <- c(out, list(note(sprintf("%s: 관측된 0(%d개)이 모형이 예측한 0(%d개)보다 많습니다.", f$label, r$observed.zeros, r$predicted.zeros), "regression_excess_zeros")))
     }

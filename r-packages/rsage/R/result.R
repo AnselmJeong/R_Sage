@@ -13,11 +13,18 @@
 #' @param notes Character vector of footnotes.
 #' @param description How to read the table, in a sentence or two; shown under the title.
 #' @param section Result section the table belongs to (see rs_result()).
-rs_table <- function(id, title, data, labels = NULL, notes = character(), description = NULL, section = NULL) {
+#' @param split Column id whose values each get a table of their own, e.g.
+#'   "model" when the rows of several models share one data frame. The column
+#'   is dropped from the shown tables and each part is titled
+#'   "title · value" (just "title" when there is one value). The data keep
+#'   the column, so rs_value() and the assistant still see one table.
+rs_table <- function(id, title, data, labels = NULL, notes = character(), description = NULL, section = NULL,
+                     split = NULL) {
   stopifnot(is.character(id), length(id) == 1, is.data.frame(data))
   data <- as.data.frame(data, stringsAsFactors = FALSE)
+  if (!is.null(split)) stopifnot(is.character(split), length(split) == 1, split %in% names(data))
   structure(list(id = id, title = title, data = data, labels = labels, notes = as.character(notes),
-                 description = description, section = section),
+                 description = description, section = section, split = split),
             class = "rsage_table")
 }
 
@@ -157,27 +164,64 @@ rs_value <- function(result, table, row, column) {
 
 # ---------- printing ----------
 
-format_cell <- function(x, digits = 3) {
-  if (is.numeric(x)) {
-    out <- ifelse(is.na(x), "", formatC(x, digits = digits, format = "fg", flag = "#"))
-    out <- ifelse(!is.na(x) & x == round(x), format(round(x), big.mark = ","), sub("\\.?0+$", "", out))
-    return(out)
-  }
-  ifelse(is.na(x), "", as.character(x))
+# Numbers are shown the same way in the analysis tab (fmt() in
+# AnalysisPanel.tsx) and in Quarto: whole numbers as they are, |x| < 0.001 in
+# scientific notation with 3 significant digits (8.23e-26), otherwise 3
+# decimals (1 at 100 or more). Keep the two in step.
+format_cell <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  if (is.logical(x)) return(ifelse(is.na(x), "", ifelse(x, "\uc608", "\uc544\ub2c8\uc624")))
+  if (!is.numeric(x)) return(ifelse(is.na(x), "", as.character(x)))
+  out <- rep("", length(x))
+  ok <- is.finite(x)
+  whole <- ok & x == round(x)
+  small <- ok & !whole & abs(x) < 0.001
+  rest <- ok & !whole & !small
+  out[whole] <- format(x[whole], scientific = FALSE, trim = TRUE)
+  out[small] <- sub("e([+-])0*([0-9])", "e\\1\\2", sprintf("%.2e", x[small]))
+  out[rest] <- sprintf("%.*f", ifelse(abs(x[rest]) >= 100, 1L, 3L), x[rest])
+  out
 }
 
-table_display <- function(t, digits = 3) {
+# The tables a result table is shown as: one, or one per value of its split
+# column. Each part has a title, the shown (formatted, relabelled) data and
+# which columns are numbers.
+table_parts <- function(t) {
   d <- t$data
-  shown <- as.data.frame(lapply(d, format_cell, digits = digits), stringsAsFactors = FALSE, check.names = FALSE)
-  if (!is.null(t$labels)) {
-    lab <- t$labels[names(d)]
-    names(shown) <- ifelse(is.na(lab), names(d), lab)
+  if (!is.null(t$split) && t$split %in% names(d) && nrow(d)) {
+    key <- as.character(d[[t$split]])
+    key[is.na(key)] <- ""
+    groups <- unique(key)
+    keep <- setdiff(names(d), t$split)
+    return(lapply(groups, function(g) {
+      part <- t
+      part$data <- d[key == g, keep, drop = FALSE]
+      part$title <- if (length(groups) > 1 && nzchar(g)) paste0(t$title, " \u00b7 ", g) else t$title
+      part$split <- NULL
+      table_parts(part)[[1]]
+    }))
   }
-  shown
+  shown <- as.data.frame(lapply(d, format_cell), stringsAsFactors = FALSE, check.names = FALSE)
+  names(shown) <- table_labels(t)
+  list(list(title = t$title, data = shown, numeric = vapply(d, is.numeric, TRUE, USE.NAMES = FALSE)))
+}
+
+table_labels <- function(t) {
+  n <- names(t$data)
+  if (is.null(t$labels)) return(n)
+  lab <- unname(t$labels[n])
+  ifelse(is.na(lab), n, lab)
+}
+
+table_display <- function(t) {
+  table_parts(t)[[1]]$data
 }
 
 format.rsage_table <- function(x, ...) {
-  utils::capture.output(print(table_display(x), row.names = FALSE, right = FALSE))
+  unlist(lapply(table_parts(x), function(p) {
+    c(if (length(table_parts(x)) > 1) paste0("### ", p$title),
+      utils::capture.output(print(p$data, row.names = FALSE, right = FALSE)))
+  }))
 }
 
 print.rsage_table <- function(x, ...) {
@@ -185,6 +229,19 @@ print.rsage_table <- function(x, ...) {
   cat(format(x), sep = "\n")
   if (length(x$notes)) cat(paste0("  ", x$notes), sep = "\n")
   invisible(x)
+}
+
+# A shown table as Markdown. Pipe tables wider than Pandoc's 72 columns get
+# column widths from the dashes of the separator line, which squeezed short
+# headers such as "모형" into one character per line; the attribute after the
+# caption turns that off so columns size to their content.
+table_markdown <- function(p) {
+  d <- p$data
+  esc <- function(x) gsub("|", "\\|", gsub("\n", " ", x), fixed = TRUE)
+  head <- paste0("| ", paste(esc(names(d)), collapse = " | "), " |")
+  sep <- paste0("|", paste(ifelse(p$numeric, "--:", ":--"), collapse = "|"), "|")
+  body <- if (nrow(d)) apply(d, 1, function(r) paste0("| ", paste(esc(r), collapse = " | "), " |")) else character()
+  c(head, sep, body, "", paste0(": ", esc(p$title), ' {tbl-colwidths="false"}'))
 }
 
 draw_plot <- function(p) {
@@ -232,7 +289,7 @@ knit_print.rsage_result <- function(x, options = list(), ...) {
     if (nzchar(sec$name) && length(x$sections) > 1) out <- c(out, paste("####", sec$name), "")
     for (t in sec$tables) {
       if (!is.null(t$description)) out <- c(out, paste0("*", t$description, "*"), "")
-      out <- c(out, paste(knitr::kable(table_display(t), caption = t$title, format = "pipe"), collapse = "\n"), "")
+      for (p in table_parts(t)) out <- c(out, table_markdown(p), "")
       if (length(t$notes)) out <- c(out, paste0("*", t$notes, "*"), "")
     }
     for (p in sec$plots) {
@@ -298,7 +355,7 @@ table_json <- function(t) {
   })
   rows <- if (nrow(d)) lapply(seq_len(nrow(d)), function(i) lapply(d, function(col) json_column(col)[[i]])) else list()
   list(id = t$id, title = t$title, columns = cols, rows = lapply(rows, unname), notes = as.list(t$notes),
-       description = t$description, section = t$section)
+       description = t$description, section = t$section, split = t$split)
 }
 
 # An empty options list must stay a JSON object, not [].

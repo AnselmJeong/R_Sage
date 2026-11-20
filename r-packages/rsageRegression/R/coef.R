@@ -69,7 +69,7 @@ coef_table <- function(fits, o, prep) {
     labels = c(model = "모형", term = "항", parameter = "계수", estimate = "b", se = "SE", ci_low = "CI 하한", ci_high = "CI 상한",
                stat = "검정", statistic = "통계량", df = "df", p = "p", exp_kind = "척도", exp_estimate = "exp(b)",
                exp_ci_low = "exp CI 하한", exp_ci_high = "exp CI 상한"),
-    notes = footer, section = "계수와 항 검정",
+    notes = footer, section = "계수와 항 검정", split = "model",
     description = "b는 다른 항을 그대로 둘 때 설명변수가 한 단위 늘면 결과(선형 모형) 또는 링크 척도가 얼마나 달라지는지입니다. 방향과 크기를 신뢰구간과 함께 읽습니다. 상호작용이 있으면 주효과 계수는 상대 변수가 0(또는 기준 범주)일 때의 효과입니다. 범주 변수 전체의 기여는 항 검정 표를 봅니다.")
   list(table = tab, notes = notes, data = t)
 }
@@ -96,7 +96,7 @@ standardized_table <- function(fits, o, prep) {
     labels = c(model = "모형", parameter = "계수", std = "표준화 계수", ci_low = "CI 하한", ci_high = "CI 상한"),
     notes = c("연속 설명변수를 평균 0, 표준편차 1로 바꿔 다시 적합했습니다 (parameters::standardize_parameters, refit). 범주 변수의 더미는 표준화하지 않습니다.",
               if (!lm_only) "GLM은 결과를 표준화하지 않으므로, 값은 설명변수 1 SD 변화에 따른 링크 척도의 변화입니다."),
-    section = "계수와 항 검정",
+    section = "계수와 항 검정", split = "model",
     description = "단위가 다른 연속 설명변수의 효과를 같은 잣대(1 표준편차 변화)로 나란히 봅니다. 크기 비교는 표본의 분포에 따라 달라지므로 원 단위 계수와 함께 읽습니다."),
     notes = notes)
 }

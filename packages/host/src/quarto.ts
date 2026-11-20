@@ -11,6 +11,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { utf8LocaleEnv } from "@rsage/kernel";
 import { findCli } from "./assistant/cli";
 
 const APP_QUARTOS = [
@@ -56,8 +57,12 @@ function renderProfile(): string {
 export class QuartoService {
   private renders = new Map<string, ChildProcess>();
   private versionCache = new Map<string, string>();
+  /** UTF-8 locale for the render's R, like the console's (see utf8LocaleEnv). */
+  private localeEnv: Record<string, string> | undefined;
 
-  constructor(private events: QuartoEvents) {}
+  constructor(private events: QuartoEvents) {
+    void utf8LocaleEnv().then((env) => (this.localeEnv = env));
+  }
 
   find(configured?: string): string | null {
     if (configured && existsSync(configured)) return configured;
@@ -83,7 +88,20 @@ export class QuartoService {
     const id = randomUUID();
     const cwd = dirname(file);
     const args = ["render", basename(file), ...(opts.to ? ["--to", opts.to] : [])];
-    const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+    // Started from Finder the app has no LANG, so R would run in the C
+    // locale and print Korean in tables as <U+C8FC>. Until the installed
+    // locale is known, en_US.UTF-8 exists on every Mac.
+    const locale = this.localeEnv ?? (process.platform === "darwin" ? { LANG: "en_US.UTF-8" } : { LANG: "C.UTF-8" });
+    const current = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG;
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      ...(current && /utf-?8/i.test(current) ? {} : locale),
+    };
+    // A non-UTF-8 LC_ALL or LC_CTYPE would override LANG.
+    if (env.LANG && !/utf-?8/i.test(current ?? "")) {
+      delete env.LC_ALL;
+      delete env.LC_CTYPE;
+    }
     // Render with the same R the project uses.
     if (opts.rHome && existsSync(join(opts.rHome, "bin", "R"))) env.QUARTO_R = join(opts.rHome, "bin", "R");
     if (process.env.R_PROFILE_USER) env.RSAGE_R_PROFILE_USER = process.env.R_PROFILE_USER;

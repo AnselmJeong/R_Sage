@@ -37,8 +37,9 @@ test_that("knit_print renders tables as pipe tables and plots as image links", {
                  plots = list(rs_plot("p", "그림", p, width = 3, height = 2)))
   out <- knitr::knit_print(r, options = list(label = "miss", fig.path = paste0(dir, "/")))
   expect_s3_class(out, "knit_asis")
-  expect_match(out, "Table: 변수", fixed = TRUE)
-  expect_match(out, "1.23", fixed = TRUE)
+  expect_match(out, ': 변수 {tbl-colwidths="false"}', fixed = TRUE)
+  expect_match(out, "| 1.235 |", fixed = TRUE)
+  expect_match(out, "|--:|", fixed = TRUE)
   expect_match(out, "![그림](", fixed = TRUE)
   expect_true(file.exists(file.path(dir, "miss-p.png")))
 })
@@ -109,4 +110,33 @@ test_that("hints with suggestions are written, printed and keep their plot off t
   # A one-element array stays an array; empty options stay an object.
   expect_equal(j$hints[[1]]$suggestions[[1]]$options$predictors$continuous, list("wt"))
   expect_match(paste(readLines(file.path(dir, "result.json"), warn = FALSE), collapse = ""), '"options":\\{\\}')
+})
+
+test_that("numbers are formatted like the analysis tab", {
+  expect_equal(format_cell(c(8.23e-26, 9.05e-8, -0.00014, 0.004213, 13.1449, 123.456, 133, 0, NA, Inf)),
+               c("8.23e-26", "9.05e-8", "-1.40e-4", "0.004", "13.145", "123.5", "133", "0", "", ""))
+  expect_equal(format_cell(c(TRUE, FALSE, NA)), c("예", "아니오", ""))
+  expect_equal(format_cell(factor(c("a", NA))), c("a", ""))
+})
+
+test_that("a split table is shown as one table per value, without the split column", {
+  d <- data.frame(model = c("주 모형", "주 모형", "보조 모형"), term = c("a", "b", "a"), p = c(1e-10, 0.5, 0.02))
+  t <- rs_table("coef", "회귀계수", d, labels = c(model = "모형", term = "항"), split = "model")
+  parts <- table_parts(t)
+  expect_equal(vapply(parts, `[[`, "", "title"), c("회귀계수 · 주 모형", "회귀계수 · 보조 모형"))
+  expect_equal(names(parts[[1]]$data), c("항", "p"))
+  expect_equal(parts[[1]]$data$p, c("1.00e-10", "0.500"))
+  r <- rs_result("t", "Test", tables = list(t))
+  out <- knitr::knit_print(r)
+  expect_match(out, ": 회귀계수 · 보조 모형", fixed = TRUE)
+  expect_false(grepl("모형 |", out, fixed = TRUE))
+  # One value: the plain title.
+  one <- table_parts(rs_table("coef", "회귀계수", d[1:2, ], split = "model"))
+  expect_equal(length(one), 1)
+  expect_equal(one[[1]]$title, "회귀계수")
+  # The data keep the column for rs_value() and the app.
+  expect_equal(rs_value(r, "coef", 3, "model"), "보조 모형")
+  dir <- tempfile()
+  rs_write(r, dir)
+  expect_equal(jsonlite::read_json(file.path(dir, "result.json"))$tables[[1]]$split, "model")
 })

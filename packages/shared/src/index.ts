@@ -551,6 +551,11 @@ export interface AnalysisTable {
   description?: string;
   /** Result section it belongs to (AnalysisResult.sections). */
   section?: string;
+  /**
+   * Column whose values each get a table of their own (e.g. "model"), titled
+   * "title · value"; the column itself is not shown. Quarto output does the same.
+   */
+  split?: string;
 }
 
 /** A next analysis a hint card offers; opens a new analysis tab with these options. */

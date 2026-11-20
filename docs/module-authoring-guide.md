@@ -221,7 +221,7 @@ analyse <- function(data, options = list()) {
 
 | 함수 | 쓰임 | 주요 인자 |
 | --- | --- | --- |
-| `rs_table(id, title, data, labels, notes, description, section)` | 표 | `data`는 반올림하지 않은 data.frame. `labels`는 열 id → 보이는 이름 |
+| `rs_table(id, title, data, labels, notes, description, section, split)` | 표 | `data`는 반올림하지 않은 data.frame. `labels`는 열 id → 보이는 이름. `split`은 값마다 따로 표를 만들 열 (예: 모형별 계수 표의 `"model"`) |
 | `rs_plot(id, title, plot, size, alt, description, section)` | 그림 | `plot`은 ggplot 또는 그리는 함수. `size`는 `rs_figure_size()`, `alt`는 대체 텍스트 |
 | `rs_note(text, level, code, file)` | 알림 | `level`은 `"info"` 또는 `"warning"`. `code`는 고정된 영어 식별자. 파일을 만들었으면 `file`에 절대 경로를 주면 앱이 "열기" 버튼을 단다 (HTML·PDF는 미리보기 창) |
 | `rs_result(analysis, title, tables, plots, notes, options, data_info, packages, exports, sections)` | 결과 전체 | `packages`는 버전을 기록할 백엔드 |
@@ -236,7 +236,8 @@ analyse <- function(data, options = list()) {
 | 분포, 패턴, 관계, 시간에 따른 변화 | 요약값만 | 반드시 |
 | 모형 진단 (수렴, 잔차) | 판정 기준이 있으면 | 반드시 |
 
-- 표의 숫자는 반올림하지 않고 넘긴다. 앱과 Quarto 출력이 자리수를 정한다.
+- 표의 숫자는 반올림하지 않고 넘긴다. 앱과 Quarto 출력이 자리수를 정한다. 둘은 같은 규칙을 쓴다: 정수는 그대로, 절댓값 0.001 미만은 유효숫자 3자리 과학적 표기(`8.23e-26`), 나머지는 소수 셋째 자리(100 이상은 첫째 자리). 규칙은 `rsage:::format_cell()`과 `AnalysisPanel.tsx`의 `fmt()`에 있으니 함께 바꾼다.
+- 여러 모형의 행을 한 data.frame에 담은 표(계수, 항 검정처럼 모형마다 따로 읽는 표)는 `split = "model"`로 모형마다 독립된 표("회귀계수 · 주 모형")로 보인다. 모형끼리 견주는 표(적합도, 정보 기준 비교)는 나누지 않는다.
 - 비율 열은 이름에 단위를 쓴다(`결측 비율(%)`).
 - 그림 크기는 직접 정하지 않고 내용으로 정한다: `rsage::rs_figure_size(panels, x_items, y_items, label_chars, aspect, legend)`. 상한을 넘으면 `compact = TRUE`가 오므로 더 조밀한 그림(예: 소형 다중 그림 대신 색 지도)으로 바꾼다. [그림 크기 규칙](analysis-modules-strategy.md#그림-크기-규칙-모든-모듈) 참고.
 - 그림의 범례와 축 이름은 한국어로 바꾼다(백엔드 그림이 영어 범례를 쓰면 `scale_*_manual(labels = ...)`).
