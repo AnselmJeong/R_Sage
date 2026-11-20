@@ -104,7 +104,7 @@ term_tests <- function(fits, o, terms, prep) {
   c(notes, list(rsage::rs_table("termTests", "항 검정", t[cols],
     labels = c(model = "모형", term = "항", removed = "함께 뺀 항", test = "검정", df = "df", statistic = "통계량", p = "p",
                delta_r2 = "ΔR² (준부분)", partial_r2 = "부분 R²"),
-    notes = how, section = "계수와 항 검정",
+    notes = how, section = "계수와 항 검정", split = "model",
     description = "범주 변수처럼 계수가 여러 개인 항 전체가 결과를 설명하는 데 기여하는지 묻습니다. 개별 계수의 p값과는 다른 가설입니다. ΔR²는 그 항을 빼면 줄어드는 설명력, 부분 R²는 다른 항이 설명하지 못한 부분 중 그 항이 설명하는 비율입니다.")))
 }
 
