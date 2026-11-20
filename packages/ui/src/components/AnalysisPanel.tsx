@@ -911,6 +911,10 @@ function resultSections(result: AnalysisResult) {
     .filter((s) => s.tables.length || s.plots.length);
 }
 
+/**
+ * How a table cell is shown. format_cell() in r-packages/rsage/R/result.R
+ * formats Quarto output the same way; keep the two in step.
+ */
 function fmt(v: unknown, type: string): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "number") {
@@ -922,36 +926,55 @@ function fmt(v: unknown, type: string): string {
   return String(v);
 }
 
+/** The tables a result table is shown as: one, or one per value of its split column. */
+function tableParts(table: AnalysisTable): { title: string; columns: AnalysisTable["columns"]; rows: AnalysisTable["rows"] }[] {
+  const by = table.split;
+  if (!by || !table.columns.some((c) => c.id === by) || !table.rows.length) return [table];
+  const groups = new Map<string, AnalysisTable["rows"]>();
+  for (const r of table.rows) {
+    const k = r[by] === null || r[by] === undefined ? "" : String(r[by]);
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  }
+  const columns = table.columns.filter((c) => c.id !== by);
+  return [...groups].map(([k, rows]) => ({ title: groups.size > 1 && k ? `${table.title} · ${k}` : table.title, columns, rows }));
+}
+
 function ResultTable({ table }: { table: AnalysisTable }) {
   const numeric = useMemo(() => new Set(table.columns.filter((c) => c.type === "number" || c.type === "integer").map((c) => c.id)), [table]);
+  const parts = useMemo(() => tableParts(table), [table]);
   return (
     <section className="an-table">
       <h3>{table.title}</h3>
       {table.description && <p className="muted small an-read">{table.description}</p>}
-      <div className="an-table-scroll">
-        <table>
-          <thead>
-            <tr>
-              {table.columns.map((c) => (
-                <th key={c.id} className={numeric.has(c.id) ? "num" : ""}>
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((r, i) => (
-              <tr key={i}>
-                {table.columns.map((c) => (
-                  <td key={c.id} className={numeric.has(c.id) ? "num" : ""}>
-                    {fmt(r[c.id], c.type)}
-                  </td>
+      {parts.map((part, pi) => (
+        <div key={pi} className="an-table-part">
+          {parts.length > 1 && <h4>{part.title}</h4>}
+          <div className="an-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  {part.columns.map((c) => (
+                    <th key={c.id} className={numeric.has(c.id) ? "num" : ""}>
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {part.rows.map((r, i) => (
+                  <tr key={i}>
+                    {part.columns.map((c) => (
+                      <td key={c.id} className={numeric.has(c.id) ? "num" : ""}>
+                        {fmt(r[c.id], c.type)}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
       {table.notes.map((n, i) => (
         <p key={i} className="muted small an-table-note">
           {n}

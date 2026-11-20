@@ -3749,6 +3749,15 @@ label.check {
 .an-table-note {
   margin: 4px 0 0;
 }
+.an-table-part + .an-table-part {
+  margin-top: 12px;
+}
+.an-table-part h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin: 0 0 4px;
+}
 .an-plot {
   margin: 14px 0 18px;
 }
