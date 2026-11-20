@@ -5309,3 +5309,120 @@ input[type="checkbox"] {
   margin-left: auto;
   min-width: 0;
 }
+
+/* ---- visual editor chunk tools: drag handle, options, copy, delete, ⋯ ---- */
+.qv-cell {
+  position: relative;
+}
+.qv-cell-handle {
+  position: absolute;
+  left: -24px;
+  top: 6px;
+  width: 18px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm, 4px);
+  color: var(--fg-faint);
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.qv-cell:hover .qv-cell-handle,
+.qv-cell.selected .qv-cell-handle,
+.qv-cell.dragging .qv-cell-handle {
+  opacity: 1;
+}
+.qv-cell-handle:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.qv-grip-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.qv-cell-tools {
+  flex: none;
+  display: inline-flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.qv-cell:hover .qv-cell-tools,
+.qv-cell:focus-within .qv-cell-tools,
+.qv-cell.selected .qv-cell-tools,
+.qv-cell.tools-open .qv-cell-tools {
+  opacity: 1;
+}
+.qv-cell.dragging {
+  opacity: 0.45;
+}
+body.qv-dragging,
+body.qv-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+.qv-drop-line {
+  position: fixed;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 200;
+}
+.qv-cell.folded .qv-cell-code {
+  display: none;
+}
+.qv-cell-fold {
+  display: flex;
+  padding: 4px 12px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-faint);
+  cursor: pointer;
+  min-width: 0;
+}
+.qv-cell-fold:hover {
+  color: var(--fg);
+}
+.qv-cell-menu {
+  min-width: 190px;
+}
+.qv-cell-popup {
+  min-width: 250px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.qv-opts {
+  display: grid;
+  gap: 5px;
+}
+.qv-opt {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.qv-opt > span {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+.qv-opt select,
+.qv-opt input {
+  min-width: 0;
+  height: 24px;
+  font-size: 12px;
+}
+.qv-opt-note {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--fg-faint);
+}
+.qv-cell-label {
+  white-space: nowrap;
+}

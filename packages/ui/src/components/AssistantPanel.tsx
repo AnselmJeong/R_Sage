@@ -175,6 +175,20 @@ function Composer({ disabled, running }: { disabled: boolean; running: boolean }
   useEffect(() => {
     (window as any).__rsageAssistantFocus = () => taRef.current?.focus();
   }, []);
+  // Text handed over from elsewhere (a chunk's "어시스턴트에게 묻기"): put it in the box and let the user finish it.
+  const draft = useAssistant((s) => s.draft);
+  useEffect(() => {
+    if (draft === undefined) return;
+    useAssistant.setState({ draft: undefined });
+    setText((t) => (t.trim() ? `${t.trimEnd()}\n\n${draft}` : draft));
+    setTimeout(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      ta.scrollTop = ta.scrollHeight;
+    }, 0);
+  }, [draft]);
   // The project's files are listed when the user first types @, and again after a project change.
   useEffect(() => setFiles(null), [project?.path]);
   useEffect(() => {
